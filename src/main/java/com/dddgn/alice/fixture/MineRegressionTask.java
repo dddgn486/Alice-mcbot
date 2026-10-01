@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -456,7 +456,7 @@ public final class MineRegressionTask implements Task {
             }
             mineTask = new MineTask(bot, current.target(), scope, budget,
                     execProfile,
-                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
             // **顺序（2026-09-11 修正 / D-119 再修正）**：补镐 → 构造 MineTask → 补一次性方块
             // → **再采基线**。原实现把补料放在基线之后，于是"补了多少圆石"直接进了 inventoryDelta
             // （bot 手头圆石 <8 时就会漂移）⇒ 精确计数根本不是一个不变量。
@@ -760,7 +760,7 @@ public final class MineRegressionTask implements Task {
             latchStep = new MineStep(bot, current.target(),
                     MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), false),
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED,
-                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
             latchPhase = 0;
             latchFirst = "-";
             latchSecond = "-";

@@ -259,13 +259,13 @@ public class CraftFurnaceCheckTask implements Task {
      * 能拒它的只有预算耗尽，那必须如实上报（不许绕过）。
      */
     /** 容器写入的授权对象（与 {@link #allowContainerWrite} **同一份口径**）—— 供写入原语做编译期强制（T1/R-5）。 */
-    private com.dddgn.alice.write.WriteGrant containerGrant() {
-        return com.dddgn.alice.write.WriteGrant.of(
+    private com.dddgn.alice.write.Attribution containerGrant() {
+        return com.dddgn.alice.write.Attribution.of(
                 taskName(), com.dddgn.alice.write.WriteReason.CONTAINER_TRANSFER);
     }
 
     private boolean allowContainerWrite(String what) {
-        com.dddgn.alice.write.WriteGrant grant = containerGrant();
+        com.dddgn.alice.write.Attribution grant = containerGrant();
         com.dddgn.alice.write.WriteBudget.Verdict verdict =
                 com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot, furnace, grant);
         if (verdict == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {

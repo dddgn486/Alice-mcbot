@@ -1,6 +1,6 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
@@ -282,7 +282,7 @@ public final class ScaffoldLifecycleTask implements Task {
             // 追它=自己先跑下去，正好破坏"仍在顶上时拆除"的前提）
             miner = new MineTask(bot, TARGET, scope,
                     MiningBudget.forTarget(bot, bot.serverLevel(), TARGET, false),
-                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
             ticks = 0;
             return Task.Status.RUNNING;
         }

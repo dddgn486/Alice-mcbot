@@ -2,7 +2,7 @@ package com.dddgn.alice.action;
 
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -37,7 +37,7 @@ public final class BlockBreakSession {
      * ⭐ `RC3`/`RC4`：本次破坏的**授权**（可以为 null —— 夹具直接开会话时没有 grant）。
      * 两个用途：① `RC3` 记"不可逆"时的**归因**；② `RC4` **退回扣账**时判断这是不是免额扣账。
      */
-    private final WriteGrant grant;
+    private final Attribution grant;
     /** ⭐ `RC4`：这笔破坏的预算扣账是否已退回（`fail(...)` 只许退一次）。 */
     private boolean refunded;
 
@@ -49,7 +49,7 @@ public final class BlockBreakSession {
     private Direction face = Direction.UP;
 
     private BlockBreakSession(ServerPlayer bot, ServerLevel level, BlockPos pos, int maxTicks,
-                              WriteGrant grant) {
+                              Attribution grant) {
         this.bot = bot;
         this.level = level;
         this.pos = pos.immutable();
@@ -68,7 +68,7 @@ public final class BlockBreakSession {
 
     /** ⭐ `RC3`：带**归因**开会话（生产路径用这个 ⇒ 不可逆写入能追到是谁授权的）。 */
     public static BlockBreakSession begin(ServerPlayer bot, ServerLevel level, BlockPos pos,
-                                          WriteGrant grant) {
+                                          Attribution grant) {
         return new BlockBreakSession(bot, level, pos, MAX_BREAK_TICKS, grant);
     }
 

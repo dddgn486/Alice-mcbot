@@ -615,7 +615,7 @@ public final class CollectStep implements Step {
                 nearest.getUUID(), nearest.blockPosition().toShortString(),
                 bot.blockPosition().toShortString(), gainSteps + 1, gainProfile.maxGainSteps());
         gainRunner = new GainStepRunner(bot, gainProfile,
-                com.dddgn.alice.write.WriteGrant.of("collect-drops",
+                com.dddgn.alice.write.Attribution.of("collect-drops",
                         com.dddgn.alice.write.WriteReason.STEP_PLACEMENT));
         return true;
     }

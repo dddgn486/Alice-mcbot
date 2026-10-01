@@ -1,7 +1,7 @@
 package com.dddgn.alice.road;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import net.minecraft.core.BlockPos;
@@ -23,8 +23,8 @@ import java.util.Set;
 public final class RoadBuilder {
 
     /** 道路施工的授权身份（D-082）。 */
-    private static final WriteGrant BULK_GRANT =
-            WriteGrant.of("road-builder", WriteReason.BULK_EDIT);
+    private static final Attribution BULK_GRANT =
+            Attribution.of("road-builder", WriteReason.BULK_EDIT);
     private static final RoadBuilder INSTANCE = new RoadBuilder();
     private RoadPlan plan;
     private ServerLevel level;

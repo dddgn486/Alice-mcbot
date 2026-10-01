@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.movement;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
@@ -71,7 +71,7 @@ public final class BreakAndTraverseExecutionFactory implements MovementExecution
         }
         for (BlockPos blocker : blockers) {
             String refusal = BlockInteraction.breakRefusal(context.bot(), context.level(), blocker,
-                    WriteGrant.of(context.requester(), WriteReason.PATH_ACCESS));
+                    Attribution.of(context.requester(), WriteReason.PATH_ACCESS));
             if (refusal != null) {
                 if ("unbreakable_block".equals(refusal)) {
                     return ValidationResult.invalid("BREAK_BLOCK_UNBREAKABLE");

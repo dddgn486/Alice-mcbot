@@ -84,7 +84,8 @@ MIN_LINES = 200
 #: 实测（2026-09-27，`5b` 刀② 后）：`MineTask 48` · `CollectDropsTask 26`。
 MIN_METHODS = 20
 
-#: 额度词：**标识符里含**这些子串（不分大小写）⇒ `MiningBudget` / `WriteGrant` / `clearBudget` 都算。
+#: 额度词：**标识符里含**这些子串（不分大小写）⇒ `MiningBudget` / `Quota` / `clearBudget` 都算。
+#: ⚠️ 2026-10-01 刀 4：`WriteGrant` 已改名 `Attribution` ⇒ 它**不再**命中本口径（`grant` 子串没了）。
 BUDGET_SUBSTR = re.compile(r"(budget|grant|quota|额度)", re.I)
 #: 禁令② 的探针（`plan §2.2`）：`Phase` 与这些词**同行**。
 PHASE_WORD = re.compile(r"(budget|grant|quota|completed)", re.I)
@@ -283,8 +284,11 @@ SELFTEST_ENUM: list[tuple[str, str, int | None]] = [
 ]
 SELFTEST_CODE: list[tuple[str, str, str, object]] = [    ("注释里的额度词**不计**", "budget", "    // budget grant quota\n    int x = 1;\n", 0),
     ("字符串字面量里的额度词**不计**", "budget", '    String s = "grant budget";\n', 0),
-    ("代码里的 `MiningBudget` / `WriteGrant` **计**（按子串）", "budget",
-     "    MiningBudget b = null;\n    WriteGrant g = null;\n", 2),
+    # ⚠️ 2026-10-01 刀 4：这里原来用 `WriteGrant` 当第二个词；它**改名成 `Attribution`** 之后
+    # **不再含** `grant` 子串 ⇒ 本臂当场红（`D-462` 那类"同步表"的又一次现场）。
+    # ⭐ 换成 `Quota`（`WriteBudget` 的**下一个名字**）—— 它含 `quota` ⇒ 口径命中，且更贴将来。
+    ("代码里的 `MiningBudget` / `Quota` **计**（按子串）", "budget",
+     "    MiningBudget b = null;\n    Quota q = null;\n", 2),
     ("成员位置的 `MineTask(` ⇒ 算构造器", "ctors", "    public MineTask(int a) {}\n", 1),
     ("`new MineTask(` ⇒ **不算**构造器", "ctors", "        var t = new MineTask(a);\n", 0),
     ("成员签名行 ⇒ 算 1 个方法", "methods", "    public Status tick() {\n", 1),

@@ -1,7 +1,7 @@
 package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
@@ -113,7 +113,7 @@ public final class StationPlacement {
         if (wanted == null) {
             return new Outcome(false, Codes.PLACE_FAILED, spot);
         }
-        WriteGrant grant = WriteGrant.of("craft-station", WriteReason.CRAFT_STATION_PLACE);
+        Attribution grant = Attribution.of("craft-station", WriteReason.CRAFT_STATION_PLACE);
         // **必须用"放指定方块"的重载**：通用重载是"放一个一次性方块"的语义（白名单 + 自己换主手），
         // 2026-09-13 实测就是它在我们手里挑中了背包里的圆石 ⇒ 放出去的是圆石不是工作台。
         BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, spot, false, grant, wanted);

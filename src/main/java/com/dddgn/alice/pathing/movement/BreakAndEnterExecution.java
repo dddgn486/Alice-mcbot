@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.movement;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
@@ -45,7 +45,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
     private final CompletionTolerance tolerance;
     private final List<BlockPos> blockers;
     /** 授权身份（来自 LiveExecutionContext，D-082）：破坏记账用。 */
-    private final WriteGrant grant;
+    private final Attribution grant;
 
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
@@ -60,7 +60,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
-        this.grant = WriteGrant.of(context.requester(), WriteReason.PATH_ACCESS);
+        this.grant = Attribution.of(context.requester(), WriteReason.PATH_ACCESS);
         this.blockers = new ArrayList<>(collectBlockers(level, spec.fromFoot(), spec.toFoot()));
     }
 

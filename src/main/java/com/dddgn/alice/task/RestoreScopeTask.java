@@ -2,7 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.log.BotLog;
@@ -449,7 +449,7 @@ public final class RestoreScopeTask implements Task {
         miner = new MineTask(bot, current, scope,
                 MiningBudget.forTarget(bot, bot.serverLevel(), current, false),
                 true,
-                WriteGrant.of(taskName(), WriteReason.SCAFFOLD_RESTORE));
+                Attribution.of(taskName(), WriteReason.SCAFFOLD_RESTORE));
         return Task.Status.RUNNING;
     }
 

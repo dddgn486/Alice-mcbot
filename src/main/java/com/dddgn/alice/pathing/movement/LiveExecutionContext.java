@@ -1,6 +1,6 @@
 package com.dddgn.alice.pathing.movement;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -27,7 +27,7 @@ public record LiveExecutionContext(
             throw new IllegalArgumentException("revisions must be non-negative");
         }
         tolerance = tolerance == null ? CompletionTolerance.EXACT : tolerance;
-        requester = (requester == null || requester.isBlank()) ? WriteGrant.UNKNOWN : requester;
+        requester = (requester == null || requester.isBlank()) ? Attribution.UNKNOWN : requester;
     }
 
 }

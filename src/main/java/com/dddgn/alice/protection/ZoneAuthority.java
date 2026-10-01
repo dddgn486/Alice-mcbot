@@ -21,7 +21,7 @@ import java.util.UUID;
  *   <li>{@link Verdict#NOT_GATED}：**该区块未认领** ⇒ 这里**不管**（野外由成本模型 + 维生 + 只读审计治理，
  *       `D-327` 场所化）；</li>
  *   <li>{@link Verdict#ALLOW}：**任务区**覆盖了这一格，且等级够 ⇒ **放行**；
- *       ⚠️ 放行**不等于**免检：调用方仍要走既有的 `WriteGrant`（谁/为什么）+ `WriteBudget`（几次）+ 账本（`TEMP`/`KEEP`）；</li>
+ *       ⚠️ 放行**不等于**免检：调用方仍要走既有的 `Attribution`（谁/为什么）+ `WriteBudget`（几次）+ 账本（`TEMP`/`KEEP`）；</li>
  *   <li>{@link Verdict#DENY}：拒绝 + **可归因的码**。</li>
  * </ul>
  *

@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -113,7 +113,7 @@ public final class PlaceTask implements Task {
             return Status.FAILED;
         }
         BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, target, false,
-                WriteGrant.of(taskName(), WriteReason.STEP_PLACEMENT));
+                Attribution.of(taskName(), WriteReason.STEP_PLACEMENT));
         if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
             failure = com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE;
             BotLog.warn("[PlaceTask] place_refused_budget target={} {}", target.toShortString(),

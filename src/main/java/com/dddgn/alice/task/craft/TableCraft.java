@@ -116,7 +116,7 @@ public final class TableCraft {
         InventoryCraft.ProductCounter counter = item ->
                 StationProvision.countLandedProduct(bot.containerMenu, bot, item, discovery.spec());
         InventoryCraft.Result crafted = InventoryCraft.craft(bot, bot.containerMenu, recipe, count,
-                discovery.spec(), counter, com.dddgn.alice.write.WriteGrant.of("table-craft", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
+                discovery.spec(), counter, com.dddgn.alice.write.Attribution.of("table-craft", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
         session.close("craft_done");
         if (!crafted.ok()) {
             BotLog.warn("[TableCraft] 合成失败 table={} code={} {}", table.toShortString(),

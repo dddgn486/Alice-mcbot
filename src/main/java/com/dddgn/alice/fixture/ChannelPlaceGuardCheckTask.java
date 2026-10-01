@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.write.TaskTargetProtection;
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
@@ -291,7 +291,7 @@ public final class ChannelPlaceGuardCheckTask implements Task {
         // ⚠️ `placeAt` 里那道闸门排在触及检查（`reachable`）**之前** ⇒ 本条断言不依赖 bot 站位。
         BlockState stateBefore = level.getBlockState(blocked);
         BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, blocked, false,
-                WriteGrant.of(taskName(), WriteReason.STEP_PLACEMENT));
+                Attribution.of(taskName(), WriteReason.STEP_PLACEMENT));
         BlockState stateAfter = level.getBlockState(blocked);
         findings.add("C:placeResult=" + result + " worldChanged=" + (stateBefore != stateAfter));
         check("⭐ C：执行层最后一道闸门拒绝（期望 CHANNEL_DENIED，实际 " + result + "）"

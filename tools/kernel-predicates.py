@@ -1218,7 +1218,7 @@ def rule_search_limit_not_unreachable():
         if "session.truncated()" not in body:
             problems.append("`shortfall` 没有把 `session.truncated()` 接进去"
                             "（没接线 ⇒ 分片被预算截断这件事永远报不出去）")
-        if "new MineTask(" in body or "WriteGrant" in body:
+        if "new MineTask(" in body or "Attribution" in body:
             problems.append("`shortfall`（配额未达成的收尾）里出现了挖掘子任务/写授权 ⇒ S3 红线（不得『挖过去』）")
 
     fin = method_body(src, "private void finish(ServerLevel level) {")

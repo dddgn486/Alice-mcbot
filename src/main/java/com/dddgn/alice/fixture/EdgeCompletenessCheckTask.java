@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -343,7 +343,7 @@ public final class EdgeCompletenessCheckTask implements Task {
     private boolean breakable(MovementContext context, List<BlockPos> blockers) {
         for (BlockPos blocker : blockers) {
             if (context.bot() == null || !BlockInteraction.breakable(context.bot(), context.level(), blocker,
-                    WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
+                    Attribution.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return false;
             }
         }

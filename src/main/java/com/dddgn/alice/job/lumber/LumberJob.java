@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.lumber;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
@@ -474,7 +474,7 @@ public final class LumberJob implements Job {
             MiningProfile profile = TARGET_PROFILE.withClear(MAX_CLEAR_PER_TREE - clearedThisTree);
             miner = new MineTask(bot, log, scope,
                     MiningBudget.forTarget(bot, bot.serverLevel(), log, false), profile,
-                    WriteGrant.of(jobName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(jobName(), WriteReason.EXPECTED_TARGET));
             return Task.Status.RUNNING;
         }
 

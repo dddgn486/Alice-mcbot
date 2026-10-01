@@ -9,7 +9,7 @@ import com.dddgn.alice.reach.MiningTuning;
 // ⭐ `4a` 柱②（用户 2026-09-29 裁 `N3`）：`Step` = **原语注册口**（接口即注册）
 // ⇒ 本类实现它之后，`tools/check-task-orchestration-split.py` 的判据从"逐类写死路径"改成**自动枚举**。
 import com.dddgn.alice.task.Step;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
@@ -122,7 +122,7 @@ public final class MineStep implements Step {
     private final BlockPos target;
     private final MiningBudget budget;
     private final MiningProfile profile;
-    private final WriteGrant grant;
+    private final Attribution grant;
 
     private final MiningPlanner miningPlanner = new MiningPlanner();
 
@@ -145,7 +145,7 @@ public final class MineStep implements Step {
 
     /**
      * <p>⚠️ **没有 `ScopeBuffer`**（`D-466` §六 的草案里有）：原语的职责是"计划 + 执行 + 单格结论"，
-     * 收集/建拆都在编排侧，而 `MineBlockRunner` 只吃 `{@link WriteGrant}` ⇒ 那个形参**一个消费者都没有**。
+     * 收集/建拆都在编排侧，而 `MineBlockRunner` 只吃 `{@link Attribution}` ⇒ 那个形参**一个消费者都没有**。
      * 按实现期调整落成 5 参（`D-470`）。
      *
      * @param bot     执行者（必须是 {@link BotPlayer}，见 {@link #startExecution(boolean)}）
@@ -155,7 +155,7 @@ public final class MineStep implements Step {
      * @param grant   世界写入授权（`D-082`）
      */
     public MineStep(ServerPlayer bot, BlockPos target, MiningBudget budget,
-                    MiningProfile profile, WriteGrant grant) {
+                    MiningProfile profile, Attribution grant) {
         this.bot = bot;
         this.target = target;
         this.budget = budget;

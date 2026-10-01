@@ -939,7 +939,7 @@ com.dddgn.alice.pathing.MovementHelper
                             + "（放置预算**未被消耗**：校验已在扣账之前）", spot.toShortString());
             return null;
         }
-        var grant = com.dddgn.alice.write.WriteGrant.of(jobName(),
+        var grant = com.dddgn.alice.write.Attribution.of(jobName(),
                 com.dddgn.alice.write.WriteReason.REGION_REPLANT);
         var verdict = com.dddgn.alice.write.WriteBudget.consumePlace(bot, level, spot, grant);
         if (verdict == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {

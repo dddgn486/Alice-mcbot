@@ -270,7 +270,7 @@ public class CraftStationCraftCheckTask implements Task {
         int furnaceBeforeCraft = totalCount(Items.FURNACE);
 
         InventoryCraft.Result primitive = InventoryCraft.craft(bot, menu, recipe, 1, spec,
-                com.dddgn.alice.write.WriteGrant.of("station-craft-check", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
+                com.dddgn.alice.write.Attribution.of("station-craft-check", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
         primitiveVerdict = primitive.describe();
         record("primitive_verdict", primitiveVerdict);
 

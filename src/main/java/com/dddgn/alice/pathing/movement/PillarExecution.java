@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.movement;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -41,7 +41,7 @@ import com.dddgn.alice.pathing.calc.CompletionTolerance;
 public final class PillarExecution implements MovementExecution {
 
     /** 放置授权（D-082）。 */
-    private final WriteGrant grant;
+    private final Attribution grant;
     /** 水平居中阈值（Baritone `MovementPillar:196` 的 0.17）。 */
     private static final double CENTER_TOLERANCE = 0.17D;
     /** 允许放置的脚部高度：目标格顶面 + 0.1（Baritone `MovementPillar:227`）。 */
@@ -76,7 +76,7 @@ public final class PillarExecution implements MovementExecution {
     private boolean swimLogged;
 
     PillarExecution(MovementSpec spec, LiveExecutionContext context) {
-        this.grant = WriteGrant.of(context.requester(), WriteReason.STEP_PLACEMENT);
+        this.grant = Attribution.of(context.requester(), WriteReason.STEP_PLACEMENT);
         this.spec = Objects.requireNonNull(spec, "spec");
         this.bot = requireBot(context.bot());
         this.level = Objects.requireNonNull(context.level(), "level");

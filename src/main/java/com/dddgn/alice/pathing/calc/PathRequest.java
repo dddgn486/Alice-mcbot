@@ -118,7 +118,7 @@ public record PathRequest(
      * <ol>
      *   <li><b>显式授权</b>：本工厂构造时经 `PathRequest` 唯一构造点自动 `WriteEnvelopes.note`
      *       （写世界的信封是**推导出来的**，不靠维护名单）；放置的归因取调用方持有的
-     *       `WriteGrant`（用完即还，不新增凭证类型）；</li>
+     *       `Attribution`（用完即还，不新增凭证类型）；</li>
      *   <li><b>预算</b>：放置仍有执行期写入预算（`PlaceResult.BUDGET_EXHAUSTED`，`D-106`），
      *       ⭐ 但调用方**还应自己设一个上限**（例如鱼骨按形状推导"每 10 个单元 1 块"），
      *       用完就**如实降级回纯通行** —— 不许无限搭桥。</li>

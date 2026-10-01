@@ -26,7 +26,7 @@ public final class WriteAudit {
     private static final int MAX_ENTRIES = 512;
 
     /** 单条写入记录。 */
-    public record Entry(long tick, String action, BlockPos pos, String block, WriteGrant grant) {
+    public record Entry(long tick, String action, BlockPos pos, String block, Attribution grant) {
         public String describe() {
             return action + " " + pos.toShortString() + " " + block + " by=" + grant.describe();
         }
@@ -41,21 +41,21 @@ public final class WriteAudit {
     }
 
     /** 登记一次破坏。 */
-    public static void breakWrite(ServerLevel level, BlockPos pos, BlockState state, WriteGrant grant) {
+    public static void breakWrite(ServerLevel level, BlockPos pos, BlockState state, Attribution grant) {
         breaks++;
         record(new Entry(level.getGameTime(), "break", pos.immutable(),
                 String.valueOf(BuiltInRegistries.BLOCK.getKey(state.getBlock())), grant));
     }
 
     /** 登记一次放置。 */
-    public static void placeWrite(ServerLevel level, BlockPos pos, BlockState state, WriteGrant grant) {
+    public static void placeWrite(ServerLevel level, BlockPos pos, BlockState state, Attribution grant) {
         places++;
         record(new Entry(level.getGameTime(), "place", pos.immutable(),
                 String.valueOf(BuiltInRegistries.BLOCK.getKey(state.getBlock())), grant));
     }
 
     private static void record(Entry entry) {
-        if (WriteGrant.UNKNOWN.equals(entry.grant().requester())) {
+        if (Attribution.UNKNOWN.equals(entry.grant().requester())) {
             unknownRequester++;
         }
         synchronized (ENTRIES) {

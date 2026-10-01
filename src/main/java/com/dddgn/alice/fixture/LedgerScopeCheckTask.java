@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
@@ -440,8 +440,8 @@ public final class LedgerScopeCheckTask implements Task {
      * 写入授权。requester **必须含派生前缀**（`check/probe/dump/diagnostic/regression/battery/demo`
      * —— 见 `tools/policy-map.py`），否则 `check-policy-matrix` 会报"未登记的 requester 字面量"。
      */
-    private static WriteGrant grant() {
-        return WriteGrant.of("check:ledger-zone", WriteReason.STEP_PLACEMENT);
+    private static Attribution grant() {
+        return Attribution.of("check:ledger-zone", WriteReason.STEP_PLACEMENT);
     }
 
     /** 把 bot 放回场景起点（每次放置前调用 ⇒ 不依赖上一步把它留在哪）。 */

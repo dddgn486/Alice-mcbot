@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.protection.BlockBreakSafety;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import net.minecraft.core.BlockPos;
@@ -305,8 +305,8 @@ public final class BreakHazardCheckTask implements Task {
                 BlockBreakSafety.hazardRefusal(level, GRAVEL_ABOVE) == null);
 
         // ---- ⭐ 公共入口：搜索与执行走的那一口必须得到同一个码 ----
-        WriteGrant path = WriteGrant.of(taskName(), WriteReason.PATH_ACCESS);
-        WriteGrant target = WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET);
+        Attribution path = Attribution.of(taskName(), WriteReason.PATH_ACCESS);
+        Attribution target = Attribution.of(taskName(), WriteReason.EXPECTED_TARGET);
         check("⭐ 公共入口（清障面）：`breakRefusal(PATH_ACCESS)` 冰 ⇒ `ice_clearing_block`（实测 "
                         + BlockInteraction.breakRefusal(bot, level, ICE, path) + "）",
                 "ice_clearing_block".equals(BlockInteraction.breakRefusal(bot, level, ICE, path)));

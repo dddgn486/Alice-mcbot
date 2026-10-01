@@ -22,7 +22,7 @@ package com.dddgn.alice.reach;
  * `MiningProfile` 现在**引用**本类（`task/` → `reach/` 是合法方向），字段名与访问器名都没动。
  *
  * <p>⚠️ **它不是我"授权本体"**：真正的授权来源是**作业级声明**（`D-500` §IV），
- * 本枚举只是"这次接近**申请**什么能力"的那一半；允许与否仍要过 `WriteGrant`/预算闸门。
+ * 本枚举只是"这次接近**申请**什么能力"的那一半；允许与否仍要过 `Attribution`/预算闸门。
  */
 public enum ApproachCapability {
     /** 只走，不改世界（`D-076` 默认；`PathRequest.of`）。 */

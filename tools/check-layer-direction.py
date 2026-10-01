@@ -7,7 +7,7 @@
 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就在这里：
 
     action/MineBlockRunner → task/mining/{StandingPointSelector, LineOfSightChecker, ReachPlan}   ← 历史（`step 3a`/`D-460` 已搬到 `reach/`）
-    task/**                → action/{WriteGrant, WriteBudget, BlockInteraction, …}
+    task/**                → action/{Attribution, WriteBudget, BlockInteraction, …}
 
 ⇒ 微操作**反过来**依赖比它高一层的原语 ⇒ `action/` 自己的边界「不许编排」**没有可执行判据**
 （谁都能往 `task/` 里伸手，而分层只在文档里）。
@@ -24,10 +24,10 @@
 
 `action/` 的 12 个文件本来就**干净地分成两半**：**6 个微操作**（`BlockBreakSession` ·
 `BlockInteraction` · `ContainerSemantics` · `MenuCodes` · `MenuSession` · `MineBlockRunner`）
-与 **6 个写入治理**（`TaskTargetProtection` · `WriteAudit` · `WriteBudget` · `WriteGrant` ·
+与 **6 个写入治理**（`TaskTargetProtection` · `WriteAudit` · `WriteBudget` · `Attribution` ·
 `WritePolicyMatrix` · `WriteReason`）。拆包后方向变成**单向**：
 
-    action/mining/MineBlockRunner → write/WriteGrant ✅ 允许（执行件调授权）
+    action/mining/MineBlockRunner → write/Attribution ✅ 允许（执行件调授权）
     write/**               → action/BlockInteraction ⛔ 禁止（写入治理不许认识调用它的人）
 
 ⚠️ **本刀不解循环**：`action ↔ pathing` 那个包级环来自**微操作** `MineBlockRunner`，
@@ -47,7 +47,7 @@
    `com.dddgn.alice.{task, action, job}` 的 import ⇒ 红。
    ⭐ 方向性断言：**`action/` → `write/` 是允许的**（微操作调授权），**反过来禁止**。
 4. **6 个写入治理类只许定义在 `write/`**（`step 4` 的**实现**判据）：`action/` 里再出现
-   `{TaskTargetProtection, WriteAudit, WriteBudget, WriteGrant, WritePolicyMatrix, WriteReason}.java`
+   `{TaskTargetProtection, WriteAudit, WriteBudget, Attribution, WritePolicyMatrix, WriteReason}.java`
    ⇒ 红；且这 6 个文件必须**都**在 `write/` 里（否则"拆包"可以是"删掉"）。
 5. **人口下限**（防"把包搬空 ⇒ 门禁假绿"）：扫描 `.java` ≥ `MIN_SCANNED_FILES` ·
    `reach/` ≥ `MIN_REACH_FILES` · `action/` ≥ `MIN_ACTION_FILES` · `write/` ≥ `MIN_WRITE_FILES`。
@@ -76,8 +76,8 @@
 `job/` import `debug/`（红）· ⭐ `bot/`（**刀 2 起不再是注册位置**）import `debug/`（**红** —— 断言**收窄**）· `debug/`（`D-560` 起是**开发期桶**）import `fixture/`（**绿**）·
 ⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/`（**红** —— 断言由 `debug/` **搬家**到此，净效果**收窄**）·
 ⭐ `task/` 的**生产类**在**代码里**用 `fixture/`（红）· ⭐ `task/FixtureScript` 的**纯 javadoc/import**（绿））。
-另 3 条**定义**臂：`action/WriteGrant.java`（红）· `action/mining/MineBlockRunner.java`（绿）·
-`write/WriteGrant.java`（绿）。
+另 3 条**定义**臂：`action/Attribution.java`（红）· `action/mining/MineBlockRunner.java`（绿）·
+`write/Attribution.java`（绿）。
 
 跑法：`python3 tools/check-layer-direction.py`（已挂在 `tools/check-all.sh`）。
 """
@@ -102,7 +102,7 @@ WRITE_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddg
 
 #: `step 4`（`D-462`）搬出 `action/` 的 6 个写入治理类 —— 它们**只许**定义在 `write/` 下。
 WRITE_GOVERNANCE = ("TaskTargetProtection", "WriteAudit", "WriteBudget",
-                    "WriteGrant", "WritePolicyMatrix", "WriteReason")
+                    "Attribution", "WritePolicyMatrix", "WriteReason")
 
 #: ⭐ **刀 3**（`D-566`，2026-10-01）：`§8` 步 2 从 `protection/` **原样搬进** `region/` 的 3 个类
 #: （`JobAreaRegistry` · `ProtectionClaimService`→`ClaimService` · `ProtectionMapGeometry`→`MapGeometry`）。
@@ -366,7 +366,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      "import com.dddgn.alice.pathing.MovementHelper;\nimport com.dddgn.alice.log.BotLog;", False),
     ("`action/` import `action` 自己 ⇒ 绿",
      _MB,
-     "import com.dddgn.alice.action.WriteGrant;", False),
+     "import com.dddgn.alice.action.Attribution;", False),
     # ---- `step 4`（`D-462`）新增 ----
     ("`write/` import `action`（调用它的微操作）⇒ 红（方向只许单向）",
      f"{PKG}/write/WriteBudget.java",
@@ -425,23 +425,23 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      f"{PKG}/task/FixtureScript.java",
      "class A {\n    // 曾经用过 com.dddgn.alice.fixture.mining.GainStepRunner\n}", False),
     ("`write/` import `job` ⇒ 红",
-     f"{PKG}/write/WriteGrant.java",
+     f"{PKG}/write/Attribution.java",
      "import com.dddgn.alice.job.lumber.LumberJob;", True),
     ("`write/` import `pathing` / `log`（更下层）⇒ 绿",
      f"{PKG}/write/WritePolicyMatrix.java",
      "import com.dddgn.alice.pathing.calc.PathRequest;\nimport com.dddgn.alice.log.BotLog;", False),
     ("`action/` import `write/`（微操作调授权）⇒ 绿（`step 4` 后的**正确**方向）",
      _MB,
-     "import com.dddgn.alice.write.WriteGrant;", False),
+     "import com.dddgn.alice.write.Attribution;", False),
 ]
 
 #: 「定义」类红臂：`(label, rel, 期望红)` —— 走 `scan_definition`，与 import 臂分开。
 SELFTEST_DEF_CASES: list[tuple[str, str, bool]] = [
-    ("`action/` 里又出现一份 `WriteGrant` 的定义 ⇒ 红", f"{PKG}/action/WriteGrant.java", True),
+    ("`action/` 里又出现一份 `Attribution` 的定义 ⇒ 红", f"{PKG}/action/Attribution.java", True),
     ("`action/mining/` 里的域执行件 `MineBlockRunner` ⇒ 绿（刀 1 之后它家在域子包）",
      f"{PKG}/action/mining/MineBlockRunner.java", False),
-    ("`write/` 里的 `WriteGrant` ⇒ 绿（`step 4` 之后它的家）",
-     f"{PKG}/write/WriteGrant.java", False),
+    ("`write/` 里的 `Attribution` ⇒ 绿（`step 4` 之后它的家）",
+     f"{PKG}/write/Attribution.java", False),
 ]
 
 

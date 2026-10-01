@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.mining.MineBlockRunner;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
@@ -236,7 +236,7 @@ public final class FallingPauseCheckTask implements Task {
                         + "（实际 " + plan.arrival() + "）",
                 plan.arrival() == ReachPlan.Arrival.IN_PLACE);
         runner = new MineBlockRunner(bot, plan,
-                WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         findings.add(label + ":plan=" + plan.arrival()
                 + " support=" + (plan.supportPlacementPos() == null ? "-"
                         : plan.supportPlacementPos().toShortString()));

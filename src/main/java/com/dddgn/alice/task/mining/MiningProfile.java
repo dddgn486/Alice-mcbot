@@ -16,7 +16,7 @@ import com.dddgn.alice.reach.ApproachCapability;
  * （J7 的"搭一格柱子加高"就是这么在两个调用点各实现了一遍）。
  *
  * <p>本对象把信封收成一处：**能力（白名单）+ 预算**，由 L3 显式构造、L2 只读消费。
- * 归因（谁/为什么）仍由 {@code WriteGrant} 承担——加高产生的放置用
+ * 归因（谁/为什么）仍由 {@code Attribution} 承担——加高产生的放置用
  * {@link #gainReason()}（默认 {@code STANDING_SPACE}：清障腾站位）派生，不新增凭证类型。
  *
  * <p>**默认即现状**：{@link #STANDABLE_ONLY} 与 {@link #TUNNEL_ALLOWED} 精确对应旧的两个布尔取值，
@@ -154,7 +154,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
         return maxGainSteps > 0;
     }
 
-    /** 加高产生的放置用的理由（归因串里的 requester 仍取自任务的 {@code WriteGrant}）。 */
+    /** 加高产生的放置用的理由（归因串里的 requester 仍取自任务的 {@code Attribution}）。 */
     public com.dddgn.alice.write.WriteReason gainReason() {
         return com.dddgn.alice.write.WriteReason.STANDING_SPACE;
     }

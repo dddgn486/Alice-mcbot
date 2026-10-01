@@ -5,7 +5,7 @@ import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.TaskTarget;
@@ -438,7 +438,7 @@ public final class CraftJob implements Job {
         InventoryCraft.ProductCounter counter =
                 item -> StationProvision.countLandedProduct(menu, bot, item, grid.spec());
         InventoryCraft.Result crafted = InventoryCraft.craft(bot, menu, recipe, count, grid.spec(), counter,
-                com.dddgn.alice.write.WriteGrant.of("craft-job", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
+                com.dddgn.alice.write.Attribution.of("craft-job", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
         BotLog.info("[CraftJob] craft {} → {}", grid.describe().substring(0, Math.min(60,
                 grid.describe().length())), crafted.describe());
         if (!crafted.ok()) {
@@ -460,12 +460,12 @@ public final class CraftJob implements Job {
      * 该行已声明 {@code CONTAINER_TRANSFER}）。
      */
     /** 容器写入的授权对象（与 {@link #allowContainerWrite} **同一份口径**）—— 供写入原语做编译期强制（T1/R-5）。 */
-    private WriteGrant containerGrant() {
-        return WriteGrant.of(NAME, WriteReason.CONTAINER_TRANSFER);
+    private Attribution containerGrant() {
+        return Attribution.of(NAME, WriteReason.CONTAINER_TRANSFER);
     }
 
     private boolean allowContainerWrite(String what) {
-        WriteGrant grant = containerGrant();
+        Attribution grant = containerGrant();
         BlockPos pos = opened == null ? null : opened.pos();
         if (WriteBudget.consumeContainerWrite(bot, pos, grant) == WriteBudget.Verdict.REFUSED) {
             BotLog.warn("[CraftJob] 容器写入被拒 what={} grant={} ⇒ 停止写入并如实失败", what, grant.describe());

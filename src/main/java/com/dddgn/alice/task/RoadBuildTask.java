@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.road.RoadPlan;
@@ -30,8 +30,8 @@ import java.util.Set;
 public final class RoadBuildTask implements Task {
 
     /** 道路施工的授权身份（D-082）。 */
-    private static final WriteGrant BULK_GRANT =
-            WriteGrant.of("road-build", WriteReason.BULK_EDIT);
+    private static final Attribution BULK_GRANT =
+            Attribution.of("road-build", WriteReason.BULK_EDIT);
     private enum Phase { BUILD_UNIT, WAIT_STABLE, MOVE_TO_NEXT_UNIT, MINE_TARGET, DONE }
 
     private static final int STABLE_WAIT_TICKS = 5;

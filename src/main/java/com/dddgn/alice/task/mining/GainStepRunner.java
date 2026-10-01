@@ -1,6 +1,6 @@
 package com.dddgn.alice.task.mining;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
@@ -28,12 +28,12 @@ public final class GainStepRunner {
 
     private final BotPlayer bot;
     private final MiningProfile profile;
-    private final WriteGrant grant;
+    private final Attribution grant;
     private PathRetryRunner runner;
     private String failure = "";
     private boolean planned;
 
-    public GainStepRunner(BotPlayer bot, MiningProfile profile, WriteGrant grant) {
+    public GainStepRunner(BotPlayer bot, MiningProfile profile, Attribution grant) {
         this.bot = bot;
         this.profile = profile;
         this.grant = grant;

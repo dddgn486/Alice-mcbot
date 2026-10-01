@@ -1,7 +1,7 @@
 package com.dddgn.alice.ledger;
 
 import com.dddgn.alice.action.ContainerSemantics;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
@@ -170,7 +170,7 @@ public final class WorldModLedger extends SavedData {
      *
      * @param previous 放置前该格的状态（用于精确恢复 + "只拆自己放的"比对）
      */
-    public static void recordPlacement(ServerLevel level, UUID owner, WriteGrant grant, BlockPos pos,
+    public static void recordPlacement(ServerLevel level, UUID owner, Attribution grant, BlockPos pos,
                                        BlockState previous, BlockState placed) {
         MinecraftServer server = level.getServer();
         if (server == null) {

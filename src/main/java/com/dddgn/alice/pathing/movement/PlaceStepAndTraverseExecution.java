@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.movement;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -27,7 +27,7 @@ import com.dddgn.alice.pathing.calc.CompletionTolerance;
  */
 public final class PlaceStepAndTraverseExecution implements MovementExecution {
     /** 放置授权（D-082）。 */
-    private final WriteGrant grant;   // NOSONAR: 构造器赋值
+    private final Attribution grant;   // NOSONAR: 构造器赋值
     private final MovementSpec spec;
     private final BotPlayer bot;
     private final ServerLevel level;
@@ -41,7 +41,7 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
     private boolean placed;
 
     PlaceStepAndTraverseExecution(MovementSpec spec, LiveExecutionContext context) {
-        this.grant = WriteGrant.of(context.requester(), WriteReason.STEP_PLACEMENT);
+        this.grant = Attribution.of(context.requester(), WriteReason.STEP_PLACEMENT);
         this.spec = Objects.requireNonNull(spec, "spec");
         this.bot = requireBot(context.bot());
         this.level = Objects.requireNonNull(context.level(), "level");

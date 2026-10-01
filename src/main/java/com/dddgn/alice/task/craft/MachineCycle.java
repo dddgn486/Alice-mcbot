@@ -2,7 +2,7 @@ package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
@@ -424,7 +424,7 @@ public final class MachineCycle {
 
     /** 容器写入授权；`false` ⇒ 已如实记 `container_write_refused` 并终态失败。 */
     private boolean allowContainerWrite(String what) {
-        WriteGrant grant = WriteGrant.of(spec.requester(), WriteReason.CONTAINER_TRANSFER);
+        Attribution grant = Attribution.of(spec.requester(), WriteReason.CONTAINER_TRANSFER);
         WriteBudget.Verdict verdict = WriteBudget.consumeContainerWrite(bot, machinePos, grant);
         sink.record(what + "_grant", verdict.name());
         if (verdict == WriteBudget.Verdict.REFUSED) {

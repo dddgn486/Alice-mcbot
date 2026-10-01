@@ -1,6 +1,6 @@
 package com.dddgn.alice.fixture;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
@@ -143,7 +143,7 @@ public class FluidMineCheckTask implements Task {
             inner = new MineTask(bot, TARGET_OVER_LAVA, scope,
                     MiningBudget.forTarget(bot, bot.serverLevel(), TARGET_OVER_LAVA, false),
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED,
-                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         }
         Status status = inner.tick();
         if (status == Status.RUNNING) {
@@ -167,7 +167,7 @@ public class FluidMineCheckTask implements Task {
             inner = new MineTask(bot, TARGET_NORMAL, scope,
                     MiningBudget.forTarget(bot, bot.serverLevel(), TARGET_NORMAL, false),
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED,
-                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         }
         Status status = inner.tick();
         if (status == Status.RUNNING) {
@@ -210,7 +210,7 @@ public class FluidMineCheckTask implements Task {
             inner = new MineTask(bot, target, scope,
                     MiningBudget.forTarget(bot, bot.serverLevel(), target, false),
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED,
-                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                    Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         }
         Status status = inner.tick();
         if (status == Status.RUNNING) {

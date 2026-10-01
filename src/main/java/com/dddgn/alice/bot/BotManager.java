@@ -1766,7 +1766,7 @@ public final class BotManager {
 com.dddgn.alice.task.mining.MiningBudget
                                     .forTarget(bot, bot.serverLevel(), newTarget.blockPos(), true),
                             com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
-                            com.dddgn.alice.write.WriteGrant.of("command",
+                            com.dddgn.alice.write.Attribution.of("command",
                                     com.dddgn.alice.write.WriteReason.EXPECTED_TARGET)), newTarget);
                 }
                 case ENTITY -> {

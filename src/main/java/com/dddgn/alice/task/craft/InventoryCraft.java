@@ -111,7 +111,7 @@ public final class InventoryCraft {
      * <p>调用方应先用 {@link RecipeQuery} 确认"料齐"，本方法**不做**选路决策。
      */
     public static Result craft(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int count,
-                               com.dddgn.alice.write.WriteGrant grant) {
+                               com.dddgn.alice.write.Attribution grant) {
         GridDiscovery.Result discovery = GridDiscovery.discover(menu, bot);
         if (!discovery.ok()) {
             BotLog.warn("[InventoryCraft] 认不出合成网格 ⇒ 拒绝（不猜下标）：{}", discovery.describe());
@@ -122,7 +122,7 @@ public final class InventoryCraft {
 
     /** 兼容重载：显式给规格 ⇒ 产物口径按**玩家背包**（原版站点）。 */
     public static Result craft(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int count,
-                               GridSpec spec, com.dddgn.alice.write.WriteGrant grant) {
+                               GridSpec spec, com.dddgn.alice.write.Attribution grant) {
         return craft(bot, menu, recipe, count, spec, playerInventoryCounter(bot), grant);
     }
 
@@ -133,7 +133,7 @@ public final class InventoryCraft {
      * 成功会被判成 `result_not_taken`（假失败）。
      */
     public static Result craft(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int count,
-                               GridSpec spec, ProductCounter counter, com.dddgn.alice.write.WriteGrant grant) {
+                               GridSpec spec, ProductCounter counter, com.dddgn.alice.write.Attribution grant) {
         if (!(recipe instanceof CraftingRecipe)) {
             return new Result(false, Codes.UNSUPPORTED_RECIPE, 0, 0, List.of());
         }
@@ -213,7 +213,7 @@ public final class InventoryCraft {
      *         "缺料"与"我们点不动"是两回事，混成一个码会把排查方向带偏（D-195 附注一就是这么白费了一个回合）。
      */
     private static String placeGrid(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int[] grid,
-                                    GridSpec spec, com.dddgn.alice.write.WriteGrant grant) {
+                                    GridSpec spec, com.dddgn.alice.write.Attribution grant) {
         List<Ingredient> ingredients = recipe.getIngredients();
         Inventory inventory = bot.getInventory();
         for (int cell = 0; cell < grid.length; cell++) {
@@ -249,7 +249,7 @@ public final class InventoryCraft {
 
     /** 把网格里的东西全部收回背包（失败清理 / 收尾）。 */
     private static void clearGrid(BotPlayer bot, AbstractContainerMenu menu, GridSpec spec,
-                                  com.dddgn.alice.write.WriteGrant grant) {
+                                  com.dddgn.alice.write.Attribution grant) {
         for (int cell = 0; cell < spec.gridSlots().length; cell++) {
             int gridSlot = spec.gridSlots()[cell];
             Slot gridCell = GridDiscovery.slotByAddress(menu, gridSlot);
@@ -282,7 +282,7 @@ public final class InventoryCraft {
     }
 
     private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int slot, ClickType type,
-                                 com.dddgn.alice.write.WriteGrant grant) {
+                                 com.dddgn.alice.write.Attribution grant) {
         return click(bot, menu, slot, type, 0, grant);
     }
 
@@ -296,12 +296,12 @@ public final class InventoryCraft {
      * ⇒ **地址的合法性由调用方用"发现出来的槽位集合"保证**（{@link GridDiscovery#scan}），这里只管协议。
      */
     private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int slot, ClickType type, int button,
-                                 com.dddgn.alice.write.WriteGrant grant) {
+                                 com.dddgn.alice.write.Attribution grant) {
         if (slot < 0) {
             return false;
         }
         // ⚠️ **R5-残 收口（2026-09-16）**：与 `FurnaceStation.click` 同一套**编译期强制** ——
-        // 调本原语必须显式交出 `WriteGrant`，且理由必须属于**菜单写入家族**（`WriteReason.menuWrite()`：
+        // 调本原语必须显式交出 `Attribution`，且理由必须属于**菜单写入家族**（`WriteReason.menuWrite()`：
         // 世界容器 `container()` 或合成网格 `CRAFT_GRID`）。原先"记账靠调用方自觉"⇒ 新增模组适配默认无理由。
         // **不在这里记账**（合成网格不吃容器写入预算；计数归调用方）。
         if (grant == null || !grant.reason().menuWrite()) {

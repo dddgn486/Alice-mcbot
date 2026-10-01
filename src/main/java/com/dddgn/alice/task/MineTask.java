@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.mining.MineBlockRunner;
 import com.dddgn.alice.action.mining.ChainMining;
 import com.dddgn.alice.bot.RecoveryStage;
@@ -105,7 +105,7 @@ public final class MineTask implements Task {
     private com.dddgn.alice.task.mining.GainStepRunner gainRunner;
     private MineTask gainClearer;
     /** 世界写入授权（D-082）。 */
-    private final WriteGrant grant;
+    private final Attribution grant;
 
     /**
      * ⭐ `1.4z`（2026-09-26）：**主动拾取清单**，透传给本任务自带的收集段
@@ -173,7 +173,7 @@ public final class MineTask implements Task {
 
     /** D-067 批次 3：`collectDrops` 为必要参数（false 时跳过放支撑块与收集）。 */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
-                    WriteGrant grant) {
+                    Attribution grant) {
         this(bot, target, scope, budget, false, grant);
     }
 
@@ -182,7 +182,7 @@ public final class MineTask implements Task {
      * @param grant        世界写入授权（D-082）：**调用点必须显式声明**"谁、为什么"挖这一格
      */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
-                    boolean standableOnly, WriteGrant grant) {
+                    boolean standableOnly, Attribution grant) {
         this(bot, target, scope, budget,
                 standableOnly ? MiningProfile.STANDABLE_ONLY : MiningProfile.TUNNEL_ALLOWED, grant);
     }
@@ -192,7 +192,7 @@ public final class MineTask implements Task {
      * 而不是散落的布尔与硬编码 Movement 集合。
      */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
-                    MiningProfile profile, WriteGrant grant) {
+                    MiningProfile profile, Attribution grant) {
         this(bot, target, scope, budget, profile, grant, null);
     }
 
@@ -205,7 +205,7 @@ public final class MineTask implements Task {
      * （{@link #enterCollection()}）是"这一格的落物"的收集入口 ⇒ 清单必须能从这里传下去。
      */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
-                    MiningProfile profile, WriteGrant grant,
+                    MiningProfile profile, Attribution grant,
                     java.util.function.Predicate<ItemStack> activePickup) {
         this.profile = profile;
         this.grant = grant;
@@ -855,7 +855,7 @@ public final class MineTask implements Task {
         BlockPos goal = foot.above();
         for (BlockPos cell : new BlockPos[]{goal, goal.above()}) {
             if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), cell)) {
-                WriteGrant clearGrant = grant.with(profile.gainReason());
+                Attribution clearGrant = grant.with(profile.gainReason());
                 if (!clearableForGain(cell, clearGrant)) {
                     return false;
                 }
@@ -881,7 +881,7 @@ public final class MineTask implements Task {
     }
 
     /** 加高时"能不能清掉挡住头顶的这一格"（与清障能力同一口径）。 */
-    private boolean clearableForGain(BlockPos pos, WriteGrant clearGrant) {
+    private boolean clearableForGain(BlockPos pos, Attribution clearGrant) {
         return com.dddgn.alice.task.mining.BlockerClearPlanner
                 .clearable(bot, bot.serverLevel(), pos, clearGrant);
     }

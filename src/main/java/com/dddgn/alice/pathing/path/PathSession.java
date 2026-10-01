@@ -1,6 +1,6 @@
 package com.dddgn.alice.pathing.path;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -493,7 +493,7 @@ public final class PathSession {
             }
             return level.getBlockState(to).isAir()
                     || com.dddgn.alice.action.BlockInteraction.breakable(bot, level, to,
-                            WriteGrant.of(request.requester(), WriteReason.DESCEND_FOOT));
+                            Attribution.of(request.requester(), WriteReason.DESCEND_FOOT));
         }
         if (movement.movementType() == com.dddgn.alice.pathing.calc.MovementType.BREAK_AND_ENTER) {
             // 目的地格由本段破坏产生：支撑仍在 + 目的地列仍可破坏（或已空）即有效
@@ -502,12 +502,12 @@ public final class PathSession {
             }
             if (!MovementHelper.canWalkThrough(level, to)
                     && !com.dddgn.alice.action.BlockInteraction.breakable(bot, level, to,
-                            WriteGrant.of(request.requester(), WriteReason.PATH_ACCESS))) {
+                            Attribution.of(request.requester(), WriteReason.PATH_ACCESS))) {
                 return false;
             }
             return MovementHelper.canWalkThrough(level, to.above())
                     || com.dddgn.alice.action.BlockInteraction.breakable(bot, level, to.above(),
-                            WriteGrant.of(request.requester(), WriteReason.PATH_ACCESS));
+                            Attribution.of(request.requester(), WriteReason.PATH_ACCESS));
         }
         if (!MovementHelper.canWalkThrough(level, to)
                 || !MovementHelper.canWalkThrough(level, to.above())) {

@@ -14,7 +14,7 @@ import java.util.Map;
  *
  * <p>与既有概念的分工（D-082 的"预算不合并"在此被有意推进一格）：
  * <ul>
- *   <li>{@link WriteGrant} 回答"**谁**、**为什么**"（授权，指向这一格/这一次）；</li>
+ *   <li>{@link Attribution} 回答"**谁**、**为什么**"（授权，指向这一格/这一次）；</li>
  *   <li>`MiningBudget.maxExtraBreakTicks` 回答"这次挖掘**值得**拆多少"（规划期选站位）；</li>
  *   <li>{@link SearchBudget} 回答"搜索能烧多少"；</li>
  *   <li>本类回答"这个任务**已经改了世界多少**，还允许改多少"——执行期硬闸门。</li>
@@ -210,7 +210,7 @@ public final class WriteBudget {
     // ==================== 判定 ====================
 
     /** 破坏预算判定（**累加计数**；被调用即视为一次真实破坏即将发生）。 */
-    public static Verdict consumeBreak(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+    public static Verdict consumeBreak(ServerPlayer bot, ServerLevel level, BlockPos pos, Attribution grant) {
         String scope = scopeOf(bot);
         if (scope == null) {
             logNoScope(bot, "break", pos);
@@ -247,7 +247,7 @@ public final class WriteBudget {
     }
 
     /** 放置预算判定（**累加计数**）。 */
-    public static Verdict consumePlace(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+    public static Verdict consumePlace(ServerPlayer bot, ServerLevel level, BlockPos pos, Attribution grant) {
         String scope = scopeOf(bot);
         if (scope == null) {
             logNoScope(bot, "place", pos);
@@ -296,7 +296,7 @@ public final class WriteBudget {
      *   <li>策略放行（含"未登记 requester"这一**登记缺口**口径：留痕但不拒）⇒ 继续走预算数量闸门。</li>
      * </ol>
      */
-    public static Verdict consumeContainerWrite(ServerPlayer bot, BlockPos pos, WriteGrant grant) {
+    public static Verdict consumeContainerWrite(ServerPlayer bot, BlockPos pos, Attribution grant) {
         WritePolicyMatrix.Decision decision = WritePolicyMatrix.noteContainerWrite(
                 bot == null ? null : bot.serverLevel(), bot == null ? null : bot.getUUID(), pos, grant);
         if (WritePolicyMatrix.refuses(decision)) {
@@ -348,7 +348,7 @@ public final class WriteBudget {
         return Math.max(0, caps.maxContainerWrites() - used);
     }
 
-    public static void notePlaceRefusal(ServerPlayer bot, BlockPos pos, WriteGrant grant) {
+    public static void notePlaceRefusal(ServerPlayer bot, BlockPos pos, Attribution grant) {
         String scope = scopeOf(bot);
         if (scope == null) {
             return;
@@ -446,7 +446,7 @@ public final class WriteBudget {
      * <p>与 {@link #consumeBreak} 用同一判据，因此"搜索认为可以破坏"与"执行时允许破坏"
      * 始终一致。回收我方临时放置（{@code SCAFFOLD_RESTORE}）不受上限约束。
      */
-    public static boolean breakAllowed(ServerPlayer bot, WriteGrant grant) {
+    public static boolean breakAllowed(ServerPlayer bot, Attribution grant) {
         if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
             return true;
         }
@@ -555,7 +555,7 @@ public final class WriteBudget {
      * <p>⚠️ 免额扣账（`grant.reason() == SCAFFOLD_RESTORE`，`D-347`）**没进** `breaks`
      * ⇒ 这里直接返回（否则会退掉别人的账）。**不静默**：每次退回一条 `[WriteBudget] refund …`。
      */
-    public static void refundBreak(ServerPlayer bot, BlockPos pos, WriteGrant grant, String reason) {
+    public static void refundBreak(ServerPlayer bot, BlockPos pos, Attribution grant, String reason) {
         if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
             return;
         }

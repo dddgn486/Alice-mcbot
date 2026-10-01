@@ -2,7 +2,7 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteBudget;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotManager;
@@ -93,7 +93,7 @@ public final class BreakRefusedCheckTask implements Task {
     private BlockBreakSession session;
     /** ⭐ `RC4`：预算对照臂的现场（保护区封套 + 授权 + 两个读数）。 */
     private FixtureClaim.Handle zone;
-    private WriteGrant budgetGrant;
+    private Attribution budgetGrant;
     private int budgetBefore = -1;
     private int budgetRefundedBefore = -1;
     private int caseTicks;
@@ -313,14 +313,14 @@ public final class BreakRefusedCheckTask implements Task {
         //    （第一版就是在这里假红：断言 isAir 而实际是上一例留下的 Dirt）。
         BlockState beforeBulk = lvl.getBlockState(target);
         boolean bulkPlaced = com.dddgn.alice.action.BlockInteraction.placeBulkEdit(bot, lvl, target,
-                Blocks.DIRT.defaultBlockState(), WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+                Blocks.DIRT.defaultBlockState(), Attribution.of(taskName(), WriteReason.BULK_EDIT));
         check("④ ⭐ FTB 认领内**批量放置**必须被拒（道路施工走的正是这条路，它对 Forge 事件不可见）"
                         + "（返回=" + bulkPlaced + " 尝试前=" + beforeBulk.getBlock().getName().getString()
                         + " 尝试后=" + lvl.getBlockState(target).getBlock().getName().getString() + "）",
                 !bulkPlaced && lvl.getBlockState(target).equals(beforeBulk));
         lvl.setBlock(target, Blocks.DIRT.defaultBlockState(), 3);   // 夹具直接摆一块，用来试批量破坏
         boolean bulkBroke = com.dddgn.alice.action.BlockInteraction.breakForBulkEdit(bot, lvl, target, false,
-                WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+                Attribution.of(taskName(), WriteReason.BULK_EDIT));
         check("④ ⭐ FTB 认领内**批量破坏**必须被拒（走 `Level.destroyBlock` ⇒ 不触发 Forge 破坏事件）"
                         + "（返回=" + bulkBroke + " 方块现在=" + lvl.getBlockState(target).getBlock().getName().getString()
                         + "）",
@@ -342,12 +342,12 @@ public final class BreakRefusedCheckTask implements Task {
             ServerLevel lvl = bot.serverLevel();
             clearTarget();
             boolean bulkPlaced = com.dddgn.alice.action.BlockInteraction.placeBulkEdit(bot, lvl, target,
-                    Blocks.DIRT.defaultBlockState(), WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+                    Blocks.DIRT.defaultBlockState(), Attribution.of(taskName(), WriteReason.BULK_EDIT));
             check("⑤ 对照：**无认领**时批量放置必须真的落地（返回=" + bulkPlaced + " 方块现在="
                             + lvl.getBlockState(target).getBlock().getName().getString() + "）",
                     bulkPlaced && lvl.getBlockState(target).is(DIRT_BLOCK));
             boolean bulkBroke = com.dddgn.alice.action.BlockInteraction.breakForBulkEdit(bot, lvl, target, false,
-                    WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+                    Attribution.of(taskName(), WriteReason.BULK_EDIT));
             check("⑤ 对照：**无认领**时批量破坏必须真的生效（返回=" + bulkBroke + " 方块现在="
                             + lvl.getBlockState(target).getBlock().getName().getString() + "）",
                     bulkBroke && lvl.getBlockState(target).isAir());
@@ -367,7 +367,7 @@ public final class BreakRefusedCheckTask implements Task {
             caseTicks = 1;
             clearTarget();
             placeTarget();
-            budgetGrant = WriteGrant.of("check:break-refused", WriteReason.EXPECTED_TARGET);
+            budgetGrant = Attribution.of("check:break-refused", WriteReason.EXPECTED_TARGET);
             zone = FixtureClaim.protect(lvl, bot.getUUID(),
                     target.offset(-2, -2, -2), target.offset(2, 2, 2), "region_lumber");
             check("⑥ 前提：夹具摆出保护区 + 任务区封套（" + zone.describe() + "）", zone.ok());

@@ -1,6 +1,6 @@
 package com.dddgn.alice.task.mining;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.reach.LineOfSightChecker;
@@ -38,7 +38,7 @@ public final class BlockerClearPlanner {
     }
 
     /** 该方块是否允许作为"限次清障"对象。 */
-    public static boolean clearable(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+    public static boolean clearable(ServerPlayer bot, ServerLevel level, BlockPos pos, Attribution grant) {
         BlockState state = level.getBlockState(pos);
         if (state.isAir() || state.is(BlockTags.LOGS)) {
             return false;   // 原木是目标（可能是自己的，也可能是别的树）→ 不清
@@ -52,7 +52,7 @@ public final class BlockerClearPlanner {
      * @param budget 允许的最大清障数（超出即视为不可行）
      */
     public static int clearPlanCount(ServerLevel level, ServerPlayer bot, BlockPos log,
-                                     double reach, int budget, WriteGrant grant) {
+                                     double reach, int budget, Attribution grant) {
         double limit = reach - MiningTuning.reachMargin();
         int minY = log.getY() - 1;
         for (BlockPos stand : lumberStands(log)) {
@@ -135,7 +135,7 @@ public final class BlockerClearPlanner {
      * 且从同一个观察位出发）校验候选格，保证"可规划即可执行"。
      */
     public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
-                                        double reach, int budgetLeft, WriteGrant grant) {
+                                        double reach, int budgetLeft, Attribution grant) {
         return nextClearStep(level, bot, log, reach, budgetLeft, grant, java.util.Set.of());
     }
 
@@ -145,7 +145,7 @@ public final class BlockerClearPlanner {
      *                 没有正确工具…），重复挑同一格只会烧光预算（2026-09-11 21:54 实测 8 次同格）。
      */
     public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
-                                        double reach, int budgetLeft, WriteGrant grant,
+                                        double reach, int budgetLeft, Attribution grant,
                                         java.util.Set<BlockPos> excluded) {
         if (budgetLeft <= 0) {
             return null;

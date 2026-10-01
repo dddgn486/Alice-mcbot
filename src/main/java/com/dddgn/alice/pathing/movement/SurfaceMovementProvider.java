@@ -1,6 +1,6 @@
 package com.dddgn.alice.pathing.movement;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
@@ -200,7 +200,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         for (BlockPos blocker : blockers) {
             if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,
-                    WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
+                    Attribution.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return;
             }
         }
@@ -349,7 +349,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
             return;
         }
         if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, to,
-                WriteGrant.of(context.request().requester(), WriteReason.DESCEND_FOOT))) {
+                Attribution.of(context.request().requester(), WriteReason.DESCEND_FOOT))) {
             return;
         }
         // ⚠️ `1-2` · `D2` **刻意不接**：Baritone `MovementDownward:70` 传的就是 `includeFalling=false`
@@ -435,7 +435,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         for (BlockPos blocker : blockers) {
             if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,
-                    WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
+                    Attribution.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return;
             }
         }

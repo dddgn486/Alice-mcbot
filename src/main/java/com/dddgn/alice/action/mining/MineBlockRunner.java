@@ -11,7 +11,7 @@ import com.dddgn.alice.pathing.path.PathExecutionResult;
 import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.reach.StandingPointSelector;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -69,9 +69,9 @@ public final class MineBlockRunner {
      */
     private boolean pausedForFallingBlock;
     /** 本次挖掘的授权（D-082）：目标破坏用自身理由，放支撑块派生 SUPPORT_PLACEMENT。 */
-    private final WriteGrant grant;
+    private final Attribution grant;
 
-    public MineBlockRunner(BotPlayer bot, ReachPlan plan, WriteGrant grant) {
+    public MineBlockRunner(BotPlayer bot, ReachPlan plan, Attribution grant) {
         this(bot, plan, false, grant);
     }
 
@@ -79,7 +79,7 @@ public final class MineBlockRunner {
      * @param walkOnly 只走到站位（不破坏目标），用于任务层接管破坏动作的场景
      *                 （例如连锁挖掘模组兼容，D-077）。到位后返回 {@link Status#DONE}。
      */
-    public MineBlockRunner(BotPlayer bot, ReachPlan plan, boolean walkOnly, WriteGrant grant) {
+    public MineBlockRunner(BotPlayer bot, ReachPlan plan, boolean walkOnly, Attribution grant) {
         this.walkOnly = walkOnly;
         this.grant = grant;
         this.bot = bot;

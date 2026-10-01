@@ -1,6 +1,6 @@
 package com.dddgn.alice.fixture;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
@@ -214,7 +214,7 @@ public final class ClearRetryCheckTask implements Task {
         return new MineTask(bot, TARGET, scope,
                 MiningBudget.forTarget(bot, bot.serverLevel(), TARGET, false),
                 PARENT_PROFILE,
-                WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
     }
 
     /** 世界事实：壳（y=64/65 的 3×3 除中心列）是否都在。 */

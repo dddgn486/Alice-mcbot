@@ -98,7 +98,7 @@ public final class WritePolicyMatrix {
      * ③ 本枚举管"**任务在这个封套里被授予了哪一档**"。
      *
      * <p>⚠️ **等级不是新制度**：它**不放宽**任何既有红线 —— 每一次写入仍然要过
-     * `WriteGrant`（谁/为什么）+ `WriteBudget`（改了世界几次）+ 账本（`TEMP`/`KEEP`）。
+     * `Attribution`（谁/为什么）+ `WriteBudget`（改了世界几次）+ 账本（`TEMP`/`KEEP`）。
      * 本枚举只是把"保护区内的写入"从**一律拒绝**变成**按档授予**（`D-338` ① 的落地）。
      *
      * <p>⚠️ 野外（未认领区块）**不看这一档**（`D-327` 场所化：野外由成本模型 + 维生 + 只读审计治理）。
@@ -385,7 +385,7 @@ public final class WritePolicyMatrix {
                             + "注意它是**唯一**持有全集的行 ⇒ 生产任务不能用它兜底"),
             new Row("P-11", Tenure.EXTERNAL, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
-                    "action/WriteGrant.java:26（UNKNOWN）",
+                    "action/Attribution.java:26（UNKNOWN）",
                     "未登记 requester：**movements=null ⇒ 不拦**，但写入/规划会留痕（计数 + 一次 WARN）"),
             // ---- WORKSPACE（Alice 的地：来源 = 玩家已划定的区域）----
             // 今天与 EXTERNAL **逐条相同**（ⓑ：工作区只是"允许"KEEP 类理由，不改其余理由的回收义务）。
@@ -441,7 +441,7 @@ public final class WritePolicyMatrix {
                     "同 P-10", "同 P-10（今天两区解析相同）"),
             new Row("P-22", Tenure.WORKSPACE, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
-                    "action/WriteGrant.java:26（UNKNOWN）", "同 P-11"),
+                    "action/Attribution.java:26（UNKNOWN）", "同 P-11"),
             // ---- 维生自救（D-241，2026-09-16 用户批准的提案 B）----
             // 轴 = "这个任务改不改世界"（`MovementCapabilities.changesWorld()`）：只有信封里本就有写授权的任务，
             // 才允许在危急时用 `survivalEscape`（放置 + 破坏 + PILLAR，不含 DOWNWARD/FALL）。
@@ -717,7 +717,7 @@ public final class WritePolicyMatrix {
      * 与"未登记 requester"同一口径——记录为错误，而不是拿我们自己的登记缺口去拒绝任务。
      */
     public static com.dddgn.alice.ledger.WorldModLedger.Policy ledgerPolicy(ServerLevel level, java.util.UUID owner,
-                                                                            WriteGrant grant, BlockPos pos) {
+                                                                            Attribution grant, BlockPos pos) {
         Task task = taskOf(grant == null ? null : grant.requester());
         if (task == Task.UNREGISTERED) {
             noteUnregistered(grant == null ? null : grant.requester(), "place");
@@ -776,7 +776,7 @@ public final class WritePolicyMatrix {
      * 因此它必须**零副作用**——否则自检会污染电池样本（G 段断言"未登记=0/未声明=0"）。
      */
     public static Decision decideContainerWrite(ServerLevel level, java.util.UUID owner,
-                                                BlockPos pos, WriteGrant grant) {
+                                                BlockPos pos, Attribution grant) {
         Task task = taskOf(grant == null ? null : grant.requester());
         if (task == Task.UNREGISTERED) {
             return Decision.UNREGISTERED;
@@ -792,7 +792,7 @@ public final class WritePolicyMatrix {
 
     /** 判定 + 留痕 + 计数（**执行期入口**；由 {@link WriteBudget#consumeContainerWrite} 调用）。 */
     public static Decision noteContainerWrite(ServerLevel level, java.util.UUID owner,
-                                              BlockPos pos, WriteGrant grant) {
+                                              BlockPos pos, Attribution grant) {
         Decision decision = decideContainerWrite(level, owner, pos, grant);
         CONTAINER_CHECKS++;
         if (refuses(decision)) {

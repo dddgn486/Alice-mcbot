@@ -975,15 +975,15 @@ public final class JobAreaCheckTask implements Task {
     }
 
     /** 经**生产动作层**在保护区内放一块石头：夹具只负责"快照原状 + 收尾还原 + 销账本条目"。 */
-    private boolean placeThroughAction(ServerLevel level, BlockPos pos, com.dddgn.alice.write.WriteGrant grant) {
+    private boolean placeThroughAction(ServerLevel level, BlockPos pos, com.dddgn.alice.write.Attribution grant) {
         touched.putIfAbsent(pos.immutable(), level.getBlockState(pos));
         return BlockInteraction.placeBulkEdit(bot, level, pos, Blocks.COBBLESTONE.defaultBlockState(), grant);
     }
 
     /** 写入凭证（requester 决定任务类别 ⇒ 账本策略；reason 决定区域级授权面的判定）。 */
-    private static com.dddgn.alice.write.WriteGrant grant(String requester,
+    private static com.dddgn.alice.write.Attribution grant(String requester,
                                                            com.dddgn.alice.write.WriteReason reason) {
-        return com.dddgn.alice.write.WriteGrant.of(requester, reason);
+        return com.dddgn.alice.write.Attribution.of(requester, reason);
     }
 
     /** 传送到位（**传送那一 tick 不读 `onGround` 当判据**；落地由 `FixturePremise.settledOnGround` 复核）。 */

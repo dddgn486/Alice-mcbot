@@ -3,7 +3,7 @@ package com.dddgn.alice.job.fishbone;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.action.mining.MineBlockRunner;
 import com.dddgn.alice.write.WriteAudit;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.config.FishboneConfig;
@@ -156,7 +156,7 @@ public final class FishboneJob implements Job {
     private final BotPlayer bot;
     private final FishboneTemplate template;
     private final ScopeBuffer scope;
-    private final WriteGrant grant;
+    private final Attribution grant;
     private final int maxTicks;
     private final List<FishboneTemplate.Unit> units;
 
@@ -356,7 +356,7 @@ public final class FishboneJob implements Job {
         // 世界写入授权（`D-082`）：鱼骨挖的是**模板几何列出的格** + **本次作业自己挖出来的暴露面矿**，
         // 不是"随手挖掉的阻挡" ⇒ 一次性授权即可，理由码复用 `BULK_EDIT`
         //（"批量地形编辑（道路施工等非寻路场景）"）—— 计划 §4 明确**不新增枚举值**。
-        this.grant = WriteGrant.of(REQUESTER, WriteReason.BULK_EDIT);
+        this.grant = Attribution.of(REQUESTER, WriteReason.BULK_EDIT);
         // ⚠️ **产物基线必须在构造时取**（与 `MineJob` 同口径）：掉落物常常在**挖掉那一 tick 就被玩家
         // 捡起**（脚下就是掉落点），等到 `COLLECT` 相位再取基线 ⇒ 增量恒为 0（首版实测：
         // `COLLECT 开始 … 产物=3` ⇒ `产物=+0`，而背包里明明躺着 3 个原铁）。
@@ -1096,7 +1096,7 @@ public final class FishboneJob implements Job {
      *
      * <p>⚠️ 判"是不是我们的"用**前缀**而不是相等：走位请求的 requester 是
      * `fishbone-chase` / `fishbone-spur` / `fishbone-return`（`PlaceStepAndTraverseExecution` /
-     * `PillarExecution` 把 `context.requester()` 原样写进 `WriteGrant`），
+     * `PillarExecution` 把 `context.requester()` 原样写进 `Attribution`），
      * 而 `MineTask` 用的是 `fishbone`。首版用相等 ⇒ 夹具实测 `places=0`，
      * 而 `[WRITE] place … by=fishbone-chase:attempt0:STEP_PLACEMENT` 明明在日志里（数错了，不是没放）。
      */

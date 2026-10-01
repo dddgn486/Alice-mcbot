@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.lumber;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
@@ -40,8 +40,8 @@ public final class LumberCandidateSource implements CandidateSource {
     public static final int MAX_CLEAR_PER_TREE = 8;
 
     /** 候选评估期用的授权身份（真正授权在执行期由 LumberJob 声明；此处只做"是否会被允许"的预演）。 */
-    private static final WriteGrant CLEAR_GRANT =
-            WriteGrant.of("lumber-plan", WriteReason.LINE_OF_SIGHT);
+    private static final Attribution CLEAR_GRANT =
+            Attribution.of("lumber-plan", WriteReason.LINE_OF_SIGHT);
 
     private List<Tree> lastScan = List.of();
 

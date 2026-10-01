@@ -397,12 +397,12 @@ public class WritePolicyCheckTask implements Task {
         // 层的归属：判定（B3）走**纯函数**（零副作用）；端到端（B4）走**真函数**（必须真的被拒），
         // 但做**样本快照/还原**——否则本自检会把电池样本弄脏（G 段要求 未登记=0/未声明=0）。
         java.util.UUID owner = bot.getUUID();
-        com.dddgn.alice.write.WriteGrant undeclaredGrant =
-                com.dddgn.alice.write.WriteGrant.of("walk-to", WriteReason.CONTAINER_TRANSFER);
-        com.dddgn.alice.write.WriteGrant declaredGrant =
-                com.dddgn.alice.write.WriteGrant.of("transfer", WriteReason.CONTAINER_TRANSFER);
-        com.dddgn.alice.write.WriteGrant unknownGrant =
-                com.dddgn.alice.write.WriteGrant.of("no-such-requester-xyz", WriteReason.CONTAINER_TRANSFER);
+        com.dddgn.alice.write.Attribution undeclaredGrant =
+                com.dddgn.alice.write.Attribution.of("walk-to", WriteReason.CONTAINER_TRANSFER);
+        com.dddgn.alice.write.Attribution declaredGrant =
+                com.dddgn.alice.write.Attribution.of("transfer", WriteReason.CONTAINER_TRANSFER);
+        com.dddgn.alice.write.Attribution unknownGrant =
+                com.dddgn.alice.write.Attribution.of("no-such-requester-xyz", WriteReason.CONTAINER_TRANSFER);
         WritePolicyMatrix.Decision decisionUndeclared =
                 WritePolicyMatrix.decideContainerWrite(bot.serverLevel(), owner, from, undeclaredGrant);
         WritePolicyMatrix.Decision decisionDeclared =

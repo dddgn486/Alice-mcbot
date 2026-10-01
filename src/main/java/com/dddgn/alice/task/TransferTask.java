@@ -35,7 +35,7 @@ public final class TransferTask implements Task {
     private int menuSourceSlot = -1;
     private int menuPlayerSlot = -1;
     private int menuDestinationSlot = -1;
-    private com.dddgn.alice.write.WriteGrant activeGrant;
+    private com.dddgn.alice.write.Attribution activeGrant;
 
     /** 菜单路线的子阶段（比相位更细：一次写入要跨多 tick）。 */
     private enum MenuStage { NONE, OPENING, PICK, PLACE }
@@ -195,8 +195,8 @@ public final class TransferTask implements Task {
     }
 
     /** 容器写入的**授权**（2026-09-13 用户裁定：容器写入算世界改动）。 */
-    private static com.dddgn.alice.write.WriteGrant containerGrant() {
-        return com.dddgn.alice.write.WriteGrant.of("transfer",
+    private static com.dddgn.alice.write.Attribution containerGrant() {
+        return com.dddgn.alice.write.Attribution.of("transfer",
                 com.dddgn.alice.write.WriteReason.CONTAINER_TRANSFER);
     }
 
@@ -424,7 +424,7 @@ public final class TransferTask implements Task {
             return sourceWriteViaMenu();
         }
         // 授权 + 预算（容器写入纳入"世界改动"体系；超限即拒绝）
-        com.dddgn.alice.write.WriteGrant grant = containerGrant();
+        com.dddgn.alice.write.Attribution grant = containerGrant();
         if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
                 request.source().position(), grant) == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
             return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.NOT_MOVED);
@@ -446,7 +446,7 @@ public final class TransferTask implements Task {
         if (TransferRoutes.route() == TransferRoutes.Route.MENU) {
             return destinationWriteViaMenu();
         }
-        com.dddgn.alice.write.WriteGrant grant = containerGrant();
+        com.dddgn.alice.write.Attribution grant = containerGrant();
         if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
                 request.destination().position(), grant) == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
             return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.BOT_INVENTORY);

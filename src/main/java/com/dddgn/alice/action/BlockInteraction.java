@@ -4,7 +4,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.write.TaskTargetProtection;
 import com.dddgn.alice.write.WriteAudit;
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -68,7 +68,7 @@ public final class BlockInteraction {
         BUDGET_EXHAUSTED,
         /**
          * **指定方块**不在快捷栏（{@link #placeAt(ServerPlayer, ServerLevel, BlockPos, boolean,
-         * WriteGrant, Block)} 专用）：**未写入**。
+         * Attribution, Block)} 专用）：**未写入**。
          *
          * <p>单独一个值而不是复用 `NO_OPTION`：两者病因完全不同 —— `NO_OPTION` = 没有可用的支撑面，
          * `NO_ITEM` = 手上根本没有那种方块。混成一个值会让"为什么没放成"在下游无法区分。
@@ -278,7 +278,7 @@ public final class BlockInteraction {
      * @return {@link PlaceResult#PLACED} 表示已发起放置；{@link PlaceResult#NO_OPTION} 表示不可行
      */
     public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
-                                      WriteGrant grant) {
+                                      Attribution grant) {
         return placeAt(bot, level, placeAt, sneak, grant, findPlaceableSlot(bot));
     }
 
@@ -295,7 +295,7 @@ public final class BlockInteraction {
      *         {@link PlaceResult#NO_OPTION} 无可用支撑面；{@link PlaceResult#BUDGET_EXHAUSTED} 预算耗尽
      */
     public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
-                                      WriteGrant grant, net.minecraft.world.level.block.Block wanted) {
+                                      Attribution grant, net.minecraft.world.level.block.Block wanted) {
         if (wanted == null) {
             return PlaceResult.NO_OPTION;
         }
@@ -315,7 +315,7 @@ public final class BlockInteraction {
      * <p>槽位 {@code < 0} = 没有可放的方块 ⇒ {@code NO_OPTION}（保持既有调用者的行为不变）。
      */
     private static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
-                                       WriteGrant grant, int slot) {
+                                       Attribution grant, int slot) {
         // 账本要在放置**之前**拿到原状态（J6-a：精确恢复原状的前提）
         BlockState previousState = level.getBlockState(placeAt);
         // 执行期写入预算（D-106）：任务级放置预算用满 → 提前拒绝（不消耗物品、不试面）
@@ -431,10 +431,10 @@ public final class BlockInteraction {
     // ==================== 破坏 ====================
 
     /**
-     * 破坏拒绝原因（null = 允许）。**策略由 {@link WriteGrant#reason()} 派生**（D-082），
+     * 破坏拒绝原因（null = 允许）。**策略由 {@link Attribution#reason()} 派生**（D-082），
      * 调用点不再通过"调哪个方法"隐式选择策略。
      */
-    public static String breakRefusal(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+    public static String breakRefusal(ServerPlayer bot, ServerLevel level, BlockPos pos, Attribution grant) {
         if (level.getBlockState(pos).isAir()) {
             return "already_air";
         }
@@ -454,7 +454,7 @@ public final class BlockInteraction {
      * 该方块能否被本 bot 破坏。**策略由授权里的理由派生**（D-082）：
      * `EXPECTED_TARGET/DESCEND_FOOT/BULK_EDIT` 走明确目标策略，其余走更保守的清障策略。
      */
-    public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+    public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos, Attribution grant) {
         // 执行期写入预算（D-106）：任务级破坏预算用满后，**搜索与执行同时**不再把破坏当选项
         // （规划期与执行期同一个判据，避免"计划说能过、执行到一半才被拒"）
         if (!WriteBudget.breakAllowed(bot, grant)) {
@@ -621,7 +621,7 @@ public final class BlockInteraction {
      * （内核路径统一映射为 {@code WRITE_BUDGET_EXHAUSTED} 失败码）。
      */
     public static BlockBreakSession beginBreak(ServerPlayer bot, ServerLevel level, BlockPos pos,
-                                              WriteGrant grant) {
+                                              Attribution grant) {
         // ⭐ `D-362`：**最后一道闸门**也要拦"清障吃任务目标"——这是真正写世界的那一步，
         // 不能只指望所有调用点都记得先问 `breakable`（那种"靠调用点自觉"的守卫迟早漏一处）。
         if (grant != null && grant.reason() == WriteReason.PATH_ACCESS) {
@@ -660,7 +660,7 @@ public final class BlockInteraction {
      * @return true = 已放置；false = 被保护区拒绝（**未写入**）
      */
     public static boolean placeBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, BlockState state,
-                                        WriteGrant grant) {
+                                        Attribution grant) {
         if (!WriteBudget.placeAllowed(bot)) {
             WriteBudget.notePlaceRefusal(bot, pos, grant);
             BotLog.warn("[WRITE-REFUSED] bulk_place pos={} by={} reason=write_budget_exhausted {}",
@@ -701,7 +701,7 @@ public final class BlockInteraction {
      * @return true = 已破坏；false = 被拒绝（**未写入**）
      */
     public static boolean breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems,
-                                           WriteGrant grant) {
+                                           Attribution grant) {
         if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
             BotLog.warn("[WRITE-REFUSED] bulk_break pos={} by={} reason=write_budget_exhausted {}",
                     pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));

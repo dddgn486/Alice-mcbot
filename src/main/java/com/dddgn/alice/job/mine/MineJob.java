@@ -1,6 +1,6 @@
 package com.dddgn.alice.job.mine;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
@@ -571,7 +571,7 @@ public final class MineJob implements Job {
         miner = new MineTask(bot, current, scope,
                 MiningBudget.forTarget(bot, level, current, true),
                 com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
-                WriteGrant.of(jobName(), WriteReason.EXPECTED_TARGET));
+                Attribution.of(jobName(), WriteReason.EXPECTED_TARGET));
         phase = Phase.MINE;
         return Task.Status.RUNNING;
     }

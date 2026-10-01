@@ -1,6 +1,6 @@
 package com.dddgn.alice.pathing.movement;
 
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
@@ -56,7 +56,7 @@ public final class DownwardExecutionFactory implements MovementExecutionFactory 
         // 脚下的方块必须可破坏（已在破坏中/已空则放行，等待下落）
         if (!context.level().getBlockState(to).isAir()
                 && !BlockInteraction.breakable(context.bot(), context.level(), to,
-                WriteGrant.of(context.requester(), WriteReason.DESCEND_FOOT))) {
+                Attribution.of(context.requester(), WriteReason.DESCEND_FOOT))) {
             return ValidationResult.invalid("DOWNWARD_BLOCK_NOT_BREAKABLE");
         }
 

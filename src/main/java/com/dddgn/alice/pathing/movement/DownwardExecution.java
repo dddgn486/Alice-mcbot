@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.movement;
 
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
@@ -42,7 +42,7 @@ public final class DownwardExecution implements MovementExecution {
     private final String sessionId;
     private final CompletionTolerance tolerance;
     /** 授权身份（D-082）。 */
-    private final WriteGrant grant;
+    private final Attribution grant;
 
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
@@ -55,7 +55,7 @@ public final class DownwardExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
-        this.grant = WriteGrant.of(context.requester(), WriteReason.DESCEND_FOOT);
+        this.grant = Attribution.of(context.requester(), WriteReason.DESCEND_FOOT);
     }
 
     @Override

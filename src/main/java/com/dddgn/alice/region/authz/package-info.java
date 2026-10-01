@@ -33,7 +33,7 @@
  * </table>
  *
  * <p>⇒ ⭐ **刀 4 的顺序**：先把这三件外移（`WriteAudit`→`ledger/` · `WriteBudget`→`Quota` ·
- * `WriteGrant`→`Attribution` 原语）＋ 拆 `ZoneAuthority` 成三个谓词，**然后**才谈本包的入住。
+ * `Attribution`→`Attribution` 原语）＋ 拆 `ZoneAuthority` 成三个谓词，**然后**才谈本包的入住。
  *
  * <h2>三 · 本包要装的那一个判据（今天的形状，搬进来之前先记住）</h2>
  *

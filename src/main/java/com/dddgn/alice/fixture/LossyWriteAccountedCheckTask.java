@@ -2,7 +2,7 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
@@ -85,7 +85,7 @@ public final class LossyWriteAccountedCheckTask implements Task {
     private String scopeId = "-";
     private FixtureClaim.Handle zone;
     private WorldModLedger.Population baseline;
-    private WriteGrant grant;
+    private Attribution grant;
     private BlockBreakSession session;
     private String chestStatus = "-";
     private String signStatus = "-";
@@ -330,8 +330,8 @@ public final class LossyWriteAccountedCheckTask implements Task {
             return;
         }
         baseline = WorldModLedger.populationBaseline(level.getServer());
-        grant = WriteGrant.of("check:lossy-write", WriteReason.EXPECTED_TARGET);
-        WriteGrant clearing = WriteGrant.of("check:lossy-write", WriteReason.PATH_ACCESS);
+        grant = Attribution.of("check:lossy-write", WriteReason.EXPECTED_TARGET);
+        Attribution clearing = Attribution.of("check:lossy-write", WriteReason.PATH_ACCESS);
         clearingRefusal = BlockInteraction.breakRefusal(bot, level, GUARD_CHEST_POS, clearing);
         BotLog.info("[RC3] SETUP 箱子={}（{} 颗钻石）告示牌={} 负例箱={} 清障拒绝码={} scope={}",
                 CHEST_POS.toShortString(), DIAMONDS, SIGN_POS.toShortString(),

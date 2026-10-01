@@ -2,7 +2,7 @@ package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.write.WriteBudget;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -180,7 +180,7 @@ public final class StationProvision {
     public static boolean moveIntoContainer(BotPlayer bot, AbstractContainerMenu menu,
                                             net.minecraft.world.item.Item item, BlockPos pos) {
         // **R5-残 收口（2026-09-16）**：本文件的原语层改为**编译期强制** —— 每次点击都要显式带理由。
-        com.dddgn.alice.write.WriteGrant grant = com.dddgn.alice.write.WriteGrant.of("station-provision", com.dddgn.alice.write.WriteReason.STATION_PROVISION);
+        com.dddgn.alice.write.Attribution grant = com.dddgn.alice.write.Attribution.of("station-provision", com.dddgn.alice.write.WriteReason.STATION_PROVISION);
         int source = findInventorySlot(bot, menu, item);
         if (source >= 0 && click(bot, menu, source, ClickType.QUICK_MOVE, grant)) {
             BotLog.info("[Provision] QUICK_MOVE 送出 upgrade={} fromSlot={}", id(item), source, grant);
@@ -215,7 +215,7 @@ public final class StationProvision {
     public static boolean moveOutOfContainer(BotPlayer bot, AbstractContainerMenu menu,
                                              net.minecraft.world.item.Item item) {
         // **R5-残 收口（2026-09-16）**：同 `moveIntoContainer`，原语层编译期强制。
-        com.dddgn.alice.write.WriteGrant grant = com.dddgn.alice.write.WriteGrant.of("station-provision", com.dddgn.alice.write.WriteReason.STATION_PROVISION);
+        com.dddgn.alice.write.Attribution grant = com.dddgn.alice.write.Attribution.of("station-provision", com.dddgn.alice.write.WriteReason.STATION_PROVISION);
         Integer address = containerSlotHolding(menu, bot, item);
         if (address == null) {
             BotLog.warn("[Provision] 容器里没有 {}", id(item));
@@ -243,7 +243,7 @@ public final class StationProvision {
      * @return true = 允许写入；false = 预算拒绝（**必须如实上报，不许绕过**）
      */
     public static boolean allowContainerWrite(BotPlayer bot, BlockPos pos) {
-        WriteGrant grant = WriteGrant.of("station-provision", WriteReason.STATION_PROVISION);
+        Attribution grant = Attribution.of("station-provision", WriteReason.STATION_PROVISION);
         WriteBudget.Verdict verdict = WriteBudget.consumeContainerWrite(bot, pos, grant);
         return verdict != WriteBudget.Verdict.REFUSED;
     }
@@ -259,7 +259,7 @@ public final class StationProvision {
     /** 菜单点击：**直接用 `menu.clicked`**（`MenuSession.click` 会拒绝超出 `menu.slots` 的地址，而
      *  上游自管的槽位恰恰在那里 —— 见 {@link GridDiscovery} 的说明）。 */
     private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int address, ClickType type,
-                                 com.dddgn.alice.write.WriteGrant grant) {
+                                 com.dddgn.alice.write.Attribution grant) {
         // ⚠️ **R5-残 收口（2026-09-16）**：与 `FurnaceStation.click` 同一套编译期强制 ——
         // 理由必须属于**菜单写入家族**（`WriteReason.menuWrite()`）。原先"记账靠调用方自觉"。
         if (grant == null || !grant.reason().menuWrite()) {

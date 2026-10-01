@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -141,7 +141,7 @@ public final class ClearGuardCheckTask implements Task {
                 START_FOOT.toShortString(), TARGET.toShortString(), CONTAINERS);
         miner = new MineTask(bot, TARGET, scope, MiningBudget.forTarget(bot, level, TARGET, true),
                 com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
-                WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         phase = Phase.MINE;
         return Task.Status.RUNNING;
     }
@@ -168,7 +168,7 @@ public final class ClearGuardCheckTask implements Task {
     private Task.Status assertResult() {
         ServerLevel level = bot.serverLevel();
         boolean predicateRefuses = CONTAINERS.stream().noneMatch(pos -> BlockInteraction.breakable(
-                bot, level, pos, WriteGrant.of(taskName(), WriteReason.PATH_ACCESS)));
+                bot, level, pos, Attribution.of(taskName(), WriteReason.PATH_ACCESS)));
         boolean chestIntact = CONTAINERS.stream().allMatch(
                 pos -> level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.CHEST));
         // 目标拿没拿到**不作为判据**：本自检只要求"不伤害非目标容器"
@@ -214,24 +214,24 @@ public final class ClearGuardCheckTask implements Task {
 
         // ① 基线：**没有**作用域 ⇒ 矿可以被当清障方块挖掉（证明保护是"有作用域才拦"，不是一律拦）
         guardBaselineAllowed = BlockInteraction.breakable(bot, level, ORE_PLUG_LOW,
-                WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
+                Attribution.of(taskName(), WriteReason.PATH_ACCESS));
         // ② 装作用域：本任务的目标 = 铁矿石
         com.dddgn.alice.write.TaskTargetProtection.begin(bot, taskName(),
                 pos -> pos != null && level.hasChunkAt(pos) && level.getBlockState(pos).is(PLUG_ORE));
         guardReason = BlockInteraction.breakRefusal(bot, level, ORE_PLUG_LOW,
-                WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
+                Attribution.of(taskName(), WriteReason.PATH_ACCESS));
         guardPathRefused = !BlockInteraction.breakable(bot, level, ORE_PLUG_LOW,
-                WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
+                Attribution.of(taskName(), WriteReason.PATH_ACCESS));
         // ③ 真的去挖那一格（EXPECTED_TARGET）**不受影响** —— 否则挖矿整体被打断
         guardExpectedAllowed = BlockInteraction.breakable(bot, level, ORE_PLUG_LOW,
-                WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         BotLog.info("[ClearGuard] D-362 组就位 塞子={}..{} 基线可挖={} 清障被拒={}（理由={}）目标理由可挖={}",
                 ORE_PLUG_LOW.toShortString(), ORE_PLUG_HIGH.toShortString(), guardBaselineAllowed,
                 guardPathRefused, guardReason, guardExpectedAllowed);
         // ④ 真实执行：去挖墙后的目标（矿塞受保护 ⇒ 只能绕行或如实失败）
         miner = new MineTask(bot, TARGET, scope, MiningBudget.forTarget(bot, level, TARGET, true),
                 com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
-                WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+                Attribution.of(taskName(), WriteReason.EXPECTED_TARGET));
         phase = Phase.GUARD_MINE;
         return Task.Status.RUNNING;
     }
@@ -262,7 +262,7 @@ public final class ClearGuardCheckTask implements Task {
         com.dddgn.alice.write.TaskTargetProtection.end(bot);
         // ⑤ 撤销之后必须恢复可破坏（否则这个 bot 之后所有开路清障都会被拦 —— 泄漏比 bug 更隐蔽）
         boolean noLeak = BlockInteraction.breakable(bot, level, ORE_PLUG_LOW,
-                WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
+                Attribution.of(taskName(), WriteReason.PATH_ACCESS));
         boolean reasonOk = com.dddgn.alice.write.TaskTargetProtection.CODE.equals(guardReason);
         boolean pass = guardBaselineAllowed && guardPathRefused && guardExpectedAllowed
                 && oreIntact && noLeak && reasonOk;

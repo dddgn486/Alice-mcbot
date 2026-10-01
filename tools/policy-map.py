@@ -27,7 +27,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "main", "java", "com", "dddgn", "alice")
-# ⚠️ `step 4`（`D-462`，2026-09-27）：这两个类搬进了 `write/`（同批还有 `WriteGrant`/`WriteBudget`/
+# ⚠️ `step 4`（`D-462`，2026-09-27）：这两个类搬进了 `write/`（同批还有 `Attribution`/`WriteBudget`/
 # `WriteAudit`/`TaskTargetProtection`）—— 搬包时必须**逐条**找这种硬写路径，本刀第一版就漏了一处
 # （`kernel-predicates` 的 `TaskTargetProtection`），靠"反向对照"才抓到。
 MATRIX_JAVA = os.path.join(SRC, "write", "WritePolicyMatrix.java")
@@ -367,7 +367,7 @@ def read_container_site_registry() -> dict[str, dict[str, str]]:
 def requester_literals() -> list[tuple[str, str]]:
     found: dict[str, str] = {}
     patterns = [
-        re.compile(r"WriteGrant\.of\(\s*\"([^\"]+)\""),
+        re.compile(r"Attribution\.of\(\s*\"([^\"]+)\""),
         re.compile(r"PathRequest\.\w+\([^;]*?\"([a-zA-Z][\w:.-]*)\"\s*\)"),
     ]
     for dirpath, _dirs, files in os.walk(SRC):
@@ -545,8 +545,8 @@ def main() -> int:
                 problems.append(f"{site} 的 enforced_by={enforcer} 并没有调用 consumeContainerWrite")
 
     # ⑨ 菜单写入原语的**编译期强制**（R5-残 收口，2026-09-16）：`FurnaceStation` 是样板 ——
-    #    「调本原语必须显式交出 WriteGrant，且理由必须属于菜单写入家族」。
-    #    这三处原语若签名里没有 WriteGrant，就等于回到"记账靠调用方自觉"（三路审计 §3.1 R-5 的原缺口，
+    #    「调本原语必须显式交出 Attribution，且理由必须属于菜单写入家族」。
+    #    这三处原语若签名里没有 Attribution，就等于回到"记账靠调用方自觉"（三路审计 §3.1 R-5 的原缺口，
     #    R5-残 登记了 `StationProvision.click`／`InventoryCraft.click` 两处未做）。
     for rel in ("task/craft/FurnaceStation.java", "task/craft/InventoryCraft.java",
                 "task/craft/StationProvision.java"):
@@ -555,7 +555,7 @@ def main() -> int:
         if not overloads:
             problems.append(f"{rel} 里找不到 click 原语（改名？同步本规则）")
         for m in overloads:
-            # 平衡括号取形参表：**每个重载**都必须带 WriteGrant（只查一个会被另一个重载"顶绿"，
+            # 平衡括号取形参表：**每个重载**都必须带 Attribution（只查一个会被另一个重载"顶绿"，
             # 2026-09-16 反向对照实测：把 5 参重载改成 Object 时旧规则仍 PASS ⇒ 规则太弱）
             i, depth, j = m.end() - 1, 0, m.end() - 1
             while j < len(src):
@@ -567,8 +567,8 @@ def main() -> int:
                         break
                 j += 1
             params = src[i + 1:j]
-            if "WriteGrant" not in params:
-                problems.append(f"{rel} 的 click 重载（形参 {params.strip()[:60]}）没有 WriteGrant"
+            if "Attribution" not in params:
+                problems.append(f"{rel} 的 click 重载（形参 {params.strip()[:60]}）没有 Attribution"
                                 f"（R5-残：编译期强制被移除）")
 
     # ⑧（信息性，不判红）死值雷达：只在 WriteReason/WritePolicyMatrix 里出现的理由 = 没有调用点

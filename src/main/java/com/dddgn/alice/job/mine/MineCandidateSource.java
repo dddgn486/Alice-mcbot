@@ -2,7 +2,7 @@ package com.dddgn.alice.job.mine;
 
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.write.WriteReason;
-import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
@@ -458,7 +458,7 @@ public final class MineCandidateSource implements CandidateSource {
             // "早被挖空的格"一直以 `unbreakable` 出现在 SKIP/rejected 列表里（真机 `candidates` 涨到 1037、
             // 终态失败列表里 `block@164,91,158:unbreakable…` 全是这种），把"已空"说成"挖不动"。
             // 顺序：保护区 → **预算**（保 `mine_budget` 的 `write_budget_exhausted` 归因）→ 具体拒绝码。
-            WriteGrant grant = WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET);
+            Attribution grant = Attribution.of("mine-plan", WriteReason.EXPECTED_TARGET);
             if (!com.dddgn.alice.write.WriteBudget.breakAllowed(bot, grant)) {
                 return com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE;
             }
