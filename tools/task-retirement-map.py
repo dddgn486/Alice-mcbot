@@ -122,7 +122,12 @@ UNDECIDED = "?"
 #: ⭐⭐⭐ **`生产层包名`（`PROD_HOME`）—— 手写表，`类名 → 目标包全名 | "?"`**（2026-10-01 建）。
 #:
 #: **规矩**：这是**裁定**的落点，⛔ 不是分类器的输出 ⇒ **我只在用户裁定之后填**，⛔ 不自行猜。
-#: ⚠️ **今天 35 条全是 `?`** —— 因为 `O92` ⑥「35 个生产类的家走哪条（甲／乙／丙）」**逐字写着"待用户裁定"**，
+#: ⚠️ **2026-10-01 二次更新**：`D-569`（用户三次追加裁定）定下**三条规矩**（`action/` 准入 · **临时包** · **先搬优先**）
+#: ⇒ 已按 **R3「有专属包/非动作 ⇒ 马上搬」** 填了 **5** 格：维生 4 ⇒ `survival/`（用户批它**唯一**可单立 ——
+#: 理由逐字「`survival` 是**拥有 `step` 打断权的特殊行为**，所以它必须单独开包」）＋ `RoadBuildTask` ⇒ `road/`。
+#: ⛔ 余下 30 格仍 `?`：它们**要拆解/改造**（用户：「当前迁移过来的对象，要被拆解或者改造成 `step`、`job`」）
+#: ⇒ 最终家要靠**工程**定，⛔ 不是一次 `git mv`。⚠️ 其中 `transfer/` 那 2 格**两说并存**（`D-569` §三 第 2 条）。
+#: (旧注) 35 条曾全是 `?` —— 因为 `O92` ⑥ 逐字写着"待用户裁定"，
 #: 至今未裁（⚠️ `§38.3` 那 8 格**不含**它；那 8 格已由 `D-568` 裁完 ≠ 这一格已裁）。
 #: ⭐ 填一条的动作 = 把 `"?"` 换成包全名，门禁**立刻**开始管它（`R4`：门禁与迁移同刀）。
 PROD_HOME: dict[str, str] = {
@@ -135,12 +140,12 @@ PROD_HOME: dict[str, str] = {
     "PermissionDemoTask": UNDECIDED,
     "PlaceTask": UNDECIDED,
     "RestoreScopeTask": UNDECIDED,
-    "RoadBuildTask": UNDECIDED,
-    "SafeReturnTask": UNDECIDED,
+    "RoadBuildTask": "com.dddgn.alice.road",
+    "SafeReturnTask": "com.dddgn.alice.survival",
     "ScaffoldLifecycleTask": UNDECIDED,
-    "SurvivalExit": UNDECIDED,
-    "SurvivalExitTask": UNDECIDED,
-    "SurvivalFloatTask": UNDECIDED,
+    "SurvivalExit": "com.dddgn.alice.survival",
+    "SurvivalExitTask": "com.dddgn.alice.survival",
+    "SurvivalFloatTask": "com.dddgn.alice.survival",
     "Task": UNDECIDED,
     "TaskNode": UNDECIDED,
     "TaskTarget": UNDECIDED,
