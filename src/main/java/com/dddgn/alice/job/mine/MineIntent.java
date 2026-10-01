@@ -12,7 +12,7 @@ import net.minecraft.core.BlockPos;
  * <p>⚠️⭐ **意图是"搜索偏好"，不是"可挖承诺"**（用户 2026-09-20 点出的陷阱）：一个符合意图的作业区里
  * **完全可能有一部分目标实际不可挖**（被保护、不可破、视线不可达）。⇒ 本类的 {@link #refusalFor} 只负责
  * 回答"**在不在作业区里**"，**绝不**替授权面/破坏面下结论；区内的候选照样要过
- * `ZoneAuthority.candidateRefusal` + `BlockInteraction.breakable`，而且**它们自己的理由码必须保住**
+ * `AreaPermission.candidateRefusal` + `BlockInteraction.breakable`，而且**它们自己的理由码必须保住**
  * （不许被 `outside_work_area` 顶替）——否则"不可挖"就会被伪装成"不在计划里"。
  *
  * @param areaCenter   作业区中心（`null` = 没有意图 = 今天的行为）

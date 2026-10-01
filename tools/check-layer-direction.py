@@ -120,6 +120,15 @@ LEDGER_MOVED = ("ModifyAudit",)
 #: —— 否则"把包搬空"或"复制一份留着"都能看起来通过（`O85` §② 同族：⛔ 不许靠"空过"留着）。
 REGION_MOVED = ("JobAreaRegistry", "ClaimService", "MapGeometry")
 
+#: ⭐ **刀 4 第 4 件**（2026-10-01，用户裁定「拆三个谓词后定名」；结构提案 `§5`）：
+#: `protection/ZoneAuthority` **整体消失** —— 裁决面进 `region/authz/`，
+#: 判据 = ① 两件**必须**在 `region/authz/`、② `protection/` 里**必须没有**同名文件、
+#: ③ ⭐ **入口唯一**：E 维那件必须**包内可见** ⇒ 编译器保证没有第二个授权入口。
+AUTHZ_MOVED = ("AreaPermission", "AreaPermissionLevel")
+
+#: ⛔ 已被拆分**删除**的类（只能不存在；若回来 ⇒ 红）：拆分 = 移动，⛔ 不是复制。
+AUTHZ_DISSOLVED = ("ZoneAuthority",)
+
 #: `action/` 对 `task/` 的**已登记欠账**（`文件: import 的类 → 到期条件`）。
 #: ⚠️ 只许**减少**；新增一条 = 必须显式改本文件（这就是"响亮"）。
 ALLOWED_REVERSE: dict[str, dict[str, str]] = {
@@ -655,6 +664,30 @@ def main() -> int:
             problems.append(f"`{PKG}/write/{name}.java` 还在 ⇒ 刀 4 的搬包没做完"
                             f"（同一层不许有两份定义；`D-566`）")
 
+    # ⭐ **刀 4 第 4 件**（2026-10-01，用户裁定「拆三个谓词后定名」）：`protection/ZoneAuthority`
+    # **整体消失** ⇒ 三处落点各查一次（搬包不是复制 + 拆包不是删除 + **入口唯一**）。
+    for name in AUTHZ_MOVED:
+        if not (SRC / PKG / "region" / "authz" / f"{name}.java").exists():
+            problems.append(f"`region/authz/` 里缺 `{name}.java` ⇒ 刀 4 第 4 件（拆三个谓词）没落地")
+        if (SRC / PKG / "protection" / f"{name}.java").exists():
+            problems.append(f"`{PKG}/protection/{name}.java` 还在 ⇒ 拆分没做完"
+                            f"（同一层不许有两份定义；`D-566`）")
+    for name in AUTHZ_DISSOLVED:
+        if (SRC / PKG / "protection" / f"{name}.java").exists():
+            problems.append(f"`{PKG}/protection/{name}.java` 回来了 ⇒ 拆出去的判据又被合回一个类"
+                            f"（结构提案 `§5`：「三者不许再合成一个函数」）")
+    # ⭐ **入口唯一由编译器保证**：E 维那件**必须包内可见**（`final class`，⛔ 不是 `public final class`）
+    # —— 它一旦 public，外部就能绕开 `AreaPermission` 直接问 E 维 = 出现**第二个授权入口**。
+    level_path = SRC / PKG / "region" / "authz" / "AreaPermissionLevel.java"
+    if level_path.exists():
+        level_decl = [ln for ln in level_path.read_text(encoding="utf-8").splitlines()
+                      if "class AreaPermissionLevel" in ln]
+        if not level_decl:
+            problems.append("`AreaPermissionLevel` 找不到类声明（结构变了 ⇒ 本判据要跟着改）")
+        elif any(ln.lstrip().startswith("public") for ln in level_decl):
+            problems.append("`AreaPermissionLevel` 成了 `public` ⇒ 出现**第二个授权入口**"
+                            "（E 维只许由 `AreaPermission.authorize` 调用；结构提案 `§5`）")
+
     # ⭐ 刀 3（`D-566`，2026-10-01）：`protection/` → `region/` 的**搬包**判据。
     # 反空转 ③：`region/` 被搬空/被删 ⇒ 红；且**两个包不许各留一份**（搬包 = 移动，⛔ 不是复制）。
     region_files = under("region")
@@ -705,6 +738,8 @@ def main() -> int:
           f"域子包 " + " · ".join(f"`action/{d}/` {n} 文件" for d, n in sorted(domain_counts.items())) + " · "
           f"⭐ `region/` {len(region_files)} 文件（刀 3/`D-566`：{len(REGION_MOVED)} 个原样类全在、"
           f"`protection/` 里零残留） · ⭐ `ledger/ModifyAudit` 在、`write/` 里零残留（刀 4/`D-566`） · "
+          f"⭐ `region/authz/` 裁决面 {len(AUTHZ_MOVED)} 谓词 ＋ `Quota` 全在、"
+          f"**入口唯一**（E 维包内可见）、`protection/{AUTHZ_DISSOLVED[0]}` 零残留（刀 4 第 4 件） · "
           f"扫描 {len(files)} · 红臂 {arms}/{arms}"
           f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)} + calc {len(SELFTEST_CALC_CASES)}"
           f" + action 层序 {len(SELFTEST_ACTION_CASES)}）")

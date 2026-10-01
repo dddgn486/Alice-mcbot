@@ -37,7 +37,7 @@ public final class CapabilityGate {
          * <p>⭐ `placing` = 这条 Movement 是**放置类**（`PILLAR` / `PLACE_STEP_AND_TRAVERSE`）——
          * 判定要按**放置**语义问区域授权面（`L1` 临时脚手架就允许垫脚）；破坏类按破坏语义问。
          * 混用一个"是不是受保护"的布尔会把 `D-338` 附注七的等级阶梯压平（客户端实测教训见
-         * `ZoneAuthority.silentRefusal` 的注释）。
+         * `AreaPermission.silentRefusal` 的注释）。
          */
         String protectionReason(BlockPos pos, boolean placing);
 

@@ -2,6 +2,7 @@ package com.dddgn.alice.region.authz;
 
 import com.dddgn.alice.bot.TaskMetrics;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.region.JobAreaRegistry;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.write.WriteReason;
@@ -50,6 +51,15 @@ public final class Quota {
     public static final int DEFAULT_MAX_PLACES = 32;
     /** **任务级容器写入上限**（2026-09-13：容器写入纳入"世界改动"体系；32 起点，按观测再收紧）。 */
     public static final int DEFAULT_MAX_CONTAINER_WRITES = 32;
+
+    /**
+     * ⭐ **F 维的区内放置配额**：`L1`（临时脚手架）在**已认领区块内**的放置上限（用户口径：**≤8 次**）。
+     *
+     * <p>与 {@link #DEFAULT_MAX_PLACES} 的区别：那是**任务作用域级**的总额度（默认 32、按 `scopeId` 计），
+     * 本常量是**区内**的额外一道小额上限，**只对 `L1` 生效**（它的语义就是"临时、少量"）。
+     * ⚠️ 2026-10-01 从 `protection/ZoneAuthority` 搬来（用户裁定「拆三个谓词后定名」，F 维落 `Quota`）。
+     */
+    public static final int L1_MAX_PLACES = 8;
 
     /**
      * ⭐ `Z3`（2026-09-23）：**预算耗尽的唯一瞬时码**。
@@ -598,6 +608,42 @@ public final class Quota {
         String scope = scopeOf(bot);
         Counters counters = scope == null ? null : SCOPES.get(scope);
         return counters == null ? 0 : counters.places;
+    }
+
+    /**
+     * ⭐ **F 维：还能动几次**（2026-10-01 用户裁定「拆三个谓词后定名」；结构提案 `§5`）。
+     *
+     * <p><b>它回答什么</b>：`L1`（临时脚手架）在**已认领区块内**的放置配额 —— `L1` 的语义就是
+     * "临时、少量"，于是同一个 job 区用满 {@link #L1_MAX_PLACES} 次之后**再放就拒**
+     * （码 {@code zone_place_quota}）。⛔ 与"这一格允不允许动"（D 维）、"授权到哪一档"（E 维）
+     * 都不是同一个问题 —— 那两维在 {@link AreaPermission} / {@link AreaPermissionLevel}。
+     *
+     * <p>⚠️ `L2` **故意没有**"每 scopeId 区内放置上限"（2026-09-19 用户裁定，见 `D-343`）——
+     * 别以为是漏了。两条理由（都查过代码）：
+     * ① **没有洞**：本类的上限**同样按 `scopeId` 计**（`SCOPES`，`maxPlaces` 默认
+     *    {@link #DEFAULT_MAX_PLACES}），而 `scopeId` = `WorldModLedger.currentScope` = **当前任务作用域、
+     *    随任务生灭** ⇒ 一个 `L2` 任务**全部**放置（区内 ⊆ 全部）已经 ≤32
+     *    ⇒ 不存在"无限往玩家区里铺"的路径。
+     * ② **加了会伤正当工作**：`L2` = 工作面，补种树苗 / 插火把 / 垫脚 pillar **天然**需要多于 8 次
+     *    区内放置 ⇒ 再压一道小额配额会制造**假拒绝**（正是 `D-341` 那一类"任务被误判"）。
+     * 于是 `L1` 的"≤8"不是"所有等级都要有"，而是**脚手架级授权**的专属约束。
+     * 真要担心的是**跨任务累积**（多个任务在同一认领区越留越多 `KEEP` 方块）—— 那要**按 owner 持久化**
+     * 的账，是另一个设计，不是这里加个 int 能解决的。复核触发见 `D-343`。
+     *
+     * @return 拒绝的 {@link AreaPermission.Decision}；`null` = 这一档在区内**没有**配额这一道（放行）
+     */
+    static AreaPermission.Decision inZonePlaceRefusal(JobAreaRegistry.JobArea zone, AreaPermission.Act act) {
+        if (act != AreaPermission.Act.PLACE
+                || zone.effectiveLevel() != WritePolicyMatrix.Level.L1_SCAFFOLD) {
+            return null;
+        }
+        int used = JobAreaRegistry.zonePlaceCount(zone.scopeId());
+        if (used < L1_MAX_PLACES) {
+            return null;
+        }
+        return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "zone_place_quota",
+                "任务区 " + zone.kind() + " 等级 L1 的**区内放置配额**已用尽（" + used + "/"
+                        + L1_MAX_PLACES + "）");
     }
 
     private static void logNoScope(ServerPlayer bot, String action, BlockPos pos) {

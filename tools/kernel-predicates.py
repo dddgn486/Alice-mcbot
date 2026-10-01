@@ -649,18 +649,19 @@ def rule_no_permitted_candidate():
     `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` + `欠树 deficit=5`，**空转到 `maxTicks=24000`
     （20 分钟）**，期间反复唤醒 LLM。用户口径：「任务要如实失败，不能继续跑」。
 
-    本规则断言：① 分类的**唯一出处** `ZoneAuthority.permanentDenial` 在、且**永久码齐**；
+    本规则断言：① 分类的**唯一出处** `AreaPermission.permanentDenial` 在、且**永久码齐**；
     ② 它**没有**把搜索性理由（`trunk_too_tall`）收进去（否则「该等」会被误判成「失败」）；
     ③ `RegionLumberJob.patrol()` **真的调用**它、并给出 `no_permitted_candidate` 终态码。
     删掉任何一处 ⇒ 门禁红。
     """
-    zone = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "protection" / "ZoneAuthority.java"
+    zone = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "region" / "authz"
+            / "AreaPermission.java")
     region = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "lumber" / "RegionLumberJob.java"
     problems = []
     ztext = zone.read_text(encoding="utf-8")
     start = ztext.find("public static boolean permanentDenial(String code) {")
     if start < 0:
-        problems.append("ZoneAuthority 找不到 `permanentDenial`（分类的唯一出处没了 ⇒ 本规则要跟着改）")
+        problems.append("AreaPermission 找不到 `permanentDenial`（分类的唯一出处没了 ⇒ 本规则要跟着改）")
     else:
         body = ztext[start:ztext.find("\n    }", start)]
         # ⚠️ 必须**先剥注释**：方法体里那句注释就举了 `trunk_too_tall(unreachable=…)` 当例子
@@ -788,8 +789,8 @@ def rule_bulk_write_zone_gate():
     ② `breakForBulkEdit`：`breakRefusal(...)` 在 `level.destroyBlock(` **之前**，且
     ③ `BlockInteraction.breakRefusal` → `BlockBreakSafety.refusal(` 这一跳还在，
     ④ `BlockBreakSafety.refusal` → `clearingRefusal(`/`explicitTargetRefusal(` 这一跳还在，
-    ⑤ `BlockBreakSafety.explicitTargetRefusal(..., WriteReason ...)` 真的调 `ZoneAuthority.regionRefusal(`；
-    ⑥ ⭐ `RoadObstaclePolicy.exactForbidden` **不许**出现 `ZoneAuthority`
+    ⑤ `BlockBreakSafety.explicitTargetRefusal(..., WriteReason ...)` 真的调 `AreaPermission.regionRefusal(`；
+    ⑥ ⭐ `RoadObstaclePolicy.exactForbidden` **不许**出现 `AreaPermission`
        （要放松规划期规避 ⇒ 先改本规则 + `D-343`，不许顺手改）。
     """
     alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
@@ -821,7 +822,7 @@ def rule_bulk_write_zone_gate():
             problems.append(f"{label} 的 `{gate}` 在 `{write}` **之后** ⇒ 判定晚于写入 = 等于没有闸门")
 
     gate_before_write(bi_text, "public static boolean placeBulkEdit(",
-                      "ZoneAuthority.regionRefusal(", "level.setBlock(", "`placeBulkEdit`")
+                      "AreaPermission.regionRefusal(", "level.setBlock(", "`placeBulkEdit`")
     gate_before_write(bi_text, "public static boolean breakForBulkEdit(",
                       "breakRefusal(bot, level, pos, grant)", "level.destroyBlock(", "`breakForBulkEdit`")
 
@@ -840,15 +841,15 @@ def rule_bulk_write_zone_gate():
     hop3 = method_body(bbs_text, "public static String explicitTargetRefusal(ServerPlayer bot, BlockPos target, WriteReason reason)")
     if not hop3:
         problems.append("找不到**带写入理由**的 `explicitTargetRefusal`（没了它，保护区那层无法按区域授权面判定）")
-    elif "ZoneAuthority.regionRefusal(" not in hop3:
-        problems.append("`explicitTargetRefusal(..., WriteReason ...)` 不再调 `ZoneAuthority.regionRefusal(` "
+    elif "AreaPermission.regionRefusal(" not in hop3:
+        problems.append("`explicitTargetRefusal(..., WriteReason ...)` 不再调 `AreaPermission.regionRefusal(` "
                         "⇒ 破坏路径绕过区域授权面")
 
     # ⑥ 反向：**故意不接阶梯**。少了这条，"顺手接上"就会静默改变 ② 的结论。
     rop_code = re.sub(r"/\*.*?\*/", "", rop.read_text(encoding="utf-8"), flags=re.S)
     rop_code = re.sub(r"//[^\n]*", "", rop_code)
-    if "ZoneAuthority" in rop_code:
-        problems.append("`RoadObstaclePolicy` 里出现了 `ZoneAuthority` ⇒ 规划期规避被接上权限阶梯"
+    if "AreaPermission" in rop_code:
+        problems.append("`RoadObstaclePolicy` 里出现了 `AreaPermission` ⇒ 规划期规避被接上权限阶梯"
                         "（方向是**放松**，会造出半成品路）。要改先改本规则 + `D-343`")
     return problems
 
@@ -1749,7 +1750,7 @@ def rule_cluster_is_pure_geometry():
     "哪些真能挖"永远由调用方用**当前**的授权/可破性去算（`MineJob` 的 `revalidate` 就是那个位置）。
 
     断言（加任一符号 ⇒ 红）：
-    ① `TargetClusters` 里**不出现** `ZoneAuthority` / `breakable` / `Quota` / `MineScanMemoryData`
+    ① `TargetClusters` 里**不出现** `AreaPermission` / `breakable` / `Quota` / `MineScanMemoryData`
        / `getBlockState`（几何就是几何：不读世界、不问授权、不查记忆）；
     ② 相邻判定只有**一处出处**（`isNeighbour`），且两种口径都在（`FACE` / `DIAGONAL_26` 逐条有判据）；
     ③ 超预算的宽容度是**常量**（`DEFAULT_EXTRA_SEARCH_BUDGET`），不许散落在调用方。
@@ -1760,7 +1761,7 @@ def rule_cluster_is_pure_geometry():
     if not path.exists():
         return ["`TargetClusters` 不在了（本规则要跟着改）"]
     text = path.read_text(encoding="utf-8")
-    for banned in ["ZoneAuthority", "breakable", "Quota", "MineScanMemoryData",
+    for banned in ["AreaPermission", "breakable", "Quota", "MineScanMemoryData",
                    "getBlockState", "AreaData"]:
         if banned in text:
             problems.append("`TargetClusters` 里出现了 `%s` ⇒ 簇判定**不再纯粹是几何**"

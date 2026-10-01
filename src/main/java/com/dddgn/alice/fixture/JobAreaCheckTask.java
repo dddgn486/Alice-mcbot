@@ -6,15 +6,17 @@ import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberRegionState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
+import com.dddgn.alice.ledger.ModifyAudit;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.action.BlockInteraction;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.protection.AreaData;
 import com.dddgn.alice.region.JobAreaRegistry;
-import com.dddgn.alice.protection.ZoneAuthority;
+import com.dddgn.alice.region.authz.AreaPermission;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -475,7 +477,7 @@ public final class JobAreaCheckTask implements Task {
 
     /**
      * ⑤′ ⭐ **区域级授权面**（权限阶梯 `L0/L1/L2`，`D-338` 附注七②③）——夹具直接问**生产判据**
-     * （`ZoneAuthority`），并用**真的世界写入**（`BlockInteraction` 的两条批量路径）验"放行/拦下"。
+     * （`AreaPermission`），并用**真的世界写入**（`BlockInteraction` 的两条批量路径）验"放行/拦下"。
      *
      * <p>六组：① 无任务区 ⇒ **逐字回归 `protected_area`**（且放置今天**本来就该被拦** —— 补上的缺口）；
      * ② `L0` 只读 ⇒ 破坏/放置都拒；③ `L1` ⇒ 只许**临时**放置、**≤8 次**、**不许破坏**；
@@ -501,7 +503,7 @@ public final class JobAreaCheckTask implements Task {
         // ① 无任务区：破坏码**逐字回归** `protected_area`；放置**被拦**（今天这条闸门缺失 ⇒ 本片补上）
         JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         check("②无任务区：破坏 `EXPECTED_TARGET` ⇒ 拒绝码**逐字仍是 `protected_area`**（既有码/文档/夹具都按它写）",
-                "protected_area".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
+                "protected_area".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         boolean placedWithoutZone = placeThroughAction(level, AUTH_INSIDE,
                 grant("walk-return", WriteReason.STEP_PLACEMENT));
@@ -515,10 +517,10 @@ public final class JobAreaCheckTask implements Task {
                 l0.status() == JobAreaRegistry.Declare.DECLARED
                         && l0.zone().level() == WritePolicyMatrix.Level.L0_READ_ONLY);
         check("③`L0`：破坏 ⇒ `zone_read_only`",
-                "zone_read_only".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
+                "zone_read_only".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         check("③`L0`：放置 ⇒ `zone_read_only`，且真的没写进世界",
-                "zone_read_only".equals(ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE,
+                "zone_read_only".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.STEP_PLACEMENT))
                         && !placeThroughAction(level, AUTH_INSIDE,
                                 grant("walk-return", WriteReason.STEP_PLACEMENT))
@@ -529,7 +531,7 @@ public final class JobAreaCheckTask implements Task {
         check("⑥`L0` 只冻结**区内**：同一任务在**野外**放置照旧成功（`NOT_GATED`；"
                         + "把 ≤8 做成作用域级预算上限就会连野外一起清零 —— 那是错的）",
                 placedWilderness && !level.getBlockState(AUTH_WILDERNESS).isAir()
-                        && ZoneAuthority.placeRefusal(level, owner, AUTH_WILDERNESS,
+                        && AreaPermission.placeRefusal(level, owner, AUTH_WILDERNESS,
                                 WriteReason.STEP_PLACEMENT) == null);
 
         // ③ L1 临时脚手架（`craft-station` ⇒ CRAFT ⇒ L1）
@@ -538,32 +540,32 @@ public final class JobAreaCheckTask implements Task {
         check("④`L1`：等级 = L1（临时脚手架）", l1.active()
                 && l1.zone().level() == WritePolicyMatrix.Level.L1_SCAFFOLD);
         check("④`L1`：**非临时**放置理由 ⇒ `zone_place_not_scaffold`（如 `REGION_REPLANT` 是计划内永久）",
-                "zone_place_not_scaffold".equals(ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE,
+                "zone_place_not_scaffold".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.REGION_REPLANT)));
         check("④`L1`：**破坏** ⇒ `zone_break_not_allowed`（临时脚手架档不许破坏）",
-                "zone_break_not_allowed".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
+                "zone_break_not_allowed".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         int quotaPlaced = 0;
-        for (int i = 0; i < ZoneAuthority.L1_MAX_PLACES; i++) {
+        for (int i = 0; i < Quota.L1_MAX_PLACES; i++) {
             if (placeThroughAction(level, new BlockPos(QUOTA_BASE_X + i, FOOT_Y, QUOTA_Z),
                     grant("craft-station", WriteReason.STEP_PLACEMENT))) {
                 quotaPlaced++;
             }
         }
-        int ninthX = QUOTA_BASE_X + ZoneAuthority.L1_MAX_PLACES;
+        int ninthX = QUOTA_BASE_X + Quota.L1_MAX_PLACES;
         boolean ninth = placeThroughAction(level, new BlockPos(ninthX, FOOT_Y, QUOTA_Z),
                 grant("craft-station", WriteReason.STEP_PLACEMENT));
-        check("④`L1`：区内**≤8 次**放置配额真的生效（前 " + ZoneAuthority.L1_MAX_PLACES + " 次落地=" + quotaPlaced
-                        + "，第 " + (ZoneAuthority.L1_MAX_PLACES + 1) + " 次被拒=" + !ninth
-                        + "，拒绝码=" + ZoneAuthority.placeRefusal(level, owner, new BlockPos(ninthX, FOOT_Y, QUOTA_Z),
+        check("④`L1`：区内**≤8 次**放置配额真的生效（前 " + Quota.L1_MAX_PLACES + " 次落地=" + quotaPlaced
+                        + "，第 " + (Quota.L1_MAX_PLACES + 1) + " 次被拒=" + !ninth
+                        + "，拒绝码=" + AreaPermission.placeRefusal(level, owner, new BlockPos(ninthX, FOOT_Y, QUOTA_Z),
                                 WriteReason.STEP_PLACEMENT) + "）",
-                quotaPlaced == ZoneAuthority.L1_MAX_PLACES && !ninth
-                        && "zone_place_quota".equals(ZoneAuthority.placeRefusal(level, owner,
+                quotaPlaced == Quota.L1_MAX_PLACES && !ninth
+                        && "zone_place_quota".equals(AreaPermission.placeRefusal(level, owner,
                                 new BlockPos(ninthX, FOOT_Y, QUOTA_Z), WriteReason.STEP_PLACEMENT))
                         && level.getBlockState(new BlockPos(ninthX, FOOT_Y, QUOTA_Z)).isAir());
         check("④`L1`：配额计数落在**任务区**（scope）上，且只数区内放置（count="
                         + JobAreaRegistry.zonePlaceCount(l1.zone().scopeId()) + "）",
-                JobAreaRegistry.zonePlaceCount(l1.zone().scopeId()) == ZoneAuthority.L1_MAX_PLACES);
+                JobAreaRegistry.zonePlaceCount(l1.zone().scopeId()) == Quota.L1_MAX_PLACES);
 
         // ④ L2 工作面（`region_lumber` ⇒ LUMBER ⇒ L2）
         // ⭐ `D-338` 附注十四：`region_lumber`(L2) 在保护区内**只对玩家显式发起**生效 ⇒ 这里传 `true`
@@ -571,11 +573,11 @@ public final class JobAreaCheckTask implements Task {
         check("⑤`L2`：等级 = L2（工作面）", l2.active()
                 && l2.zone().level() == WritePolicyMatrix.Level.L2_WORKFACE);
         check("⑤`L2`：**目标内**（`EXPECTED_TARGET`）破坏 ⇒ 放行",
-                ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
+                AreaPermission.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
         check("⑤`L2`：**目标外**（`PATH_ACCESS`，清障）破坏 ⇒ 也放行（其后由授权/预算/账本管）",
-                ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.PATH_ACCESS) == null);
+                AreaPermission.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.PATH_ACCESS) == null);
         check("⑤`L2`：临时放置 ⇒ 放行（且 `L1` 的 8 次配额**不再适用**）",
-                ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null
+                AreaPermission.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null
                         && JobAreaRegistry.zonePlaceCount(l2.zone().scopeId()) == 0);
         boolean placedInZone = placeThroughAction(level, AUTH_INSIDE,
                 grant("region_lumber", WriteReason.STEP_PLACEMENT));
@@ -588,16 +590,16 @@ public final class JobAreaCheckTask implements Task {
 
         // ⑤ 越界 / 安全区 / 过期作用域：一律拒（授权不许泄漏到区外）
         check("⑦越界：同属保护区但**不被任务区覆盖**的区块 ⇒ 仍拒 `protected_area`",
-                "protected_area".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_OTHER_CHUNK,
+                "protected_area".equals(AreaPermission.breakRefusal(level, owner, AUTH_OTHER_CHUNK,
                         WriteReason.EXPECTED_TARGET)));
         check("⑦安全区**同权限**（2026-10-01 安全区退化后）：安全区格与保护区格走**同一条**判据 —— "
                         + "这里任务区**不覆盖**它 ⇒ 与「越界」**同一个码** `protected_area`"
                         + "（⛔ 原 `protected_safe_zone` 那一档已删除）",
-                "protected_area".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_SAFE,
+                "protected_area".equals(AreaPermission.breakRefusal(level, owner, AUTH_SAFE,
                         WriteReason.EXPECTED_TARGET)));
         UUID stranger = UUID.nameUUIDFromBytes("task-zone-fixture-stranger".getBytes());
         check("⑦别的 bot（owner）在自己区里拿不到权限：owner 不匹配 ⇒ `protected_area`",
-                "protected_area".equals(ZoneAuthority.breakRefusal(level, stranger, AUTH_INSIDE,
+                "protected_area".equals(AreaPermission.breakRefusal(level, stranger, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         // 等级解析的单一出处（含"L3 只能由玩家显式取得"）
         check("⑧等级来源（`WritePolicyMatrix` 单一出处）：`walk-return`/`mine-plan` ⇒ L0；`craft-station` ⇒ L1；"
@@ -633,52 +635,52 @@ public final class JobAreaCheckTask implements Task {
                 hasCode(l0Rejected, "zone_read_only") && !hasCode(l0Rejected, "protected_area"));
 
         // ⑧ 日志卫生（**客户端实测逼出来的**）：规划期谓词会反复问同一格 ⇒ 留痕必须去重，否则刷屏
-        ZoneAuthority.clearAudit();
-        int before = ZoneAuthority.auditLoggedCount();
+        ModifyAudit.clearAllowAudit();
+        int before = ModifyAudit.allowLoggedCount();
         JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         boolean allAllowed = true;
         for (int i = 0; i < 100; i++) {
             // 走**动作层那条**（`regionRefusal` 才留痕；`breakRefusal` 是纯判定入口，刻意不打印）
-            allAllowed &= ZoneAuthority.regionRefusal(level, owner, AUTH_INSIDE, "protected_area",
-                    WriteReason.EXPECTED_TARGET, ZoneAuthority.Act.BREAK) == null;
+            allAllowed &= AreaPermission.regionRefusal(level, owner, AUTH_INSIDE, "protected_area",
+                    WriteReason.EXPECTED_TARGET, AreaPermission.Act.BREAK) == null;
         }
         check("⑩日志卫生：**同一格 + 同一理由问 100 次 ⇒ 只留痕 1 条**（判定每次都一致；"
                         + "客户端实测里规划期谓词 50 ms 问了 5 次同一格 ⇒ 不去重会刷屏）"
-                        + "｜logged=" + (ZoneAuthority.auditLoggedCount() - before),
-                allAllowed && ZoneAuthority.auditLoggedCount() - before == 1);
-        ZoneAuthority.clearAudit();
+                        + "｜logged=" + (ModifyAudit.allowLoggedCount() - before),
+                allAllowed && ModifyAudit.allowLoggedCount() - before == 1);
+        ModifyAudit.clearAllowAudit();
 
         // ⑨ ⭐ **第四处消费：规划/执行期的能力闸门**（`CapabilityGate.Facts`）——
         //    客户端实测暴露我上一片**漏接了这一处**：保护区里 `PILLAR`（"垫一格上去"）被裸保护区判据拒了
         //    **144 次**、全轮零放置 ⇒ 高树最高一格够不到、直接跳过（离线对照：同一场景无认领时 `places=9`、`7/7`）。
         JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑨能力闸门（第四处消费）：`L2` 任务区覆盖 ⇒ **放置类移动**（垫脚/`PILLAR`）落点判定放行",
-                ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null);
+                AreaPermission.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null);
         check("⑨能力闸门：`L2` 下**破坏类移动**（`PATH_ACCESS` 语义）落点也放行",
-                ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) == null);
+                AreaPermission.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) == null);
         JobAreaRegistry.declare(server, owner, "craft-station", authArea, false);
         check("⑨能力闸门：`L1` 允许「垫脚」（临时脚手架）但**不允许破坏类移动**"
-                        + "（码=" + ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) + "）",
-                ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null
-                        && "zone_break_not_allowed".equals(ZoneAuthority.movementRefusal(level, owner,
+                        + "（码=" + AreaPermission.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) + "）",
+                AreaPermission.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null
+                        && "zone_break_not_allowed".equals(AreaPermission.movementRefusal(level, owner,
                                 AUTH_INSIDE, "protected_area", false)));
         JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         check("⑨能力闸门：**没有任务区**时逐字仍是 `protected_area`（既有失败码/`ZONE_PROTECTED_AREA` 不变）",
-                "protected_area".equals(ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE,
+                "protected_area".equals(AreaPermission.movementRefusal(level, owner, AUTH_INSIDE,
                         "protected_area", true)));
         check("⑨能力闸门：**方块/标签黑名单不参与区域授权**（`protected_block` 原样返回）",
-                "protected_block".equals(ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE,
+                "protected_block".equals(AreaPermission.movementRefusal(level, owner, AUTH_INSIDE,
                         "protected_block", true)));
 
         // ⑩ ⭐ `D-338` 附注十四：**保护区内，非玩家发起（LLM/未归因）封顶 `L1`**
         //    —— 现场：用户点的一次性砍树被如实拒绝后，LLM 自起 `region_lumber` 把用户保护区里的树砍了（两轮）。
         JobAreaRegistry.declare(server, owner, "region_lumber", authArea, false);
-        String llmBreak = ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET);
+        String llmBreak = AreaPermission.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET);
         check("⑪封顶：**LLM 自起**的 `region_lumber`（声明 L2）在保护区内 ⇒ 破坏被拒 **`zone_break_not_allowed`**"
                         + "（= 「拆不了玩家的方块」），且**不是** `protected_area`（那是「没有任务区」的码）｜code=" + llmBreak,
                 "zone_break_not_allowed".equals(llmBreak));
         check("⑪封顶：同一任务区**仍允许临时放置**（「能清障垫脚」）⇒ 只砍掉「拆家」能力",
-                ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null);
+                AreaPermission.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null);
         List<String> llmRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
         check("⑪封顶端到端：LLM 自起的区域任务，保护区里的树在**候选期**就被拒（`:zone_break_not_allowed`）"
                         + "⇒ 不会去砍玩家的树｜rejected=" + llmRejected,
@@ -689,21 +691,21 @@ public final class JobAreaCheckTask implements Task {
         // （码 = `no_permitted_candidate`），由下面 ⑫ 断言。
         JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑪封顶：**玩家显式发起**（命令/物品）时同一格**照旧放行**破坏（`L2`）⇒ 阶梯对玩家不缩水",
-                ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
+                AreaPermission.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
         JobAreaRegistry.declare(server, owner, "road-build", authArea, false);
         check("⑪封顶：`L3` 类（修路）非玩家发起 ⇒ 先降级 `L2`、保护区内再封顶 `L1`（两级都只收紧）⇒ 破坏仍被拒",
-                "zone_break_not_allowed".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
+                "zone_break_not_allowed".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         JobAreaRegistry.declare(server, owner, "walk-return", authArea, false);
         check("⑪封顶**只收紧、不放宽**：`L0`（只读）非玩家发起**仍是 `L0`**，放置照样 `zone_read_only`"
-                        + "（不许被「封顶」抬成可临时放置）｜code=" + ZoneAuthority.placeRefusal(level, owner,
+                        + "（不许被「封顶」抬成可临时放置）｜code=" + AreaPermission.placeRefusal(level, owner,
                         AUTH_INSIDE, WriteReason.STEP_PLACEMENT),
-                "zone_read_only".equals(ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE,
+                "zone_read_only".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.STEP_PLACEMENT)));
         JobAreaRegistry.declare(server, owner, "region_lumber", authArea, false);
         check("⑪封顶只作用于**已认领**区块：同一非玩家任务区在**野外**不受影响（`NOT_GATED`，野外写入照旧）",
-                ZoneAuthority.placeRefusal(level, owner, AUTH_WILDERNESS, WriteReason.STEP_PLACEMENT) == null
-                        && ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS,
+                AreaPermission.placeRefusal(level, owner, AUTH_WILDERNESS, WriteReason.STEP_PLACEMENT) == null
+                        && AreaPermission.breakRefusal(level, owner, AUTH_WILDERNESS,
                                 WriteReason.EXPECTED_TARGET) == null);
 
         // ⑫ ⭐ `D-341`：**"无权" ≠ "没有"** —— 候选扫描把没权限的树丢进 `rejected`、`viable` 里根本没有它，
@@ -735,14 +737,14 @@ public final class JobAreaCheckTask implements Task {
                         treeId + ":trunk_too_tall(unreachable=7)",
                         treeId + ":not_nearest",
                         treeId + ":no_stand"), FOOT_Y + 8) == null
-                        && !ZoneAuthority.permanentDenial(null)
-                        && !ZoneAuthority.permanentDenial(""));
+                        && !AreaPermission.permanentDenial(null)
+                        && !AreaPermission.permanentDenial(""));
         check("⑫无权≠没有：**区域外**的永久拒绝不算本区域的问题（区域外的 `protected_area` ⇒ `null`）",
                 RegionLumberJob.permissionBlock(treeRegion,
                         List.of("tree@0,-60,0:protected_area"), FOOT_Y + 8) == null);
         check("⑫无权≠没有：**安全区**（退化后与「越界」同码 `protected_area`）与 `L0` 也只读 ⇒ 都算永久拒绝",
-                ZoneAuthority.permanentDenial("protected_area")
-                        && ZoneAuthority.permanentDenial("zone_read_only"));
+                AreaPermission.permanentDenial("protected_area")
+                        && AreaPermission.permanentDenial("zone_read_only"));
         // ⑫ ⚠️ **原先这里有一条"跨写法前提"断言**（受理侧 `JobRequest.Kind.name()` vs 终态侧 `Task.taskName()`
         //    必须归一到同一身份）—— `D-342` 修订后**它已废弃**：身份不再跨边界做字符串匹配
         //    （在飞身份只由 LLM 受理侧写入，别人派活由 `BotManager.beginTask` → `clearAttempt` 清掉）
@@ -762,9 +764,9 @@ public final class JobAreaCheckTask implements Task {
         //    —— 两个方向都断言，才说得清"判据是位置、不是方块类型"。
         JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);   // L2（玩家发起 ⇒ 不封顶）
         setBlockTracked(level, AUTH_CHEST, Blocks.CHEST.defaultBlockState());
-        String chestInZone = ZoneAuthority.breakRefusal(level, owner, AUTH_CHEST, WriteReason.EXPECTED_TARGET);
+        String chestInZone = AreaPermission.breakRefusal(level, owner, AUTH_CHEST, WriteReason.EXPECTED_TARGET);
         setBlockTracked(level, AUTH_CHEST, Blocks.STONE.defaultBlockState());
-        String stoneInZone = ZoneAuthority.breakRefusal(level, owner, AUTH_CHEST, WriteReason.EXPECTED_TARGET);
+        String stoneInZone = AreaPermission.breakRefusal(level, owner, AUTH_CHEST, WriteReason.EXPECTED_TARGET);
         setBlockTracked(level, AUTH_CHEST, Blocks.CHEST.defaultBlockState());
         check("⑬位置判据①「**区内不可挖掘**」：**同一格**换成箱子 ⇒ 即便 `L2`（玩家发起 ＋ 明确目标）也拒 "
                         + "**`protected_block_entity`**（⛔ 与理由无关、⛔ 与等级无关）｜箱子=" + chestInZone
@@ -773,12 +775,12 @@ public final class JobAreaCheckTask implements Task {
                 "protected_block_entity".equals(chestInZone) && stoneInZone == null);
         check("⑬位置判据②**判别式**：**同一个方块**（箱子）在**野外**（未认领）⇒ 明确目标挖掘**照旧放行**"
                         + "（`NOT_GATED`；野外由成本模型 ＋ 只读审计治理）｜code="
-                        + ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS, WriteReason.EXPECTED_TARGET),
-                ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS,
+                        + AreaPermission.breakRefusal(level, owner, AUTH_WILDERNESS, WriteReason.EXPECTED_TARGET),
+                AreaPermission.breakRefusal(level, owner, AUTH_WILDERNESS,
                         WriteReason.EXPECTED_TARGET) == null);
         boolean chestBroken = BlockInteraction.breakForBulkEdit(bot, level, AUTH_CHEST, false,
                 grant("region_lumber", WriteReason.PATH_ACCESS));
-        String chestClearing = ZoneAuthority.breakRefusal(level, owner, AUTH_CHEST, WriteReason.PATH_ACCESS);
+        String chestClearing = AreaPermission.breakRefusal(level, owner, AUTH_CHEST, WriteReason.PATH_ACCESS);
         check("⑬位置判据③**不分策略 ＋ 真的写不进世界**：同一格换**清障**理由（`PATH_ACCESS`）⇒ **同一个码**"
                         + "（code=" + chestClearing + "；⚠️ 这个格子在**区内** ⇒ 拒绝**归因到位置规则**，"
                         + "⛔ 不再是清障策略那条 `block_entity`）；且生产动作层 `breakForBulkEdit` 返回 "
@@ -787,17 +789,17 @@ public final class JobAreaCheckTask implements Task {
                 "protected_block_entity".equals(chestClearing)
                         && !chestBroken && level.getBlockState(AUTH_CHEST).is(Blocks.CHEST));
         check("⑬位置判据④⛔ **不是「不可动」**：**放置**那一支不看方块实体 —— 同一格的放置判定照旧放行"
-                        + "（码=" + ZoneAuthority.placeRefusal(level, owner, AUTH_CHEST,
+                        + "（码=" + AreaPermission.placeRefusal(level, owner, AUTH_CHEST,
                                 WriteReason.STEP_PLACEMENT) + "）；两条轴分开：放置看**等级阶梯**、"
                         + "挖掘才看这条**位置**规则",
-                ZoneAuthority.placeRefusal(level, owner, AUTH_CHEST, WriteReason.STEP_PLACEMENT) == null);
+                AreaPermission.placeRefusal(level, owner, AUTH_CHEST, WriteReason.STEP_PLACEMENT) == null);
         check("⑬位置判据⑤**归类**：`permanentDenial(\"protected_block_entity\")=true` ⇒ 区域作业会**如实失败**"
                         + "（`no_permitted_candidate`），⛔ 不会把「区内挖不动」当成「区域里没有候选」空转到 `maxTicks`"
                         + "（`D-341` 那条 20 分钟空转的同类）",
-                ZoneAuthority.permanentDenial("protected_block_entity"));
+                AreaPermission.permanentDenial("protected_block_entity"));
 
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
-                + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");
+                + Quota.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");
         JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         phase = Phase.JOB_SETUP;
         settle = 0;
@@ -914,7 +916,7 @@ public final class JobAreaCheckTask implements Task {
             check("收尾：本步没有发生用例超时", false);
         }
         JobAreaRegistry.clearAll();
-        ZoneAuthority.clearAudit();
+        ModifyAudit.clearAllowAudit();
         phase = Phase.DONE;
         finish();
     }

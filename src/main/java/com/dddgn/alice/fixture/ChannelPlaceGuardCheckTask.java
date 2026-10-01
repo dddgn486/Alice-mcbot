@@ -19,7 +19,7 @@ import com.dddgn.alice.pathing.calc.PlannedMovement;
 import com.dddgn.alice.pathing.calc.PlanningStatus;
 import com.dddgn.alice.pathing.movement.SurfaceMovementProvider;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.protection.ZoneAuthority;
+import com.dddgn.alice.region.authz.AreaPermission;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -192,9 +192,9 @@ public final class ChannelPlaceGuardCheckTask implements Task {
                             && !MovementHelper.bodyPassable(level, pocket.offset(0, 0, -1))
                             && !MovementHelper.canWalkThrough(level, pocket.above(2)));
             check("前提③：区域级授权面不拦这一格（否则执行层判据会拿到 `ZONE_DENIED` 而不是 `CHANNEL_DENIED`）",
-                    ZoneAuthority.regionRefusal(level, bot.getUUID(), blocked,
+                    AreaPermission.regionRefusal(level, bot.getUUID(), blocked,
                             AreaData.get(level.getServer()).protectionReason(level, blocked),
-                            WriteReason.STEP_PLACEMENT, ZoneAuthority.Act.PLACE) == null);
+                            WriteReason.STEP_PLACEMENT, AreaPermission.Act.PLACE) == null);
             check("前提④：放置预算可用（否则执行层会被预算先拦下）", Quota.placeAllowed(bot));
             step++;
             return Task.Status.RUNNING;

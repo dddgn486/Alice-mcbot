@@ -476,7 +476,7 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
 
 | 用例 | 入口 | 期望（看日志键） |
 |---|---|---|
-| **① 正例**：保护区里划林场 | `/give @s alice:region_lumber` → **右键** | `[TaskZone] declared … kind=region_lumber **level=L2** chunks=6`；`[ZoneAuthority] ALLOW … 等级 L2`；**真的砍到树**（`[Job] … chopped=` 在涨）；够不到的高处会 `[Ledger] place … cobblestone [TEMP STEP_PLACEMENT]`（"垫一格"，用完自己拆） |
+| **① 正例**：保护区里划林场 | `/give @s alice:region_lumber` → **右键** | `[TaskZone] declared … kind=region_lumber **level=L2** chunks=6`；`[ModifyAudit] ALLOW … 等级 L2`（⚠️ 2026-10-01 起前缀由 `[ZoneAuthority]` 改为 `[ModifyAudit]` —— 留痕搬进了 `ledger/ModifyAudit`）；**真的砍到树**（`[Job] … chopped=` 在涨）；够不到的高处会 `[Ledger] place … cobblestone [TEMP STEP_PLACEMENT]`（"垫一格"，用完自己拆） |
 | **② 对照**：无任务区 | 先 `/alice region stop`，再 `/give @s alice:lumber_job` → 右键 | **1 tick 就 FAILED**：`[Job] select job=lumber … candidates=0 rejected=[tree@…:**protected_area**,…]` + `terminal=FAILED code=failed:no_reachable_candidate` |
 | **③ 冲突必须如实失败** | 站在场景里 `/alice protect safe claim` → `/alice region start` | 立即 `任务区与**安全区**冲突 ⇒ 拒绝声明` + 聊天 `区域任务失败：task_zone_conflict[safe_zone 1 chunks: 1,12]`；**bot 一步都不动** |
 

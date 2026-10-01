@@ -52,7 +52,7 @@ import com.dddgn.alice.task.FixtureClaim;
  * </ol>
  *
  * <h2>⚠️ 为什么要"借"一个 `L2` 任务区封套（诚实标注）</h2>
- * 保护区里的写入要过 `ZoneAuthority`，而**自检夹具的定位是 `DIAGNOSTIC` ⇒ `L0`（只读）**
+ * 保护区里的写入要过 `AreaPermission`，而**自检夹具的定位是 `DIAGNOSTIC` ⇒ `L0`（只读）**
  * （`D-338` 附注七③：未登记任务与自检夹具**不该**拿到区内写入权）。于是"在区内写字"这件事，
  * 夹具**必须**自己摆出前提：本步按 `JobAreaCheckTask` 的同一做法声明一个
  * `region_lumber`（`LUMBER ⇒ L2 工作面`）+ `playerDriven=true` 的封套 —— 它**不是**在验权限阶梯
@@ -263,7 +263,7 @@ public final class LedgerScopeCheckTask implements Task {
         // **门禁是活的**：还没有认领/封套时，先证明这道闸门不是恒假（"未认领 ⇒ 不拦"也是其中一半）
         check("臂③ 前提：起点未认领 ⇒ 闸门不拦（NOT_GATED）",
                 LedgerScope.isWild(level, ZONE_TARGET)
-                        && com.dddgn.alice.protection.ZoneAuthority.placeRefusal(level, bot.getUUID(),
+                        && com.dddgn.alice.region.authz.AreaPermission.placeRefusal(level, bot.getUUID(),
                                 ZONE_TARGET, WriteReason.STEP_PLACEMENT) == null);
         // 夹具自己摆前提：认领区块 + 声明 L2 任务区（夹具自己的任务是 DIAGNOSTIC ⇒ L0，见类注释）
         zone = FixtureClaim.protect(level, bot.getUUID(),

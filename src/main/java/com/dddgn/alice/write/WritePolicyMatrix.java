@@ -129,7 +129,7 @@ public final class WritePolicyMatrix {
          * ⭐ `D-338` 附注十四：**非玩家发起**（LLM / 未归因）在**保护区**内的等级**封顶**。
          *
          * <p>只收紧、**不放宽**：`L0` 仍是 `L0`（只读不许被抬成"可临时放置"），`L2/L3` 降到 `L1`
-         * （"能清障垫脚，**拆不了玩家的方块**"）。野外/无认领区块**根本不走这条**（`ZoneAuthority`
+         * （"能清障垫脚，**拆不了玩家的方块**"）。野外/无认领区块**根本不走这条**（`AreaPermission`
          * 在未认领时就返回 `NOT_GATED`）⇒ 对既有行为零影响。
          */
         public Level cappedForUnattended() {
@@ -742,7 +742,7 @@ public final class WritePolicyMatrix {
      * （{@link #ledgerPolicy}，由 {@code WorldModLedger.record} 调用）；而**容器写入不产生账本条目**
      * （它改的是容器内容，不是方块）⇒ 到今天为止 {@code P-06/P-17} 行登记的
      * {@code CONTAINER_TRANSFER}/{@code STATION_PROVISION} **没有任何读者**：表在，强制力不在。
-     * 本方法的挂点是 {@link Quota#consumeContainerWrite} —— **所有**已接线的容器写入的必经之处
+     * 本方法的挂点是 {@link com.dddgn.alice.region.authz.Quota#consumeContainerWrite} —— **所有**已接线的容器写入的必经之处
      * （与"移动授权挂在 {@code CorePathPlanner.plan}"同一个理由：一处管住全部）。
      *
      * <p><b>判定口径与移动授权**对齐**（不是新口径）</b>：
@@ -790,7 +790,7 @@ public final class WritePolicyMatrix {
                 ? Decision.DECLARED : Decision.UNDECLARED_REASON;
     }
 
-    /** 判定 + 留痕 + 计数（**执行期入口**；由 {@link Quota#consumeContainerWrite} 调用）。 */
+    /** 判定 + 留痕 + 计数（**执行期入口**；由 {@link com.dddgn.alice.region.authz.Quota#consumeContainerWrite} 调用）。 */
     public static Decision noteContainerWrite(ServerLevel level, java.util.UUID owner,
                                               BlockPos pos, Attribution grant) {
         Decision decision = decideContainerWrite(level, owner, pos, grant);

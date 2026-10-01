@@ -76,7 +76,7 @@ public final class BlockInteraction {
         NO_ITEM,
         /**
          * ⭐ **区域级授权拒绝**（`D-338` 附注七③）：该格在**保护区**内，而**任务区/等级**不允许放
-         * （代表码见 `ZoneAuthority`：`protected_area` / `zone_read_only` / `zone_place_quota`…）：
+         * （代表码见 `AreaPermission`：`protected_area` / `zone_read_only` / `zone_place_quota`…）：
          * **未写入**、**不消耗物品与预算**。与 `BUDGET_EXHAUSTED` 分开：一个是"额度用尽"，
          * 一个是"这块地没授权" —— 归因完全不同。
          */
@@ -326,11 +326,11 @@ public final class BlockInteraction {
             return PlaceResult.BUDGET_EXHAUSTED;
         }
         // ⭐ 区域级授权面（`D-338` 附注七③）：**保护区内放置**这条闸门**今天本来不存在**
-        //（`D-338` 核对表里的缺口）⇒ 在这里补上。判据与破坏侧**同一个函数**（`ZoneAuthority`）。
+        //（`D-338` 核对表里的缺口）⇒ 在这里补上。判据与破坏侧**同一个函数**（`AreaPermission`）。
         // ⚠️ 没有任务区时拒绝码逐字仍是 `protected_area`；野外/未认领 ⇒ 不拦、不留痕。
-        String zoneRefusal = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), placeAt,
+        String zoneRefusal = com.dddgn.alice.region.authz.AreaPermission.regionRefusal(level, bot.getUUID(), placeAt,
                 com.dddgn.alice.protection.AreaData.get(level.getServer()).protectionReason(level, placeAt),
-                grant == null ? null : grant.reason(), com.dddgn.alice.protection.ZoneAuthority.Act.PLACE);
+                grant == null ? null : grant.reason(), com.dddgn.alice.region.authz.AreaPermission.Act.PLACE);
         if (zoneRefusal != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
                     placeAt.toShortString(), grant == null ? "-" : grant.describe(), zoneRefusal);
@@ -667,9 +667,9 @@ public final class BlockInteraction {
                     pos.toShortString(), grant == null ? "-" : grant.describe(), Quota.describe(bot));
             return false;
         }
-        String protectedReason = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), pos,
+        String protectedReason = com.dddgn.alice.region.authz.AreaPermission.regionRefusal(level, bot.getUUID(), pos,
                 com.dddgn.alice.protection.AreaData.get(level.getServer()).protectionReason(level, pos),
-                grant == null ? null : grant.reason(), com.dddgn.alice.protection.ZoneAuthority.Act.PLACE);
+                grant == null ? null : grant.reason(), com.dddgn.alice.region.authz.AreaPermission.Act.PLACE);
         if (protectedReason != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
                     pos.toShortString(), grant.describe(), protectedReason);

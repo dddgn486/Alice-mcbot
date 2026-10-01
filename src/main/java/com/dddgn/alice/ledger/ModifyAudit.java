@@ -1,6 +1,7 @@
 package com.dddgn.alice.ledger;
 
 import com.dddgn.alice.write.Attribution;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -10,7 +11,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 世界写入审计（D-082）：把"谁授权、为什么、写了哪一格"记下来。
@@ -81,6 +84,61 @@ public final class ModifyAudit {
     /** 未声明授权身份的写入次数（**应为 0**；非 0 表示有写入点漏接授权）。 */
     public static int unknownRequesterWrites() {
         return unknownRequester;
+    }
+
+    // ==================== 授权留痕（"谁被授予了"） ====================
+
+    /**
+     * ⭐ **授权放行的留痕上限**（条）：同一格 + 同一理由**只留一次**，且总数有上限。
+     *
+     * <p>为什么必须去重（**客户端实测逼出来的**，2026-09-19）：`BlockBreakSafety` 不只被**动作层**调用，
+     * 还被**规划期**的候选谓词反复调用（同一个 `pos`+`reason` 在 50 ms 内被问 5 次）⇒ 不去重的话
+     * 一轮区域伐木会刷出成千上万行 `ALLOW`，把真日志淹掉。行为一条没改，改的只是**打印次数**。
+     *
+     * <p>2026-10-01：本块从 `protection/ZoneAuthority` 搬来（用户裁定「留痕跟 `ledger/ModifyAudit` 走」）
+     * —— 它回答"**谁被授予了**"，与 {@link Entry}（"**实际写了什么**"）同族，故并到同一个审计面。
+     */
+    public static final int ALLOW_AUDIT_CAP = 512;
+
+    private static final Set<String> ALLOW_KEYS = new LinkedHashSet<>();
+    private static boolean allowSaturated;
+
+    /**
+     * 放行时留一行（同一格 + 同一理由只留一次；总数到 {@link #ALLOW_AUDIT_CAP} 后不再逐条打，只报一次饱和）。
+     * 目的：事后能审计"**谁被授予了区内写入**"，同时不把日志刷成噪声。
+     *
+     * @param reason 声明式写入理由（`null` ⇒ 记 `-`）
+     * @param detail 授权面的判定说明（`AreaPermission.Decision#detail`）
+     */
+    public static void logAllowGrant(BlockPos pos, WriteReason reason, String detail) {
+        if (pos == null) {
+            return;
+        }
+        String key = pos.asLong() + "|" + (reason == null ? "-" : reason.name());
+        if (!ALLOW_KEYS.add(key)) {
+            return;
+        }
+        if (ALLOW_KEYS.size() > ALLOW_AUDIT_CAP) {
+            if (!allowSaturated) {
+                allowSaturated = true;
+                BotLog.info("[ModifyAudit] 审计留痕已达上限 {} 条 ⇒ 后续放行不再逐条打印"
+                        + "（**闸门行为不变**，只是不再打印；真要逐次审计看 `[WRITE]` / 账本）", ALLOW_AUDIT_CAP);
+            }
+            return;
+        }
+        BotLog.info("[ModifyAudit] ALLOW pos={} reason={} {}（同一格+同一理由只留痕一次）",
+                pos.toShortString(), reason == null ? "-" : reason.name(), detail);
+    }
+
+    /** 已留痕的 (格, 理由) 条数（夹具据此断言"重复问同一格不会重复刷日志"）。 */
+    public static int allowLoggedCount() {
+        return ALLOW_KEYS.size();
+    }
+
+    /** **夹具/收尾专用**：清空授权留痕去重表（**不影响任何授权判定**，也不动 {@link #ENTRIES}）。 */
+    public static void clearAllowAudit() {
+        ALLOW_KEYS.clear();
+        allowSaturated = false;
     }
 
     /** 当前环形缓冲快照（旧 → 新）。 */

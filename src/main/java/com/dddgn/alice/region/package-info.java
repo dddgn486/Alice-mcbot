@@ -10,9 +10,12 @@
  * {@link com.dddgn.alice.region.JobAreaRegistry}（job 区）·
  * {@link com.dddgn.alice.region.ClaimService}（区域管理的**写入口**，原 `ProtectionClaimService`）·
  * {@link com.dddgn.alice.region.MapGeometry}（区域几何，原 `ProtectionMapGeometry`）。
- * ⛔ **其余 6 个类仍在 `protection/`**（`§2` 的 9 类落点表还没走完：`AreaData` 要拆三份、
- * `ZoneAuthority` 要拆三个谓词、`LedgerScope` 去 `ledger/`、`BlockBreakSafety` 去 `action/`、
+ * ⛔ **其余 5 个类仍在 `protection/`**（`§2` 的 9 类落点表还没走完：`AreaData` 要拆三份、
+ * `LedgerScope` 去 `ledger/`、`BlockBreakSafety` 去 `action/`、
  * `ReturnPointData` 待指、`ThirdPartyProtection` 去 `region/authz/`）。
+ * ⭐ **2026-10-01 刀 4 第 4 件已落**：`protection/ZoneAuthority` **整体消失** ——
+ * 裁决面（D/E/F 三个谓词 ＋ 唯一入口 `AreaPermission`）进 {@link com.dddgn.alice.region.authz}、
+ * 授权留痕进 `ledger/ModifyAudit`、区内额度进 `region/authz/Quota`。
  * ⇒ 本包**今天不是「`protection/` 的替代品」**，而是它的**新家**，搬家是逐步的。
  *
  * <h2>一 · 四问 ⇒ ⛔ **不建四个子包**（这是契约，不是偏好）</h2>

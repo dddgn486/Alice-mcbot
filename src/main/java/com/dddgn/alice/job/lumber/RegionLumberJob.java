@@ -440,7 +440,7 @@ com.dddgn.alice.pathing.MovementHelper
                 region.minX(), region.minZ(), region.maxX(), region.maxZ());
         // ⭐ `D-338` 附注十四：**玩家显式**的判据 = 命令（`IN_GAME_PLAYER`）或物品/夹具（`FIXTURE`）发起；
         // LLM（`LLM`）与未归因（`SYSTEM`）**不算** ⇒ 在保护区内的生效等级封顶 `L1`（拆不了玩家的方块）。
-        // 野外/无认领区块不受影响（`ZoneAuthority` 在未认领时即 `NOT_GATED`）。
+        // 野外/无认领区块不受影响（`AreaPermission` 在未认领时即 `NOT_GATED`）。
         String driver = com.dddgn.alice.decision.Driver.of(bot);
         boolean playerDriven = com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(driver)
                 || com.dddgn.alice.decision.Driver.FIXTURE.equals(driver);
@@ -807,7 +807,7 @@ com.dddgn.alice.pathing.MovementHelper
      * ⭐ `D-341`：**区域内被"永久授权拒绝"的树**（`null` = 没有这类候选 ⇒ 该等就照旧等）。
      *
      * <p>判据 = `raw.rejected()` 里 ① 锚点**落在区域内**且竖直在有效上界内、② 理由是
-     * {@link com.dddgn.alice.protection.ZoneAuthority#permanentDenial(String)}。命中 ⇒ 返回
+     * {@link com.dddgn.alice.region.authz.AreaPermission#permanentDenial(String)}。命中 ⇒ 返回
      * `"<码> <逐树理由>"`（给 `failure` 用），无 ⇒ `null`。
      *
      * <p>**为什么不看 `viable`**：调用方只在 `inRegion.isEmpty()` 时问它 —— **"无权"与"没有"必须分开**：
@@ -826,7 +826,7 @@ com.dddgn.alice.pathing.MovementHelper
                 continue;
             }
             String reason = entry.substring(cut + 1);
-            if (!com.dddgn.alice.protection.ZoneAuthority.permanentDenial(reason)) {
+            if (!com.dddgn.alice.region.authz.AreaPermission.permanentDenial(reason)) {
                 continue;
             }
             net.minecraft.core.BlockPos anchor = parseRejectedAnchor(entry.substring(0, cut));

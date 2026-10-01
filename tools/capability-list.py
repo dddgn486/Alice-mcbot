@@ -10,7 +10,7 @@
 
 * **不引入第五个真相源**：这里**不新增**任何事实表 —— 每一节都只是把一个**已有的单一出处**读出来渲染成人读视图
   （`GoalAction` 白名单 / `JobRequest.Kind` + `JobKindContract` / `MovementType` / `CheckModules` + 模块 `CheckStep`
-  + `RegressionBatteryTask.CURATION` / `docs/MACHINE_MAP.csv` / `RiskSwitches` / `ZoneAuthority`）。
+  + `RegressionBatteryTask.CURATION` / `docs/MACHINE_MAP.csv` / `RiskSwitches` / `AreaPermission`）。
   清单与出处不一致时**以代码为准**，生成器改的是清单，不是代码。
 * **判据不许同义反复**（`A2`/`D-417` 的教训）：如果只断言"生成的文档 == 生成的文档"，只要重新生成就一定一致
   ⇒ 那是空判据。**强制力在 `--check` 的跨出处断言**（见 `ASSERTIONS`）：步声明 ↔ `CURATION`、
@@ -280,20 +280,20 @@ def parse_risk_switches() -> tuple[dict[str, dict], str]:
 
 
 def parse_zone() -> tuple[dict[str, list[str]], str]:
-    text = read(JAVA / "protection" / "ZoneAuthority.java")
+    text = read(JAVA / "region" / "authz" / "AreaPermission.java")
     out: dict[str, list[str]] = {}
     for name in ("Verdict", "Act"):
         m = re.search(rf"enum {name}\s*\{{(.*?)\n    \}}", text, re.S)
         if not m:
-            fail(f"[解析崩塌] ZoneAuthority.{name} 没找到")
+            fail(f"[解析崩塌] AreaPermission.{name} 没找到")
             out[name] = []
             continue
         body = strip_comments(m.group(1))
         vals = enum_constants(body)
         if not vals:
-            fail(f"[解析崩塌] ZoneAuthority.{name} 里一个常量都没解析出来")
+            fail(f"[解析崩塌] AreaPermission.{name} 里一个常量都没解析出来")
         out[name] = vals
-    return out, "protection/ZoneAuthority.java（Verdict / Act）"
+    return out, "region/authz/AreaPermission.java（Verdict / Act）"
 
 
 # ======================================================================================

@@ -237,7 +237,7 @@ public final class MineRegressionTask implements Task {
             // ⭐ `D-464` 的 O1/O2 修复（2026-09-27）：**真悬空**（下方 ≥8 格空气）⇒ 断言
             // 规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
             // ⛔ 执行侧（`exec_support`）第一次试过并撤回：不认领 ⇒ `D-398` 判"区外"不记账（无回收义务）；
-            //    认领 ⇒ `ZoneAuthority` 判 `protected_area` **拒写**（保护区内的写入需要"生效的任务区"覆盖该格）
+            //    认领 ⇒ `AreaPermission` 判 `protected_area` **拒写**（保护区内的写入需要"生效的任务区"覆盖该格）
             // ⭐ `D-467`（2026-09-27）：**两件一起对**之后 EXECUTE 侧落地 —— 用现成的夹具助手
             //    `FixtureClaim.protect(...)`（认领区块 + 声明 L2 任务区封套 + **幂等 release**，
             //    仓里已有 6 个夹具在用）⇒ 见下面的 `exec_support`。
@@ -323,7 +323,7 @@ public final class MineRegressionTask implements Task {
      *
      * <p>为什么必须摆：`D-398` 把写入责任收窄到保护区 —— **区外不记账 ⇒ 无回收义务**
      * （`MineTask` 走 `restore_skip pending=0` 早退，`RESTORE` 相位一次都到不了；`D-465` 尝试① 实测）。
-     * 而**只认领不声明任务区**会被 `ZoneAuthority` 判 `protected_area` 拒写
+     * 而**只认领不声明任务区**会被 `AreaPermission` 判 `protected_area` 拒写
      * （尝试② 实测 `support_skipped result=ZONE_DENIED`）⇒ **两件一起对**才谈得上"真放支撑 + 用完即拆"。
      */
     private FixtureClaim.Handle zone;

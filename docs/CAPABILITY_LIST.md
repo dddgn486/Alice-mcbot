@@ -248,7 +248,7 @@
 
 ### §7.2 区块授权面（世界写入为什么会被拒）
 
-出处：`protection/ZoneAuthority.java（Verdict / Act）`。判定三态 + 两种动作；授权/预算/账本的完整清单 = `docs/authz/OVERVIEW.md`（生成物，出处 = `docs/authz/AUTHZ_REGISTRY.csv`）。
+出处：`region/authz/AreaPermission.java（Verdict / Act）`。判定三态 + 两种动作；授权/预算/账本的完整清单 = `docs/authz/OVERVIEW.md`（生成物，出处 = `docs/authz/AUTHZ_REGISTRY.csv`）。
 
 | Verdict | 含义 |
 |---|---|

@@ -5637,7 +5637,7 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 ② 把 `region/` 那份挪走 ⇒ 红「搬包不是删除」；还原 ⇒ `PASS`（`region/` 5 文件）·
 `ALICE_HEADLESS=1 check-all` ⇒ `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`。
 
-### §B⁗ 刀 4（三件外移）—— **2/3 落地，第 3 件撞上冲突暂停**（`D-566`）
+### §B⁗ ✅ 刀 4（三件外移，**3/3 落地**）＋ 第 4 件（拆三个谓词）见 `§B⁵`（`D-566`）
 
 > ⭐ 用户 2026-10-01 逐条勾选：「① `WriteAudit` → `ledger/`（带上 `Modify` 前缀）·
 > ② `WriteGrant` ⛔ 不进 `authz/`，改形成 `Attribution` · ③ `WriteBudget` → `Quota` 先落 `job/` 侧」
@@ -5673,15 +5673,66 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 **`pass=41 warning=0 failed=0`**（210 s，原 255 s）＋ **逐步 diff：45 → 44 步，消失的只有 `lumber_job`，
 其余 44 步判决零变化** ⇒ 无连带。⚠️ **根因未查**（只把间歇红移出构建，⛔ 不是已修）。
 
-### §C ⏳ 下一刀（active goal 的续行方向，⛔ 不需要用户输入即可开工）
+### §B⁵ ✅ 刀 4 第 4 件 —— **`ZoneAuthority` 拆三个谓词后定名**（`D-566`，2026-10-01）
+
+> ⭐ 用户上一轮逐字：「**本刀只做三件外移，拆谓词留到下一刀**」⇒ 本断点就是那一刀。
+> ⭐ **开工前先量了前提（⛔ 没顺着文档说）**：结构提案 `§5`/`§2` 说"330 行、**一个函数**装三件事"
+> —— **不成立**。实测 `authorize` = **96 行（注释 36 ⇒ 代码 61 行）**，D/E/F 三块代码量 ≈ **28 / 15 / 6** 行；
+> 330 是**整个类**（369 行），且过半是 javadoc ＋ 门面包装（6 个入口）＋ 留痕 ＋ `permanentDenial`。
+> ⇒ 我把「判断 ＋ 代价 ＋ 替代 ＋ 推荐」摆给用户：**拆仍然做**（三个问题确实是三个问题、各自会独立变），
+> 但按**一次拆到底**做（⛔ 不留"三个谓词走了、门面原地不动"的半成品）。
+
+⭐ **用户当轮三裁（各取我的推荐）**：
+① **名字用 `§5` 提案名**（入口＋D 维 = `AreaPermission` · E 维 = `AreaPermissionLevel` · F 维 = `Quota`）；
+② **留痕跟 `ledger/ModifyAudit` 走**；③ **`§7` #4（E 维档位）只搬不改**（取消 `ordinal` 会改
+`cappedForUnattended` 的封顶语义 ⇒ 那是行为改动，另开一刀）。
+
+**落成（`protection/ZoneAuthority` 整体消失 ⇒ 三处）**：
+
+| 维／件 | 落点 | 内容 |
+|---|---|---|
+| **D**（这一格允不允许动） | `region/authz/AreaPermission`（⛔ **唯一入口**） | 认领判定 · job 区覆盖 · 理由声明 · **刀 2 的位置规则**（`protected_block_entity`） |
+| **E**（授权到哪一档） | `region/authz/AreaPermissionLevel` | `allowsBreak`/`allowsPlace` ＋ 非玩家发起封顶 ＋ `L1` 只许临时放置。⚠️ **包内可见** ⇒ ⭐ **"入口唯一"由编译器保证**（⛔ 不靠人记得） |
+| **F**（还能动几次） | `region/authz/Quota#inZonePlaceRefusal` ＋ `Quota.L1_MAX_PLACES` | `L1` 区内 ≤8；`L2/L3` 故意没有（`D-343` 的理由随件搬进 javadoc） |
+| **留痕** | `ledger/ModifyAudit#logAllowGrant` | 去重表 ＋ `ALLOW_AUDIT_CAP=512` ＋ `allowLoggedCount()` ＋ `clearAllowAudit()` |
+| 门面（6 个包装 ＋ `Verdict`/`Act`/`Decision` ＋ `permanentDenial`） | `region/authz/AreaPermission` | ⭐ 调用方**只改类名**，签名与语义一字未变（19 文件 / 引用面机械改写） |
+
+⭐ **判据顺序一字未变**：D（`isClaimed` → 覆盖 → 理由 → 刀 2 位置）⇒ E（档位）⇒ F（额度 ⇒ 最后 ALLOW）。
+⚠️ **唯一非零行为面（如实登记）**：留痕那行日志的前缀 `[ZoneAuthority]` → **`[ModifyAudit]`**
+（发射类已不存在，且 `Zone` 不许再作名字）；⛔ **拒绝码、常量、调用顺序一个字没改**。
+
+**同步表 5 处**（`D-462` 那类；⛔ 全靠门禁当场抓到，不是我记得）：`check-layer-direction`
+（新 `AUTHZ_MOVED`／`AUTHZ_DISSOLVED` ＋ **入口唯一**判据）· `tools/capability-list.py`
+（`Verdict`/`Act` 解析路径）＋ 生成物重生成 · `tools/kernel-predicates.py`（**12 处**：`permanentDenial`
+唯一出处路径 · `regionRefusal(` 结构断言 · `RoadObstaclePolicy` 反向断言 · `TargetClusters` 禁词表）·
+`docs/BARITONE_ANCHORS.md`（本笔扫到内核引用面 ⇒ 补一行）· 活文档里的日志前缀（`TESTING_GUIDE`）。
+
+**证据**：`compileJava --offline` 成功（⚠️ **11 个错误 → 0**：全限定名 `protection.AreaPermission` 残留
+**10 处** ＋ `BlockBreakSafety` 同包**无 import** 1 处 —— 两条都是`盲替换`的经典坑，**编译器当场抓到**）·
+`check-all`（静态）⇒ **`pass=40 warning=1 failed=0`**（⭐ 与开工前**同一个数**：新判据**挂在已有门禁里**，
+⛔ 没新建第 41 道）· ⭐ **三条新判据逐个注入即红**（① `AreaPermissionLevel` 复制回 `protection/` ⇒ 红
+② 改成 `public` ⇒ 红「第二个授权入口」③ 旧 `protection/ZoneAuthority` 回来 ⇒ 红），还原 ⇒ `PASS`。
+
+⚠️ **电池两轮，⛔ 两个红都不是本刀**：
+① `single:task_zone,write_policy,job_area_grant,protection_zones,ledger_zone_scope` 连跑 ⇒
+`protection_zones=FAIL` ⇒ ⭐ **是既有 `O129` 的"连跑假红"**（签名逐字相同、日志里 `premise … 起步时未落地`
+⇒ `pos=4200, 44 → -10, 2600` 掉下去了）；**单跑** `single:protection_zones` ⇒ **`checks=95 failures=0`**（隔离法，同 `O129` 的 A/B 纪律）；
+其余 4 步 **PASS**（`task_zone` 94/0 · `write_policy` · `job_area_grant` · `ledger_zone_scope`）。
+② CORE ⇒ `passed=42/44`，两个红 = **`mine_regression`（`blocked`/`exec_blocked`）＋ `survival_exit`**
+= ⭐ **`docs/EXPECTED_REDS.md` 里那两行，签名逐字命中**（清单外零红）⇒ 与刀 4 无关。
+⛔ `O133`（`L1` 配额值两处 ＋ 死取值器）· `O134`（留痕只记放行不记被拦）**已登记为指针行**，本刀刻意不做（保持纯提取）。
+
+### §C ✅ **三刀全部走完** —— ⏳ 下一刀**要用户裁**（⛔ 这条线已不需要我自行开工）
 
 | 优先 | 刀 | 依据 |
 |---|---|---|---|
 | ✅ **刀 5** | **已完成**（`7d6de008`）：8 类改名 ＋ 3 个同名 `Zone` 分离，**11 个字面名已由用户复核同意** | `D-565` 刀 5 节 |
 | ✅ **刀 2** | **已完成**（见 `§B″`）：**区内**任何 `hasBlockEntity()` 的方块**一律不可挖掘**（新码 `protected_block_entity`；⛔ 不是「不可动」；容器写入**无需**例外） | `D-565` ⑤ ＋ 刀 2 节 |
 | ✅ **刀 3** | **已完成**（见 `§B‴`）：建 `region/` ＋ `region/authz/` 骨架 ＋ 搬 3 个原样类（`JobAreaRegistry` · `ClaimService` · `MapGeometry`）—— **3 个字面名用户当场确认** | `D-566` · 结构提案 `§8` 步 2 |
-| **刀 4** | ⭐ **2/3 已完成**（见 `§B⁗`）：`WriteGrant`→`Attribution`（就地改形）· `WriteAudit`→`ledger/ModifyAudit`；⛔ **`WriteBudget`→`Quota` 暂停**（落 `job/` 会造 12 包反向依赖、门禁抓不到 ⇒ `O131` 待裁） | `D-566` 刀 4 节 |
-| **下一刀** | ⭐ **`ZoneAuthority` 拆三个谓词后定名**（用户已裁「本刀只做三件外移，拆谓词留到下一刀」）—— ⚠️ 名字与 `§7` #4（E 维留不留）**都还没定** | 结构提案 `§8` 步 4 · `§5` |
+| ✅ **刀 4（4/4）** | ① `WriteGrant`→`Attribution` ② `WriteAudit`→`ledger/ModifyAudit` ③ `WriteBudget`→`region/authz/Quota` ④ ⭐ **拆三个谓词后定名**（`ZoneAuthority` 整体消失 ⇒ 见 `§B⁵`） | `§B⁗` ＋ `§B⁵` · `D-566` · 结构提案 `§8` 步 4/5 |
+| ⏳ **下一刀（待裁）** | 候选（⭐ 我的推荐顺序）：**① `§8` 步 5 收尾** —— `WritePolicyMatrix` → `region/authz/`（今天 `region/authz/` → `write/` 是**反向**的：裁决面依赖一个叫"写入"的包要策略表；且它同时是 `O133` 的解法）· **② `§8` 步 3** —— 拆 `AreaData`（认领集 → `region/`；**方块黑名单 → `action/`**，它是方块规则、与"哪块地"正交）· **③ `O130`** —— `region/` 的 import 方向断言（⛔ 别给正在移动的目标画线，建议与 ① 同批）· **④ `§8` 步 7** —— `WriteReason` 拆三份（引用面 44/38 文件，单列） | 结构提案 `§8` · `O116`/`O130`/`O131` |
+| ⚠️ **`§9.3` #8/#9 仍未裁** | #8 = `D-338` 那条链（`SafeReturnTask` ＋ `ReturnPointData`）落哪 · #9 = 安全区降为标记位的落法细节 | 结构提案 `§9.3` |
+| ⚠️ **步骤 0 的残留** | 「立 5 条不变量」里 **#5（授权入口唯一）本刀已落**（挂进 `check-layer-direction`，⛔ 没新建第 41 道门禁）；**#2/#4（区内放置被拒的正/反例提到 CORE）⛔ 仍未做**（`task_zone` 仍是 `Profile.EXTRA`） | 方案草案 `§7` |
 
 ### ✅⚠️ 刀 2 的**准确口径**（用户 2026-10-01 当场纠正过我两次，⛔ 别再写错）—— **已落地，本节留作口径锚**
 
