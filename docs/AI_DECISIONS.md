@@ -27401,3 +27401,58 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 - ⇒ 台账登记号 = **`O120`**。
 
 #### 五、⛔ 本刀零 `src/` 改动
+
+---
+
+### D-565 安全区退化：撤「安全区无条件拒」＋ 撤 `CONFLICT_SUBZONE`（2026-10-01，用户逐字「确实要撤掉，确认有意」）
+
+**裁定原文（逐字，按概念分条）**：
+
+| # | 用户逐字 | 落点 |
+|---|---|---|
+| ① | 「`ZoneAuthority.java:141-145` 安全区无条件拒（`protected_safe_zone`）＋ `declare` 拒覆盖 **确实要撤掉，确认有意**」 | **本决策** |
+| ② | 「既然**安全区 ⊆ 保护区 且权限相同，安全区可以从"第三种权限载体"降为"保护区上的一个标记位"这个提案，我思考了一下，觉得可以采纳，这样确实可以简化非常多的设计**」 | **本决策** |
+| ③ | 「「**job 区不能覆盖安全区，保留**」**这句话在安全区退化后就没有意义了**，**就只剩下归位点了，是玩家自主设定的，不考虑"能不能覆盖"的问题，玩家自己负责**」 | **本决策** |
+| ④ | 「⑥ ⭐⭐ "只搭不拆" **我建议就保持这样**……但是**还是可能出现意外情况导致没办法顺利回收，这个洞要登记，后面处理**」 | 台账 `O127`（⛔ 未落地） |
+| ⑤ | 「**"宝贵"从"方块类型"改成"位置"我采纳**，**挖掘黑名单只是一个临时手段，不能挖黑曜石本来就是它的缺陷**」 | ⛔ 未落地（待办） |
+| ⑥ | 「**policy() 登记到这个重构期的重构点之一，先不排期，取 A**」 | 台账 `O128`（⛔ 未落地） |
+
+**本刀落地的（⛔ 只有 ①②③）**：
+
+| 文件 | 改动 |
+|---|---|
+| `protection/ZoneAuthority.java` | 删 `authorize` 的安全区分支（`protected_safe_zone`）；从 `permanentDenial` 码表与 javadoc 删该码（⛔ 发射点已 0 个，留着 = 死规则） |
+| `protection/TaskZoneRegistry.java` | 删 `Declare.CONFLICT_SUBZONE`；`Result` 去掉第三栏 `conflicts`；删 `safeZoneConflicts`；`declare` 删冲突分支 |
+| `job/lumber/RegionLumberJob.java` | 删 `case CONFLICT_SUBZONE`（`task_zone_conflict` 失败路径**整条删除**）＋ 文案 |
+| `debug/DebugCommands.java` | 任务区预检不再报"会不会与安全区冲突" |
+| `fixture/TaskZoneCheckTask.java` | ⭐ **把两条"断言已删除行为"的相位改成断言新规则**：`CONFLICT`＋`DEGRADE` ⇒ `SAFE_OVERLAY`；`JOB_CONFLICT` ⇒ `JOB_SAFE`；`AUTH_SAFE` 的码 ⇒ 与「越界」**同一个** `protected_area` |
+| `tools/kernel-predicates.py` | `D-341·无权≠没有` 的**人口表同步收窄**（删 `"protected_safe_zone"`）＋ 记原因 |
+
+**⭐ 新覆盖规则（收敛成两条）**：
+
+| 方向 | 结果 |
+|---|---|
+| `job` 区 → 保护区 | ✅ 允许 |
+| `job` 区 → **安全区** | ✅ **允许（本决策改；第四节"保留拒绝"就此作废）** |
+| 任何区域 → `job` 区 | ⛔ 拒绝（**单向**） |
+| 归位点 | ⛔ **不参与覆盖规则**（玩家自主设定，自己负责） |
+
+**验证等级 = `SERVER_TESTED`**：
+- `single:task_zone` ⇒ **`checks=89 failures=0 verdict=PASS`**（`ticks=33`；
+  日志 `run/headless-logs/20261001-143716-single_task_zone.log`）
+- ⭐ **判据数 93 → 89 是算得出来的**（⛔ 非静默丢失）：删 `conflictPhase` 7 ＋ `degradePhase` 2 ＋
+  旧冲突生产 2，新增 `SAFE_OVERLAY` 7 ⇒ `93 − 9 + 7 − 2 = 89`
+- `ALICE_HEADLESS=1 check-all` ⇒ **`PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`**
+  （CORE 电池 `verdict=FAIL`，红**全部**是 `docs/EXPECTED_REDS.md` 已登记的两步
+  `mine_regression`/`survival_exit`，⛔ 与本刀无关）
+- `./gradlew compileJava --offline --no-daemon` 成功（仅 3 条既有过时 API 警告）
+
+**⚠️ 一处差点被我读错的证据（登记，防后人重犯）**：CORE 电池**不含** `task_zone`
+（它是 `Profile.EXTRA`，见 `fixture/RegressionBatteryTask.java:328`）⇒
+「`check-expected-reds` 绿」**只证明"没有未登记的红"**，⛔ **不证明本夹具被跑过**。
+本仓日志里 `[TaskZone]` 只有 `scaffold`/`mine_regression`/`break_refused` 三条**别人的**声明
+⇒ ⭐ **必须 `single:task_zone` 单跑**才算验过（`silent-measurement-failure`「0 有歧义」同族）。
+
+**⛔ 未落地（明确留给后续）**：`O127`（垫脚石回收意外）· `O128`（`policy()` 轴）·
+「宝贵 → 位置判据」· `region/`＋`authz/` 包结构 · 三件外移（`WriteAudit`/`WriteBudget`/`WriteGrant`）·
+`Zone` 类名清理。

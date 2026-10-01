@@ -43,14 +43,15 @@ import com.dddgn.alice.task.TaskTarget;
  * <ol>
  *   <li><b>派生几何</b>：工作区域（**方块级**）⇒ 任务区（**区块级最小覆盖**），单向；
  *       最小性用**逐方块枚举**这条独立路径做等式断言（不是同一公式抄两遍）；Y 不参与派生；</li>
- *   <li><b>覆盖规则</b>：任务区**可以**覆盖保护区**父类**；与**子类声明（安全区）**有交集 ⇒
- *       **报错 + 拒绝声明**，且**不裁剪、不降级**（安全区/保护区计数一字未动 ⇒ 系统没替玩家
- *       把安全区变成普通保护区）；取消那个声明之后**同一个工作区域**就能声明 —— 这正是报错里指的退路；</li>
+ *   <li><b>覆盖规则</b>（⛔ **2026-10-01 用户裁定后已改**）：任务区**可以**覆盖保护区，
+ *       **也可以覆盖安全区**（安全区退化为「保护区上的一个标记位」、与保护区**同权限**
+ *       ⇒「任务区不得覆盖安全区」这条**失去了立足点**）；声明任务区**不改**玩家的区域声明
+ *       （安全区/保护区计数一字未动）；覆盖规则今天只剩「**任何区域 → `job` 区 ⛔拒绝**」；</li>
  *   <li><b>锁定与生命周期</b>：唯一写入者是任务；作用域一收尾（终态/被替换/显式打断）
  *       ⇒ 权威**自动消失**（不需要谁记得来关）；过期条目被 prune 掉；没有作用域 ⇒ `NO_SCOPE`；</li>
  *   <li><b>生产接线</b>：真跑一次 {@link RegionLumberJob}（**生产 Job 类，不是影子实现**）——
- *       首 tick 会解算出任务区，终态后任务区已解除；工作区域压到安全区上时**如实失败**
- *       （`task_zone_conflict`）并报出冲突区块。</li>
+ *       首 tick 会解算出任务区，终态后任务区已解除；工作区域压到安全区上时**照常解算任务区**
+ *       （⛔ `task_zone_conflict` 那条失败路径**已删除**，且任务区**真的覆盖**那个安全区区块）。</li>
  * </ol>
  *
  * <p><b>本步刻意不做的两件事（不许"顺手"补上）</b>：① **不动任何权限行为** ——
@@ -75,7 +76,7 @@ public final class TaskZoneCheckTask implements Task {
     private static final int AREA_MAX_Z = 35210;
     private static final int[] AREA_CHUNKS_X = {2200, 2201, 2202};
     private static final int AREA_CHUNK_Z = 2200;
-    /** 冲突用例挑**中间**那个区块（2201,2200）：声明安全区之后任务区不得覆盖它。 */
+    /** 覆盖规则用例挑**中间**那个区块（2201,2200）：安全区退化后任务区**可以**覆盖它。 */
     private static final int CONFLICT_CHUNK_X = 2201;
 
     /** 工作区域 ②：1 个区块（区块 2210,2210）—— 换区用例与**生产 Job 用例**共用。 */
@@ -86,7 +87,7 @@ public final class TaskZoneCheckTask implements Task {
     private static final int AREA2_CHUNK_X = 2210;
     private static final int AREA2_CHUNK_Z = 2210;
 
-    /** 两区**之外**的安全区点（区块 2215,2215）：证明冲突判据只看向交集。 */
+    /** 两区**之外**的安全区点（区块 2215,2215）：证明覆盖规则只看向交集。 */
     private static final int OUTSIDE_CHUNK_X = 2215;
     private static final int OUTSIDE_CHUNK_Z = 2215;
 
@@ -107,7 +108,7 @@ public final class TaskZoneCheckTask implements Task {
     private static final BlockPos AUTH_INSIDE = new BlockPos(35204, FOOT_Y, 35208);
     /** 认领了但**不被**任务区覆盖（区块 2202,2200）—— 判"授权不许越界"（不泄漏）。 */
     private static final BlockPos AUTH_OTHER_CHUNK = new BlockPos(35236, FOOT_Y, 35208);
-    /** **安全区**（区块 2201,2200，CONFLICT 相位声明的那一个）—— 任务区不许覆盖它。 */
+    /** **安全区**（区块 2201,2200，`SAFE_OVERLAY` 相位声明的那一个）—— 退化后与保护区**同权限**。 */
     private static final BlockPos AUTH_SAFE = new BlockPos(35220, FOOT_Y, 35208);
     /** **野外**（区块 2212,2212，未认领）—— 本判据必须 `NOT_GATED`。 */
     private static final BlockPos AUTH_WILDERNESS = new BlockPos(35400, FOOT_Y, 35400);
@@ -123,8 +124,8 @@ public final class TaskZoneCheckTask implements Task {
     private static final int JOB_TICK_CAP = 40;
 
     private enum Phase {
-        PREPARE, GEOMETRY, DECLARE, SCOPE_LIFECYCLE, OVERLAY, CONFLICT, DEGRADE,
-        AUTHORITY, JOB_SETUP, JOB_OK, JOB_CONFLICT_SETUP, JOB_CONFLICT, CLEANUP, DONE
+        PREPARE, GEOMETRY, DECLARE, SCOPE_LIFECYCLE, OVERLAY, SAFE_OVERLAY,
+        AUTHORITY, JOB_SETUP, JOB_OK, JOB_SAFE_SETUP, JOB_SAFE, CLEANUP, DONE
     }
 
     private final BotPlayer bot;
@@ -203,8 +204,7 @@ public final class TaskZoneCheckTask implements Task {
             case DECLARE -> declarePhase(level);
             case SCOPE_LIFECYCLE -> scopeLifecyclePhase(level);
             case OVERLAY -> overlayPhase(level, zones);
-            case CONFLICT -> conflictPhase(level, zones);
-            case DEGRADE -> degradePhase(level, zones);
+            case SAFE_OVERLAY -> safeOverlayPhase(level, zones);
             case AUTHORITY -> authorityPhase(level, zones);
             case JOB_SETUP -> {
                 if (goTo(AREA2_START)) {
@@ -213,13 +213,13 @@ public final class TaskZoneCheckTask implements Task {
                 }
             }
             case JOB_OK -> jobOkPhase(level);
-            case JOB_CONFLICT_SETUP -> {
+            case JOB_SAFE_SETUP -> {
                 if (goTo(AREA_START)) {
                     settle = 0;
-                    phase = Phase.JOB_CONFLICT;
+                    phase = Phase.JOB_SAFE;
                 }
             }
-            case JOB_CONFLICT -> jobConflictPhase(level);
+            case JOB_SAFE -> jobSafePhase(level);
             case CLEANUP -> {
                 if (goTo(entryFoot)) {
                     cleanupPhase(level, zones);
@@ -420,66 +420,51 @@ public final class TaskZoneCheckTask implements Task {
         check("⚠本片**不改权限**：破坏闸门对保护区块**照旧拒绝**"
                         + "（protectionReason=protected_area ⇒ 红线一个字没动）",
                 "protected_area".equals(zones.protectionReason(level, AREA_START)));
-        phase = Phase.CONFLICT;
+        phase = Phase.SAFE_OVERLAY;
     }
 
-    /** ⑤ 冲突：与**子类声明（安全区）**有交集 ⇒ 报错 + 拒绝声明 + **不裁剪、不降级**。 */
-    private void conflictPhase(ServerLevel level, SafeZoneData zones) {
+    /**
+     * ⑤ **安全区退化后的覆盖规则**（⛔ 2026-10-01 用户裁定；**取代**原 `CONFLICT` ＋ `DEGRADE` 两个相位
+     * —— 那两条断言的是一个**已被删除**的行为）。
+     *
+     * <p>安全区**退化**为「保护区上的一个标记位」、与保护区**同权限**
+     * ⇒「任务区不得覆盖安全区」这条**失去了立足点**（用户逐字：「**这句话在安全区退化后就没有意义了**」）
+     * ⇒ ⭐ 工作区域**压在安全区上照旧声明成功**；覆盖规则今天只剩「**任何区域 → `job` 区 ⛔拒绝**」。
+     */
+    private void safeOverlayPhase(ServerLevel level, SafeZoneData zones) {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         ResourceLocation dimension = level.dimension().location();
         TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
                 AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
-        TaskZoneRegistry.WorkArea area2 = new TaskZoneRegistry.WorkArea(dimension,
-                AREA2_MIN_X, AREA2_MIN_Z, AREA2_MAX_X, AREA2_MAX_Z);
-        check("冲突前提：中间区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z
-                        + "）先被声明为**安全区**（保护区的子类）",
+        check("覆盖规则前提：中间区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z
+                        + "）已被声明为**安全区**（保护区上的标记位）",
                 zones.declareSafe(level, CONFLICT_CHUNK_X, AREA_CHUNK_Z)
                         == SafeZoneData.SafeDeclare.DECLARED);
         int safeNow = zones.safeChunkCount();
         int claimedNow = zones.claimedChunkCount();
         TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
-        TaskZoneRegistry.Result conflict = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
-        check("⛔冲突：任务区与安全区有交集 ⇒ CONFLICT_SUBZONE（拒绝声明）",
-                conflict.status() == TaskZoneRegistry.Declare.CONFLICT_SUBZONE && !conflict.active());
-        check("⛔冲突：报出的冲突区块**恰好**是那一个（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z + "）",
-                conflict.conflicts().size() == 1
-                        && conflict.conflicts().get(0) == ChunkPos.asLong(CONFLICT_CHUNK_X, AREA_CHUNK_Z));
-        check("⛔冲突：**不裁剪** —— 世界没有留下一个「小一号」的任务区（zoneOf=null）",
-                TaskZoneRegistry.zoneOf(server, owner) == null);
-        check("⛔冲突：**不静默降级** —— 安全区/保护区计数一字未动（系统没替玩家把安全区变成普通保护区）",
-                zones.safeChunkCount() == safeNow && zones.claimedChunkCount() == claimedNow);
-        check("⛔冲突：**工作区域（玩家意图）一字未动**（blocks=" + area.areaXZ()
-                        + " chunks=" + area.chunkCover().size() + " ⇒ 系统不许替他改小或改位置）",
+        TaskZoneRegistry.Result overlay = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
+        check("⭐覆盖规则：工作区域**压在安全区上照样声明成功**（同权限 ⇒ "
+                        + "「任务区不得覆盖安全区」已删除）｜status=" + overlay.status(),
+                overlay.status() == TaskZoneRegistry.Declare.DECLARED && overlay.active());
+        check("⭐覆盖规则：生效的任务区**真的覆盖了**那个安全区区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z + "）",
+                overlay.zone() != null
+                        && overlay.zone().covers(new BlockPos(CONFLICT_CHUNK_X << 4, FOOT_Y, AREA_CHUNK_Z << 4)));
+        check("⭐覆盖规则：**不裁剪** —— 工作区域（玩家意图）一字未动（blocks=" + area.areaXZ()
+                        + " chunks=" + area.chunkCover().size() + "）",
                 area.areaXZ() == 41L * 11L && area.chunkCover().size() == 3);
+        check("⭐覆盖规则：安全区/保护区计数**一字未动**（声明任务区不改玩家的区域声明；safe=" + zones.safeChunkCount()
+                        + " claimed=" + zones.claimedChunkCount() + "）",
+                zones.safeChunkCount() == safeNow && zones.claimedChunkCount() == claimedNow);
         zones.claim(level, OUTSIDE_CHUNK_X, OUTSIDE_CHUNK_Z);
         zones.declareSafe(level, OUTSIDE_CHUNK_X, OUTSIDE_CHUNK_Z);
-        TaskZoneRegistry.Result elsewhere = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area2, false);
-        check("冲突判据**只看向交集**：区外的安全区（" + OUTSIDE_CHUNK_X + "," + OUTSIDE_CHUNK_Z
-                        + "）不影响声明 ⇒ 1 区块的工作区域照旧声明成功",
-                elsewhere.status() == TaskZoneRegistry.Declare.DECLARED);
+        check("覆盖规则只看向交集：区外的安全区（" + OUTSIDE_CHUNK_X + "," + OUTSIDE_CHUNK_Z
+                        + "）不进任务区（覆盖区块数仍是 " + overlay.zone().chunks().size() + "）",
+                overlay.zone() != null && overlay.zone().chunks().size() == 3);
         TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
-        phase = Phase.DEGRADE;
-    }
-
-    /** ⑥ 显式退化：**取消那个安全区声明**之后，同一个工作区域就能声明 —— 报错里指的退路。 */
-    private void degradePhase(ServerLevel level, SafeZoneData zones) {
-        var server = level.getServer();
-        UUID owner = bot.getUUID();
-        ResourceLocation dimension = level.dimension().location();
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
-                AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
-        boolean degraded = zones.clearSafe(level, CONFLICT_CHUNK_X, AREA_CHUNK_Z);
-        TaskZoneRegistry.Result declared = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
-        check("⭐显式退化：取消那个区块的安全区声明之后，**同一个工作区域**就能声明任务区"
-                        + "（这正是冲突报错指的退路，玩家一步可做）",
-                degraded && declared.status() == TaskZoneRegistry.Declare.DECLARED);
-        // 复原成"冲突前提"，供生产 Job 用例使用（并保持"任务未起 ⇒ 无任务区"）
-        zones.declareSafe(level, CONFLICT_CHUNK_X, AREA_CHUNK_Z);
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
-        check("退化用例收尾：安全区已复原、本 bot 名下无生效任务区（下面两个用例从干净状态开始）",
-                zones.isSafe(level, AREA_START.offset(16, 0, 0))
-                        && TaskZoneRegistry.zoneOf(server, owner) == null);
+        check("相位收尾：本 bot 名下无生效任务区（下面的授权面用例从干净状态开始）",
+                TaskZoneRegistry.zoneOf(server, owner) == null);
         phase = Phase.AUTHORITY;
     }
 
@@ -490,7 +475,8 @@ public final class TaskZoneCheckTask implements Task {
      * <p>六组：① 无任务区 ⇒ **逐字回归 `protected_area`**（且放置今天**本来就该被拦** —— 补上的缺口）；
      * ② `L0` 只读 ⇒ 破坏/放置都拒；③ `L1` ⇒ 只许**临时**放置、**≤8 次**、**不许破坏**；
      * ④ `L2` 工作面 ⇒ 目标内（`EXPECTED_TARGET`）/ 目标外（`PATH_ACCESS`）破坏 + 临时放置都放行；
-     * ⑤ **越界与安全区**（认领但未被任务区覆盖 / 安全区）仍拒；⑥ **野外在 `L0` 期间照旧可写**（L0 冻结野外 = 错）。
+     * ⑤ **越界与安全区**（退化后两者都只是「认领但未被任务区覆盖」）⇒ **同一个码** `protected_area`；
+     * ⑥ **野外在 `L0` 期间照旧可写**（L0 冻结野外 = 错）。
      */
     private void authorityPhase(ServerLevel level, SafeZoneData zones) {
         var server = level.getServer();
@@ -597,8 +583,10 @@ public final class TaskZoneCheckTask implements Task {
         check("⑦越界：同属保护区但**不被任务区覆盖**的区块 ⇒ 仍拒 `protected_area`",
                 "protected_area".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_OTHER_CHUNK,
                         WriteReason.EXPECTED_TARGET)));
-        check("⑦安全区：`protected_safe_zone`（任务区不许覆盖子类声明 ⇒ 纵深防御）",
-                "protected_safe_zone".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_SAFE,
+        check("⑦安全区**同权限**（2026-10-01 安全区退化后）：安全区格与保护区格走**同一条**判据 —— "
+                        + "这里任务区**不覆盖**它 ⇒ 与「越界」**同一个码** `protected_area`"
+                        + "（⛔ 原 `protected_safe_zone` 那一档已删除）",
+                "protected_area".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_SAFE,
                         WriteReason.EXPECTED_TARGET)));
         UUID stranger = UUID.nameUUIDFromBytes("task-zone-fixture-stranger".getBytes());
         check("⑦别的 bot（owner）在自己区里拿不到权限：owner 不匹配 ⇒ `protected_area`",
@@ -745,8 +733,8 @@ public final class TaskZoneCheckTask implements Task {
         check("⑫无权≠没有：**区域外**的永久拒绝不算本区域的问题（区域外的 `protected_area` ⇒ `null`）",
                 RegionLumberJob.permissionBlock(treeRegion,
                         List.of("tree@0,-60,0:protected_area"), FOOT_Y + 8) == null);
-        check("⑫无权≠没有：**安全区**（子类声明，任务区不可能覆盖）与 `L0` 也只读 ⇒ 都算永久拒绝",
-                ZoneAuthority.permanentDenial("protected_safe_zone")
+        check("⑫无权≠没有：**安全区**（退化后与「越界」同码 `protected_area`）与 `L0` 也只读 ⇒ 都算永久拒绝",
+                ZoneAuthority.permanentDenial("protected_area")
                         && ZoneAuthority.permanentDenial("zone_read_only"));
         // ⑫ ⚠️ **原先这里有一条"跨写法前提"断言**（受理侧 `JobRequest.Kind.name()` vs 终态侧 `Task.taskName()`
         //    必须归一到同一身份）—— `D-342` 修订后**它已废弃**：身份不再跨边界做字符串匹配
@@ -794,7 +782,7 @@ public final class TaskZoneCheckTask implements Task {
                 job = null;
                 observedZoneMidFlight = false;
                 settle = 0;
-                phase = Phase.JOB_CONFLICT_SETUP;
+                phase = Phase.JOB_SAFE_SETUP;
             }
             return;
         }
@@ -809,11 +797,14 @@ public final class TaskZoneCheckTask implements Task {
         job = null;
         observedZoneMidFlight = false;
         settle = 0;
-        phase = Phase.JOB_CONFLICT_SETUP;
+        phase = Phase.JOB_SAFE_SETUP;
     }
 
-    /** ⑧ 生产接线（冲突路径）：工作区域压在安全区上 ⇒ Job **如实失败**并报出冲突区块。 */
-    private void jobConflictPhase(ServerLevel level) {
+    /**
+     * ⑧ 生产接线（**安全区被覆盖**路径；⛔ 取代原「冲突路径」）：工作区域压在安全区上
+     * ⇒ Job **照常解算任务区**（`task_zone_conflict` 这条失败路径**已删除**）。
+     */
+    private void jobSafePhase(ServerLevel level) {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         if (job == null) {
@@ -822,18 +813,16 @@ public final class TaskZoneCheckTask implements Task {
                     scope, new LumberCandidateSource(), new NearestPolicy(), 20, 4);
         }
         Task.Status status = job.tick();
-        check("⭐冲突 ⇒ 生产任务**如实失败**（不是静默降级继续跑）：status=FAILED 且 "
-                        + "terminalReason=task_zone_conflict（实际 " + status + "/" + job.terminalReason() + "）",
-                status == Task.Status.FAILED && "task_zone_conflict".equals(job.terminalReason()));
-        check("⭐冲突：失败事实里**带冲突区块**（玩家据此知道该退化哪几个区块）：" + job.failureReason(),
-                job.failureReason().contains("task_zone_conflict[safe_zone 1")
-                        && job.failureReason().contains(CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z));
-        check("⭐冲突：冲突时**没有留下任何任务区**（zoneOf=null ⇒ 不会带着无效封套继续）",
-                TaskZoneRegistry.zoneOf(server, owner) == null);
-        check("⭐冲突：状态文本可见（`CONFLICT_SUBZONE…`，进 SUMMARY / 失败报告）",
-                job.taskZoneStatus().startsWith("CONFLICT_SUBZONE"));
-        findings.add("job_conflict status=" + status + " reason=" + job.terminalReason()
-                + " failure=" + job.failureReason());
+        check("⭐安全区被覆盖：生产任务**照常解算任务区**（⛔ 不再有 `task_zone_conflict` 失败路径）｜status="
+                        + status + " taskZone=" + job.taskZoneStatus(),
+                job.taskZoneStatus().startsWith("DECLARED"));
+        TaskZoneRegistry.Zone active = TaskZoneRegistry.zoneOf(server, owner);
+        check("⭐安全区被覆盖：任务区**真的覆盖了**那个安全区区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z
+                        + "）｜chunks=" + job.taskZoneChunks(),
+                job.taskZoneChunks() == 3 && active != null
+                        && active.covers(new BlockPos(CONFLICT_CHUNK_X << 4, FOOT_Y, AREA_CHUNK_Z << 4)));
+        findings.add("job_safe status=" + status + " zone=" + job.taskZoneStatus()
+                + " chunks=" + job.taskZoneChunks());
         job = null;
         phase = Phase.CLEANUP;
     }

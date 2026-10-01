@@ -5525,3 +5525,47 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 | ⭐ **`authz/` 嵌套的结论** | ✅ **前提满足** ⇒ `authz/` **只剩三件**（谓词 ＋ 初始权限表 ＋ 覆盖检查）⇒ **`region/authz/` 成立** | 方案草案 **`§22.3`** 末尾 |
 
 ⚠️ **R-1/R-2/R-3 三个"先不排期"的重构点只放指针，⛔ 不复制内容**：`O128`（`policy()` 轴）· `O127`（垫脚石回收）· `O120`（`TopUnit` 单槽）—— ⭐ 后两者**同源，建议同刀**。
+
+---
+
+## 断点五十七（2026-10-01）⏸ **第一刀已落地：安全区退化（`D-565`）；active goal 已建 · 准备压缩**
+
+> ⭐ 用户本轮指令：「**设计方法不是推进进度**，当前的**排期关系已经非常复杂**，**赶紧把讨论的结果落实**」
+> ⇒ ⛔ **停止再出设计文档**，**开始动 `src/`**。
+> ⭐ 用户提醒（本会话新增口径）：「**用 active goal 的时候，遇到压缩断点要暂停**；没有决策点的话，
+> **我压缩完开启 goal 就能接上**」。
+
+### §A ✅ 本刀落地的（`D-565`，验证 `SERVER_TESTED`）
+
+| 文件 | 改动 |
+|---|---|
+| `protection/ZoneAuthority.java` | 删 `authorize` 的安全区分支（`protected_safe_zone`）；`permanentDenial` 码表同步收窄 |
+| `protection/TaskZoneRegistry.java` | 删 `Declare.CONFLICT_SUBZONE` · `Result` 去第三栏 `conflicts` · 删 `safeZoneConflicts` · `declare` 删冲突分支 |
+| `job/lumber/RegionLumberJob.java` | 删 `case CONFLICT_SUBZONE`（`task_zone_conflict` 失败路径**整条删除**） |
+| `debug/DebugCommands.java` | 任务区预检不再报"会不会与安全区冲突" |
+| `fixture/TaskZoneCheckTask.java` | ⭐ 两条"断言已删除行为"的相位 ⇒ 改断言**新规则**（`SAFE_OVERLAY` / `JOB_SAFE`；`AUTH_SAFE` 的码改 `protected_area`） |
+| `tools/kernel-predicates.py` | `D-341·无权≠没有` 人口表收窄（删 `"protected_safe_zone"`）＋ 记原因 |
+
+**证据**：`single:task_zone` ⇒ **`checks=89 failures=0 verdict=PASS`**（`ticks=33`）·
+`ALICE_HEADLESS=1 check-all` ⇒ `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0` ·
+`compileJava --offline` 成功 · 决策索引已重生成（560 决策）。
+
+### §B ⚠️ 本刀抓到的一个**读证据的坑**（⭐ 防后人重犯）
+
+⛔ **CORE 电池不含 `task_zone`**（它是 `Profile.EXTRA`，`fixture/RegressionBatteryTask.java:328`）⇒
+「`check-expected-reds` 绿」**只证明"没有未登记的红"**，⛔ **不证明本夹具被跑过**。
+⭐ 判据 = 日志里 `[TaskZone]` 只有 `scaffold`/`mine_regression`/`break_refused` 三条**别人的**声明
+⇒ **必须 `single:task_zone` 单跑**才算验过。（`silent-measurement-failure`「0 有歧义」同族）
+
+### §C ⏳ 下一刀（active goal 的续行方向，⛔ 不需要用户输入即可开工）
+
+| 优先 | 刀 | 依据 |
+|---|---|---|
+| **刀 2** | ⭐ **「宝贵 → 位置判据」**：区内任何 `hasBlockEntity()` 一律不可清障（码 `block_entity` **已有**，`BlockBreakSafety.java:188-190`） | `D-565` ⑤（用户「**我采纳**」） |
+| **刀 3** | ⭐ **建 `region/` ＋ `region/authz/` 骨架**（`authz` **嵌 region**，前提=只剩裁决）＋ 搬 3 个原样类 | 结构提案 `§8` 步 2 · `§9.1` |
+| **刀 4** | 三件外移：`WriteAudit`→`ledger/`（12 文件）· `WriteBudget`→`Quota`（`job/` 侧，**63 文件**）· `WriteGrant`→`Attribution`（**68 文件**） | 方案草案 `§22.3` |
+| **刀 5** | 逐类清 `Zone` 类名（10 个） | 结构提案 `§3` |
+
+⛔ **仍未裁、会挡路的两点**（开工时若撞到就问一次，⛔ 不预先阻塞）：
+① 结构提案 `§9.3` #8（`D-338` 那条链 `SafeReturnTask`＋`ReturnPointData` 落哪）· #9（安全区降为标记位的落法细节）。
+⚠️ **`O127`/`O128`/`O120` 是"先不排期"的重构点**，⛔ 不在上面这条线里。

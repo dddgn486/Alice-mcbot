@@ -33,8 +33,6 @@ import java.util.UUID;
  *   <tr><th>码</th><th>含义</th></tr>
  *   <tr><td>{@code protected_area}</td><td>在保护区里、**没有**生效的任务区（或任务区不覆盖这一格）
  *       —— ⚠️ **这是今天的行为，逐字保留**（既有失败码/夹具/文档都按它写）</td></tr>
- *   <tr><td>{@code protected_safe_zone}</td><td>在**安全区**（子类声明）里 —— 任务区**不可能**覆盖它
- *       （`declare` 直接拒绝）⇒ 这里是纵深防御，不该出现</td></tr>
  *   <tr><td>{@code zone_read_only}</td><td>任务区等级 = `L0`（只读）</td></tr>
  *   <tr><td>{@code zone_break_not_allowed}</td><td>`L1`（临时脚手架）**不许破坏**</td></tr>
  *   <tr><td>{@code zone_place_not_scaffold}</td><td>`L1` 只许**临时**放置（`WriteReason#temporary()`），
@@ -42,6 +40,11 @@ import java.util.UUID;
  *   <tr><td>{@code zone_place_quota}</td><td>`L1` 的**区内 8 次**放置配额用尽</td></tr>
  *   <tr><td>{@code zone_reason_required}</td><td>调用方**没给理由** ⇒ 不给区域级放行（保守：没有声明就没有授权）</td></tr>
  * </table>
+ *
+ * <p>⛔ **已删除的码**：{@code protected_safe_zone}（2026-10-01 用户逐字「**确实要撤掉，确认有意**」）——
+ * 安全区**退化**为「**保护区上的一个标记位**」，与保护区**同权限**，⛔ 不再是"更严的一档"；
+ * 它在系统里的专属语义只剩「**返程首选目的地**」（见 {@code task/SafeReturnTask}）。
+ * ⇒ 安全区内的格子今天走**与保护区完全相同**的判据（任务区覆盖 ＋ 等级）。
  */
 public final class ZoneAuthority {
 
@@ -62,7 +65,7 @@ public final class ZoneAuthority {
      * `trunk_too_tall` / `not_nearest` / `no_stand` 这类**搜索性或策略性**理由继续当"暂时没有"（照旧等）。
      *
      * <p><b>收录的码</b>：{@code protected_area}（在保护区里且**没有**生效任务区）/
-     * {@code protected_safe_zone}（安全区，任务区不可能覆盖）/ {@code zone_read_only}（`L0`）/
+     * {@code zone_read_only}（`L0`）/
      * {@code zone_break_not_allowed}（`L1` 不许破坏）/ {@code zone_place_not_scaffold}（`L1` 只许临时放置）/
      * {@code protected_block} / {@code protected_tag}（玩家设的全世界通用黑名单 —— 也不是"等一下就会变"）。
      *
@@ -82,7 +85,7 @@ public final class ZoneAuthority {
             head = head.substring(0, cut);
         }
         return switch (head.trim()) {
-            case "protected_area", "protected_safe_zone", "protected_block", "protected_tag",
+            case "protected_area", "protected_block", "protected_tag",
                  "zone_read_only", "zone_break_not_allowed", "zone_place_not_scaffold" -> true;
             default -> false;
         };
@@ -138,11 +141,9 @@ public final class ZoneAuthority {
             return new Decision(Verdict.NOT_GATED, null,
                     "unclaimed chunk " + (pos.getX() >> 4) + "," + (pos.getZ() >> 4));
         }
-        if (zones.isSafe(level, pos)) {
-            // 安全区 ⊆ 保护区，且任务区**不得**覆盖子类声明（declare 已拒）⇒ 走到这里说明有东西坏了
-            return new Decision(Verdict.DENY, "protected_safe_zone",
-                    "安全区（子类声明）内的写入：任务区不许覆盖它（D-338 附注二第 1 条）");
-        }
+        // ⛔ 2026-10-01 用户裁定：**撤掉"安全区无条件拒"**（原 `protected_safe_zone` 那一档）——
+        // 安全区**退化**为「保护区上的一个标记位」，与保护区**同权限**（专属语义只剩"返程首选目的地"）。
+        // ⇒ 安全区内的格子走**与保护区完全相同**的判据（任务区覆盖 ＋ 等级）。
         TaskZoneRegistry.Zone zone = TaskZoneRegistry.zoneOf(level.getServer(), owner);
         if (zone == null || !zone.covers(pos)) {
             return new Decision(Verdict.DENY, "protected_area",

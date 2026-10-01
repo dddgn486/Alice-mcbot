@@ -667,7 +667,11 @@ def rule_no_permitted_candidate():
         # （2026-09-19 实测：不剥注释 ⇒ 本规则假红，报"收了搜索性理由"）
         body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
         body = re.sub(r"//[^\n]*", "", body)
-        for code in ('"zone_break_not_allowed"', '"protected_area"', '"protected_safe_zone"',
+        # ⛔ 2026-10-01：`"protected_safe_zone"` **已从人口里移除** —— 用户裁定「**确实要撤掉，确认有意**」，
+        # 该码**连发射点一起删除**（`ZoneAuthority.authorize` 的安全区分支 ＋ `TaskZoneRegistry.declare`
+        # 的 `CONFLICT_SUBZONE`）⇒ 安全区格今天走与保护区**完全相同**的 `protected_area`。
+        # ⚠️ 继续断言它 = 断言一个**已删除的行为**（死规则），故本规则人口同步收窄。
+        for code in ('"zone_break_not_allowed"', '"protected_area"',
                      '"zone_read_only"', '"zone_place_not_scaffold"'):
             if code not in body:
                 problems.append("`permanentDenial` 丢了永久码 " + code + "（权限类拒绝必须算永久）")

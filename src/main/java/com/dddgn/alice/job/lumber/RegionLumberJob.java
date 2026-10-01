@@ -226,7 +226,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private boolean zoneResolved;
     /** 本任务区的 scopeId（收尾用它 release；**解算时抓下来**，不依赖收尾时作用域还开着）。 */
     private String taskZoneScope;
-    /** 任务区状态文本（日志/夹具/失败报告可见），如 `DECLARED chunks=6`、`CONFLICT_SUBZONE safe=1`。 */
+    /** 任务区状态文本（日志/夹具/失败报告可见），如 `DECLARED chunks=6`、`NO_SCOPE`。 */
     private String taskZoneStatus = "-";
     /** 任务区覆盖的区块数（夹具/日志用）。 */
     private int taskZoneChunks;
@@ -419,14 +419,12 @@ com.dddgn.alice.pathing.MovementHelper
     /**
      * 解算本任务的**任务区**：工作区域（林场矩形，**方块级**）⇒ 任务区（**区块级最小覆盖**）。
      *
-     * <p>三种如实结果：① 声明成功（含幂等/换区）⇒ 记状态、继续跑；② 没有打开的任务作用域
-     * ⇒ 如实告警 + **不声明**（保守：没有封套就没有提权，行为与今天一致）；③ 与**安全区**冲突
-     * ⇒ `terminalReason=task_zone_conflict` + **如实失败**（用户口径：任务区不得覆盖子类声明，
-     * 冲突必须报错，**不裁剪、不静默降级**）。
+     * <p>两种如实结果：① 声明成功（含幂等/换区）⇒ 记状态、继续跑；② 没有打开的任务作用域
+     * ⇒ 如实告警 + **不声明**（保守：没有封套就没有提权，行为与今天一致）。
      *
-     * <p>为什么冲突要**停任务**而不是"照旧跑"：任务的授权封套此时**不成立**，而工作区域是
-     * **玩家的意图**（不许系统替他改小）⇒ 唯一诚实的做法是把"跑不了"当场说出来，
-     * 并把**退路**写进提示（先显式取消那些区块的安全区声明）。
+     * <p>⛔ 2026-10-01：原第三种结果「与**安全区**冲突 ⇒ `terminalReason=task_zone_conflict` +
+     * **如实失败**」**已删除** —— 安全区**退化**为「保护区上的一个标记位」、与保护区**同权限**
+     * （用户逐字：「这句话在安全区退化后就没有意义了」）⇒ 工作区域压在安全区上**照常声明**。
      *
      * @return `null` = 继续跑；非 null = 本 tick 的终态
      */
@@ -452,17 +450,8 @@ com.dddgn.alice.pathing.MovementHelper
         // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
         BotLog.info("[TaskZone] region_lumber 解算结果：{}", result.describe());
         switch (result.status()) {
-            case CONFLICT_SUBZONE -> {
-                taskZoneStatus = "CONFLICT_SUBZONE safe_zone_chunks=" + result.conflicts().size();
-                terminalReason = "task_zone_conflict";
-                failure = "task_zone_conflict[safe_zone " + result.conflicts().size()
-                        + " chunks: " + TaskZoneRegistry.describeChunks(result.conflicts()) + "]";
-                BotLog.warn("[Job] region_lumber 任务区与**安全区**冲突 ⇒ 如实失败（不裁剪、不继续）："
-                                + "area={} 冲突区块={} ⇒ 先 `/alice protect safe unclaim` 那些区块"
-                                + "（**显式退化**到保护区父类）再重新启动任务",
-                        area.describe(), TaskZoneRegistry.describeChunks(result.conflicts()));
-                return finish(com.dddgn.alice.task.Task.Status.FAILED);
-            }
+            // ⛔ 2026-10-01：`CONFLICT_SUBZONE` 分支**已删除** —— 安全区退化为"保护区上的标记位"、
+            // 与保护区同权限 ⇒ 工作区域压在安全区上**不再失败**（覆盖规则只剩"任何区域不可覆盖 job 区"）。
             case NO_SCOPE -> taskZoneStatus = "NO_SCOPE";
             case EMPTY_AREA -> taskZoneStatus = "EMPTY_AREA";
             default -> {
@@ -473,7 +462,7 @@ com.dddgn.alice.pathing.MovementHelper
         return null;
     }
 
-    /** 任务区状态文本（**夹具/诊断可见**）：`DECLARED chunks=6` / `CONFLICT_SUBZONE …` / `-`。 */
+    /** 任务区状态文本（**夹具/诊断可见**）：`DECLARED chunks=6` / `NO_SCOPE` / `-`。 */
     public String taskZoneStatus() {
         return taskZoneStatus;
     }

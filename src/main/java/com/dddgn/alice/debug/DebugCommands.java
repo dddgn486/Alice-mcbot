@@ -677,8 +677,9 @@ public final class DebugCommands {
                 + " autoIdleStop=" + state.autoIdleStop(bot.getUUID())
                 + " lastPatrol=" + state.lastPatrolTick(bot.getUUID())), false);
         // `D-338` 附注四②：**任务区预检**（纯查询，不改任何状态）—— 把"工作区域（方块级）⇒ 任务区
-        // （区块级最小覆盖）"和"会不会与安全区冲突"在**启动之前**摊给玩家看：
-        // 冲突在这里就该被看见，而不是等任务跑起来才失败。
+        // （区块级最小覆盖）"在**启动之前**摊给玩家看。
+        // ⛔ 2026-10-01：原来这里还报"会不会与安全区冲突" —— 安全区退化后**该判据已删除**
+        // （覆盖规则今天只剩"任何区域都不可覆盖 job 区"）。
         if (region != null) {
             var server = source.getServer();
             var level = source.getLevel();
@@ -686,16 +687,11 @@ public final class DebugCommands {
                     level.dimension().location(), region.minX(), region.minZ(),
                     region.maxX(), region.maxZ());
             var chunks = area.chunkCover();
-            var conflicts = com.dddgn.alice.protection.TaskZoneRegistry.safeZoneConflicts(
-                    SafeZoneData.get(server), level.dimension().location(), chunks);
             var active = com.dddgn.alice.protection.TaskZoneRegistry.zoneOf(server, bot.getUUID());
             source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + area.describe()
                     + " blocks=" + area.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
-                    + "（**单向派生**：工作区域 ⇒ 任务区）｜冲突="
-                    + (conflicts.isEmpty() ? "无（可覆盖保护区父类）"
-                            : "⛔ 安全区×" + conflicts.size() + " "
-                                    + com.dddgn.alice.protection.TaskZoneRegistry.describeChunks(conflicts)
-                                    + " ⇒ 任务会**如实失败**，先 /alice protect safe unclaim 那些区块（显式退化）")
+                    + "（**单向派生**：工作区域 ⇒ 任务区）｜覆盖规则=可覆盖保护区与安全区；"
+                    + "⛔ 任何区域都不可覆盖 job 区"
                     + "｜当前生效=" + (active == null ? "无（任务未在跑）"
                             : active.kind() + " chunks=" + active.chunks().size()
                                     + " scope=" + active.scopeId())), false);

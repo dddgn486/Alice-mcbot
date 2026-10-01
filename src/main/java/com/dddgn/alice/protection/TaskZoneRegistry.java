@@ -158,17 +158,19 @@ public final class TaskZoneRegistry {
         /** ⛔ 该 owner 没有打开的任务作用域 ⇒ 拒绝（**不许在任务之外造授权封套**）。 */
         NO_SCOPE,
         /** ⛔ 工作区域是空集（理论不可达，但拒绝比静默声明一个空区好）。 */
-        EMPTY_AREA,
-        /** ⛔ 与**子类声明**（安全区）有交集 ⇒ 拒绝，且**不裁剪**（附注二第 4 条）。 */
-        CONFLICT_SUBZONE
+        EMPTY_AREA
+        // ⛔ 2026-10-01 删除 `CONFLICT_SUBZONE`：安全区**退化**为"保护区上的一个标记位"、与保护区**同权限**
+        // ⇒「任务区不得覆盖安全区」这条**失去了立足点**（用户逐字：「这句话在安全区退化后就没有意义了」）。
     }
 
-    /** 声明结果 + 生效的任务区 + 冲突区块（`CONFLICT_SUBZONE` 时非空）。 */
-    public record Result(Declare status, Zone zone, List<Long> conflicts) {
-
-        public Result {
-            conflicts = List.copyOf(conflicts);
-        }
+    /**
+     * 声明结果 + 生效的任务区。
+     *
+     * <p>⛔ 2026-10-01：原第三栏 {@code conflicts}（`CONFLICT_SUBZONE` 的冲突区块）**随该状态一起删除** ——
+     * 覆盖规则今天只剩「一条允许（`job` 区 → 保护区）＋ 一条拒绝（**任何区域 → `job` 区**）」，
+     * ⛔ 不再有"子类冲突"这个概念。
+     */
+    public record Result(Declare status, Zone zone) {
 
         /** 是否真的有一条生效的任务区在起作用。 */
         public boolean active() {
@@ -176,9 +178,6 @@ public final class TaskZoneRegistry {
         }
 
         public String describe() {
-            if (status == Declare.CONFLICT_SUBZONE) {
-                return status + " safe_zone_chunks=" + conflicts.size() + " " + describeChunks(conflicts);
-            }
             return zone == null ? status.name() : status + " " + zone.describe();
         }
     }
@@ -234,30 +233,6 @@ public final class TaskZoneRegistry {
         return ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4);
     }
 
-    /**
-     * ⭐ **覆盖冲突**：任务区与**子类声明**（今天只有安全区）有交集的区块（**纯查询**）。
-     *
-     * <p>为什么只查子类声明：任务区**允许**覆盖保护区父类（附注二第 1 条）—— 那是"任务在玩家的
-     * 基地里干活"的正常情形；子类声明（安全区）是玩家对**更大范围的资产**做的更强承诺，
-     * 系统不许替他把承诺降级（"静默剥离子类"与"静默提权"同罪）。
-     *
-     * @return 冲突区块键（**稳定排序** ⇒ 报错/日志可复现）；无冲突 ⇒ 空表
-     */
-    public static List<Long> safeZoneConflicts(SafeZoneData zones, ResourceLocation dimension, Set<Long> chunks) {
-        Set<Long> safe = zones.safeClaims(dimension);
-        if (safe.isEmpty()) {
-            return List.of();
-        }
-        List<Long> hits = new ArrayList<>();
-        for (long key : chunks) {
-            if (safe.contains(key)) {
-                hits.add(key);
-            }
-        }
-        hits.sort(Long::compare);
-        return hits;
-    }
-
     // ==================== 声明 / 锁定 / 生命周期 ====================
 
     /**
@@ -268,8 +243,7 @@ public final class TaskZoneRegistry {
      * {@code kind}（= 任务的稳定名 ⇒ 任务类别）+ {@code playerDriven}（`L3` 只能由玩家显式取得），
      * **不许自报等级**。等级一旦声明就**锁定**在元数据里（任务存续期内玩家改不了、任务自己也不改）。
      *
-     * <p>失败路径一律**如实返回**：没有作用域 ⇒ {@code NO_SCOPE}；与安全区冲突 ⇒
-     * {@code CONFLICT_SUBZONE}（**不裁剪、不降级**，冲突区块原样报出去）。
+     * <p>失败路径一律**如实返回**：没有作用域 ⇒ {@code NO_SCOPE}；工作区域是空集 ⇒ {@code EMPTY_AREA}。
      *
      * @param playerDriven 该任务是**玩家显式**发起的吗（任务层用 {@code Driver.of(bot)} 判定后传进来；
      *                     `false` 时 `L3` 降级为 `L2`）
@@ -277,28 +251,20 @@ public final class TaskZoneRegistry {
     public static Result declare(MinecraftServer server, UUID owner, String kind, WorkArea area,
                                  boolean playerDriven) {
         if (server == null || owner == null || area == null) {
-            return new Result(Declare.NO_SCOPE, null, List.of());
+            return new Result(Declare.NO_SCOPE, null);
         }
         String scopeId = WorldModLedger.currentScope(server, owner);
         if (scopeId == null) {
             BotLog.warn("[TaskZone] 没有打开的**任务作用域** ⇒ 拒绝声明任务区（owner={} kind={} area={}）"
                             + " —— 任务区是「一次任务一个作用域」的授权封套，不许在任务之外存在",
                     owner, kind, area.describe());
-            return new Result(Declare.NO_SCOPE, null, List.of());
+            return new Result(Declare.NO_SCOPE, null);
         }
         Set<Long> chunks = area.chunkCover();
         if (chunks.isEmpty()) {
             BotLog.warn("[TaskZone] 工作区域为空 ⇒ 拒绝声明（scope={} kind={} area={}）",
                     scopeId, kind, area.describe());
-            return new Result(Declare.EMPTY_AREA, null, List.of());
-        }
-        List<Long> conflicts = safeZoneConflicts(SafeZoneData.get(server), area.dimension(), chunks);
-        if (!conflicts.isEmpty()) {
-            BotLog.warn("[TaskZone] ⛔ 任务区与**子类声明（安全区）**冲突 ⇒ 拒绝声明（**不裁剪、不降级**）："
-                            + "scope={} kind={} area={} 冲突区块={} —— 要走这条路必须先**显式退化**"
-                            + "（取消那些区块的安全区声明），系统不会替玩家把安全区变成普通保护区",
-                    scopeId, kind, area.describe(), describeChunks(conflicts));
-            return new Result(Declare.CONFLICT_SUBZONE, null, conflicts);
+            return new Result(Declare.EMPTY_AREA, null);
         }
         Level level = WritePolicyMatrix.zoneLevel(kind, playerDriven);
         Zone existing = ZONES.get(scopeId);
@@ -308,7 +274,7 @@ public final class TaskZoneRegistry {
         if (existing != null && existing.owner().equals(owner) && existing.kind().equals(kind)
                 && existing.level() == level && existing.area().equals(area)
                 && existing.playerDriven() == playerDriven) {
-            return new Result(Declare.ALREADY, existing, List.of());
+            return new Result(Declare.ALREADY, existing);
         }
         Zone zone = new Zone(scopeId, owner, kind, level, area, chunks,
                 server.overworld() == null ? 0L : server.overworld().getGameTime(), playerDriven);
@@ -325,7 +291,7 @@ public final class TaskZoneRegistry {
                         + (playerDriven ? ""
                         : " ⚠ 非玩家发起（LLM/未归因）⇒ **保护区内按 "
                         + level.cappedForUnattended().label() + " 执行**（拆不了玩家的方块；野外不受影响）"));
-        return new Result(existing == null ? Declare.DECLARED : Declare.REPLACED, zone, List.of());
+        return new Result(existing == null ? Declare.DECLARED : Declare.REPLACED, zone);
     }
 
     /** 解除某作用域的任务区。返回是否真的移除了一条（**取消任务 ⇒ 自动解除**由作用域收尾调用）。 */
