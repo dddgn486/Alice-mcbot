@@ -123,7 +123,9 @@ UNDECIDED = "?"
 #:
 #: **规矩**：这是**裁定**的落点，⛔ 不是分类器的输出 ⇒ **我只在用户裁定之后填**，⛔ 不自行猜。
 #: ⚠️ **2026-10-01 二次更新**：`D-569`（用户三次追加裁定）定下**三条规矩**（`action/` 准入 · **临时包** · **先搬优先**）
-#: ⇒ 已按 **R3「有专属包/非动作 ⇒ 马上搬」** 填了 **5** 格：维生 4 ⇒ `survival/`（用户批它**唯一**可单立 ——
+#: ⇒ 已按 **R3「有专属包/非动作 ⇒ 马上搬」** 填了 **7** 格（第 6/7 格 = `TransferTask`·`CollectDropsTask` ⇒ `transfer/`；
+#: ⚠️ 用户 2026-10-01 对「`§30.2#5` 要拆成 step」与「R3 马上搬」的冲突当轮裁定：**「好吧，我同意，transfer 先单独立包」**
+#: ⇒ 走 R3，「先」= 拆解留到后面单独一刀）：维生 4 ⇒ `survival/`（用户批它**唯一**可单立 ——
 #: 理由逐字「`survival` 是**拥有 `step` 打断权的特殊行为**，所以它必须单独开包」）＋ `RoadBuildTask` ⇒ `road/`。
 #: ⛔ 余下 30 格仍 `?`：它们**要拆解/改造**（用户：「当前迁移过来的对象，要被拆解或者改造成 `step`、`job`」）
 #: ⇒ 最终家要靠**工程**定，⛔ 不是一次 `git mv`。⚠️ 其中 `transfer/` 那 2 格**两说并存**（`D-569` §三 第 2 条）。
@@ -132,7 +134,7 @@ UNDECIDED = "?"
 #: ⭐ 填一条的动作 = 把 `"?"` 换成包全名，门禁**立刻**开始管它（`R4`：门禁与迁移同刀）。
 PROD_HOME: dict[str, str] = {
     # ——— `task/` 顶层 20 个（`docs/TASK_TOP_LEVEL_FREEZE.txt` 的 22 行里除去 `Step`／`FixtureScript`）———
-    "CollectDropsTask": UNDECIDED,
+    "CollectDropsTask": "com.dddgn.alice.transfer",
     "FarWalkTask": UNDECIDED,
     "FixtureClaim": UNDECIDED,
     "FollowTask": UNDECIDED,
@@ -150,7 +152,7 @@ PROD_HOME: dict[str, str] = {
     "TaskNode": UNDECIDED,
     "TaskTarget": UNDECIDED,
     "ToolMaintenanceTask": UNDECIDED,
-    "TransferTask": UNDECIDED,
+    "TransferTask": "com.dddgn.alice.transfer",
     "WalkToTask": UNDECIDED,
     # ——— `task/craft/` 10 个 ———
     "CraftStation": UNDECIDED,

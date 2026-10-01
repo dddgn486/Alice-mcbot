@@ -1,6 +1,6 @@
 task_class,task_path,dest,prod_pkg,reason
 BlockerClearPlanner,src/main/java/com/dddgn/alice/task/mining/BlockerClearPlanner.java,生产,?,生产:refs=job/lumber,task
-CollectDropsTask,src/main/java/com/dddgn/alice/task/CollectDropsTask.java,生产,?,生产:refs=job/collect,job/fishbone,job/lumber,job/mine,task,write
+CollectDropsTask,src/main/java/com/dddgn/alice/task/CollectDropsTask.java,生产,com.dddgn.alice.transfer,生产:refs=job/collect,job/fishbone,job/lumber,job/mine,task,write
 CollectStep,src/main/java/com/dddgn/alice/task/collecting/CollectStep.java,step,-,step:implements Step
 CraftStation,src/main/java/com/dddgn/alice/task/craft/CraftStation.java,生产,?,生产:refs=debug,decision,item,job/craft
 FarWalkTask,src/main/java/com/dddgn/alice/task/FarWalkTask.java,生产,?,生产:refs=bot,task
@@ -36,5 +36,5 @@ Task,src/main/java/com/dddgn/alice/task/Task.java,生产,?,生产:refs=bot,debug
 TaskNode,src/main/java/com/dddgn/alice/task/TaskNode.java,生产,?,生产:refs=decision,job,job/collect,job/lumber,job/mine
 TaskTarget,src/main/java/com/dddgn/alice/task/TaskTarget.java,生产,?,生产:refs=bot,debug,item,job/collect,job/craft,job/fishbone,job/lumber,job/mine,task
 ToolMaintenanceTask,src/main/java/com/dddgn/alice/task/ToolMaintenanceTask.java,生产,?,生产:refs=bot
-TransferTask,src/main/java/com/dddgn/alice/task/TransferTask.java,生产,?,生产:refs=bot,client/render,transfer,write
+TransferTask,src/main/java/com/dddgn/alice/task/TransferTask.java,生产,com.dddgn.alice.transfer,生产:refs=bot,client/render,transfer,write
 WalkToTask,src/main/java/com/dddgn/alice/task/WalkToTask.java,生产,?,生产:refs=bot,job/lumber,task
