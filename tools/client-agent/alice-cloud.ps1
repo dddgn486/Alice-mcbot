@@ -92,7 +92,12 @@ if (Get-NetTCPConnection -LocalPort $LocalPort -State Listen -ErrorAction Silent
 $token = ""
 for ($i = 1; $i -le 6; $i++) {
     Push-Location $Repo
-    try { & git fetch -q origin steward/entry 2>&1 | Out-Null; $e = (& git show "origin/steward/entry:entry.txt" 2>&1 | Out-String) } catch { $e = "" }
+    # ⚠️ 必须 **--force**：云端钩子用 --force 推这条分支（语义=只存最新一条），
+    #    普通 fetch 会**拒绝**更新追踪引用（非快进）⇒ 永远读到**上一轮**旧令牌 ⇒ 打开就 401（静默失效）。
+    try {
+        & git fetch -q --force origin "refs/heads/steward/entry:refs/remotes/origin/steward/entry" 2>&1 | Out-Null
+        $e = (& git show "origin/steward/entry:entry.txt" 2>&1 | Out-String)
+    } catch { $e = "" }
     Pop-Location
     if ($e -match 'token=([A-Za-z0-9_\-]{8,})') { $token = $Matches[1]; break }
     Say ("  第 $i 轮还没读到令牌（云端钩子可能还在跑）⇒ 等 12 秒")
