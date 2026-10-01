@@ -496,6 +496,17 @@ def main() -> int:
     if unmatched:
         problems.append("未登记的 requester 字面量：" + "; ".join(unmatched))
 
+    # ⑤b ⭐ `code_ref` **不许记行号**（批次 2 ③，用户 2026-09-29 裁「随批次 2」；台账 `O22` ⑥ / `O35` ①）
+    #     理由：这一列是**生成物**，而**没有任何门禁核对行号**（`check-ref-integrity` 的扫描范围是
+    #     `docs/**/*.md` ＋ `AGENTS.md`，⛔ 不含 `.csv`）⇒ 行号只会随无关编辑**静默腐烂**
+    #     （实测 `:182`/`:241` 在 `D-520` 之后**就已经不对**）。⇒ 本规则把"记不记行号"变成**能红**的。
+    #     ⚠️ 只判**这一列**；`WritePolicyMatrix` 注释里那 3 处 `:NN` 是**另一笔**（未裁、未登记）。
+    for row in matrix["rows"]:
+        if re.search(r"\.java:\d", row["code_ref"]):
+            problems.append(
+                f"{row['id']} 的 `code_ref` 记了行号（{row['code_ref']}）"
+                " ⇒ 生成物只许记**文件名**（行号会静默腐烂，批次 2 ③）")
+
     # ⑥ 视图不过期
     expected_csv = generate_csv(matrix)
     if check:

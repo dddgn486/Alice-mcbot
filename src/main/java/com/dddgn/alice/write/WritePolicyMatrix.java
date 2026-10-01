@@ -319,7 +319,7 @@ public final class WritePolicyMatrix {
             // ---- EXTERNAL（默认：不是 Alice 的地）----
             new Row("P-01", Tenure.EXTERNAL, Task.TRAVERSAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL), PATHING_REASONS,
-                    "action/PathRequest.java:35,119",
+                    "action/PathRequest.java",
                     "纯通行任务（walk-to/follow/place）：**刻意显式 TEMP** —— 走到某处不该留下永久痕迹；"
                             + "移动集刻意**不含** withWorldModification（D-076 红线的可执行版本）"),
             new Row("P-02", Tenure.EXTERNAL, Task.MINING, Obligation.REASON_DEFAULT,
@@ -329,7 +329,7 @@ public final class WritePolicyMatrix {
                     Set.of(WriteReason.EXPECTED_TARGET, WriteReason.STANDING_SPACE, WriteReason.PATH_ACCESS,
                             WriteReason.SUPPORT_PLACEMENT, WriteReason.STEP_PLACEMENT,
                             WriteReason.SCAFFOLD_RESTORE),
-                    "task/mining/MiningPlanner.java:182,241、action/mining/MineBlockRunner.java:158",
+                    "task/mining/MiningPlanner.java、action/mining/MineBlockRunner.java",
                     "挖掘站位用 miningApproach（D-067 ㉘ 禁用 PILLAR/FALL/DOWNWARD）；支撑块用完即拆；"
                             + "⭐ withPlacement（D-440 鱼骨切片 5）= **只放不拆**的「补一块再走」："
                             + "追簇挖空地板之后由规划器自己补回路面（额度由 Job 自己推导并封顶）"),
@@ -337,7 +337,7 @@ public final class WritePolicyMatrix {
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),
                     with(WORLD_MOD_REASONS, WriteReason.LINE_OF_SIGHT),
-                    "task/CollectDropsTask.java:254,360",
+                    "task/CollectDropsTask.java",
                     "掉落物收集需调用方**显式** allowWorldModification（D-076）"),
             new Row("P-04", Tenure.EXTERNAL, Task.LUMBER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
@@ -345,34 +345,34 @@ public final class WritePolicyMatrix {
                     Set.of(WriteReason.LINE_OF_SIGHT, WriteReason.EXPECTED_TARGET, WriteReason.REGION_REPLANT,
                             WriteReason.STEP_PLACEMENT, WriteReason.SUPPORT_PLACEMENT,
                             WriteReason.STANDING_SPACE),
-                    "job/lumber/RegionLumberJob.java:467、job/lumber/LumberJob.java:348",
+                    "job/lumber/RegionLumberJob.java、job/lumber/LumberJob.java",
                     "补种 = 计划内永久（KEEP 来自理由自身）；脚手架仍 TEMP"),
             new Row("P-05", Tenure.EXTERNAL, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
-                    "task/craft/StationPlacement.java:116、job/craft/CraftJob.java:310",
+                    "task/craft/StationPlacement.java、job/craft/CraftJob.java",
                     "合成工作站用完即拆（TEMP，建拆同权）；**熔炼路线要写容器**（放料/取产物）"
                             + "——2026-09-14 覆盖面审查发现 CraftJob 这几下没记账 ⇒ 补声明 + 过容器闸门"),
             new Row("P-06", Tenure.EXTERNAL, Task.CONTAINER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CONTAINER_TRANSFER, WriteReason.STATION_PROVISION),
-                    "task/TransferTask.java:197、task/craft/StationProvision.java:242",
+                    "task/TransferTask.java、task/craft/StationProvision.java",
                     "容器写入走 Quota 的容器维度（不产生放置账本条目）"),
             new Row("P-07", Tenure.EXTERNAL, Task.BUILD, Obligation.KEEP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.BULK_EDIT, WriteReason.EXPECTED_TARGET),
-                    "task/RoadBuildTask.java:33、road/RoadBuilder.java:27",
+                    "task/RoadBuildTask.java、road/RoadBuilder.java",
                     "**显式 KEEP**：批量地形编辑是上层显式授权（D-095 §12.1），不被默认区降级为 TEMP"),
             new Row("P-08", Tenure.EXTERNAL, Task.RESTORE, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.SCAFFOLD_REMOVAL, MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.SCAFFOLD_RESTORE, WriteReason.DESCEND_FOOT, WriteReason.EXPECTED_TARGET),
-                    "task/RestoreScopeTask.java:303,367",
+                    "task/RestoreScopeTask.java",
                     "只拆不建（scaffoldRemoval 不含 PILLAR/PLACE_STEP/BREAK_*）；回收豁免破坏上限"),
             new Row("P-09", Tenure.EXTERNAL, Task.MANUAL, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),
                     with(WORLD_MOD_REASONS, WriteReason.MANUAL, WriteReason.LINE_OF_SIGHT),
-                    "bot/BotManager.java:1706、command/BotCommand.java:1058",
+                    "bot/BotManager.java、command/BotCommand.java",
                     "**不显式 KEEP**（虽然 MANUAL 理由本身是永久类）：命令挖矿会顺带垫脚/搭柱，"
                             + "那些脚手架必须回收 —— 显式 KEEP 会把垃圾永远留在世界里"),
             new Row("P-10", Tenure.EXTERNAL, Task.DIAGNOSTIC, Obligation.REASON_DEFAULT,
@@ -385,7 +385,7 @@ public final class WritePolicyMatrix {
                             + "注意它是**唯一**持有全集的行 ⇒ 生产任务不能用它兜底"),
             new Row("P-11", Tenure.EXTERNAL, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
-                    "action/Attribution.java:26（UNKNOWN）",
+                    "action/Attribution.java（UNKNOWN）",
                     "未登记 requester：**movements=null ⇒ 不拦**，但写入/规划会留痕（计数 + 一次 WARN）"),
             // ---- WORKSPACE（Alice 的地：来源 = 玩家已划定的区域）----
             // 今天与 EXTERNAL **逐条相同**（ⓑ：工作区只是"允许"KEEP 类理由，不改其余理由的回收义务）。
@@ -411,7 +411,7 @@ public final class WritePolicyMatrix {
                     Set.of(WriteReason.LINE_OF_SIGHT, WriteReason.EXPECTED_TARGET, WriteReason.REGION_REPLANT,
                             WriteReason.STEP_PLACEMENT, WriteReason.SUPPORT_PLACEMENT,
                             WriteReason.STANDING_SPACE),
-                    "job/lumber/LumberAreaState.java:32", "工作区的**唯一来源**就是这里的已划区域"),
+                    "job/lumber/LumberAreaState.java", "工作区的**唯一来源**就是这里的已划区域"),
             new Row("P-16", Tenure.WORKSPACE, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
@@ -441,14 +441,14 @@ public final class WritePolicyMatrix {
                     "同 P-10", "同 P-10（今天两区解析相同）"),
             new Row("P-22", Tenure.WORKSPACE, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
-                    "action/Attribution.java:26（UNKNOWN）", "同 P-11"),
+                    "action/Attribution.java（UNKNOWN）", "同 P-11"),
             // ---- 维生自救（D-241，2026-09-16 用户批准的提案 B）----
             // 轴 = "这个任务改不改世界"（`MovementCapabilities.changesWorld()`）：只有信封里本就有写授权的任务，
             // 才允许在危急时用 `survivalEscape`（放置 + 破坏 + PILLAR，不含 DOWNWARD/FALL）。
             new Row("P-23", Tenure.EXTERNAL, Task.SURVIVAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.SURVIVAL_ESCAPE),
                     ESCAPE_REASONS,
-                    "action/PathRequest.java:53（survivalEscape）",
+                    "action/PathRequest.java（survivalEscape）",
                     "逃生准备金（Q2/Q3/Q4 定案）：**放置 TEMP 必拆**（复用 scaffoldRemoval）+ 破坏按 KEEP 登记；"
                             + "预算上限 8 破坏/8 放置、每次危险事件最多升档 1 次；信封无写权 ⇒ 根本不发这张凭证；"
                             + "**回收时机由玩家定（D-245）：逃生任务自己不拆**（自动拆会把 bot 关回坑里 ⇒ 逃生循环）"
