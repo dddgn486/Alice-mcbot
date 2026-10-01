@@ -54,6 +54,7 @@ param(
     [string]$Repo = "",
     [string]$ForgeVersion = "",
     [string]$JavaExe = "",        # 手动指定 java.exe（默认自动挑 17+ 里最高的那个）
+    [string]$ProxyUrl = "",        # 本地代理（如 http://127.0.0.1:7897）；空 = 从系统代理读
     [switch]$Install,
     [int]$TimeoutSec = 900,
     [int]$MaxHeapMB = 3072,
@@ -134,6 +135,33 @@ if (-not $j) {
 $javaExe = $j.Path
 Say "java = $javaExe（major=$($j.Major)）"
 
+# ---------- ①b ⭐ Java 的代理（2026-10-02 实测：不设这个，Forge 安装器会**卡死**）----------
+# 为什么单独一段：`gh`/`git` 认 HTTP(S)_PROXY **环境变量**，但 **Java 不认** ——
+# 它只认 `-Dhttp.proxyHost/-Dhttp.proxyPort/-Dhttps.proxyHost/-Dhttps.proxyPort`（或 JAVA_TOOL_OPTIONS）。
+# 实测症状（新设备首跑）：安装器停在
+#   `DownloadUtils.downloadLibrary` → `Downloading library from https://maven.minecraftforge.net/...`
+# 三分钟不动、反复超时重试；加 JAVA_TOOL_OPTIONS 后**立刻越过**该点、开始正常下载
+# （stderr 逐字：`Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=127.0.0.1 …`）。
+if (-not $ProxyUrl) {
+    try {
+        $reg = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -ErrorAction SilentlyContinue
+        if ($reg -and ([int]$reg.ProxyEnable -eq 1) -and $reg.ProxyServer) {
+            $srv = [string]$reg.ProxyServer
+            if ($srv -notmatch '^https?://') { $srv = "http://$srv" }
+            $ProxyUrl = $srv
+        }
+    } catch { }
+}
+if ($ProxyUrl) {
+    if ($ProxyUrl -notmatch '^https?://([^:/]+)(?::(\d+))?') { Warn "代理格式看不懂：$ProxyUrl ⇒ 忽略"; $ProxyUrl = "" }
+    else {
+        $ph = $Matches[1]; $pp = if ($Matches[2]) { $Matches[2] } else { "80" }
+        $jit = "-Dhttp.proxyHost=$ph -Dhttp.proxyPort=$pp -Dhttps.proxyHost=$ph -Dhttps.proxyPort=$pp"
+        if ($env:JAVA_TOOL_OPTIONS -notlike "*proxyHost*") { $env:JAVA_TOOL_OPTIONS = $jit }
+        Say "Java 代理已设（下载依赖必需）：$jit"
+    }
+} else { Warn "没检测到本地代理 ⇒ 若 Forge 下载卡住，用 -ProxyUrl http://127.0.0.1:7897 重跑" }
+
 $modsDir = Join-Path $ServerDir "mods"
 $pristine = Join-Path $ServerDir "world-pristine"
 $world = Join-Path $ServerDir "world"
@@ -170,7 +198,17 @@ if (-not $argsFile) {
     }
     Push-Location $ServerDir
     Say "运行安装器（会拉 150–200 MB 库，几分钟）…"
-    & $javaExe -jar $installer.FullName --installServer 2>&1 | Select-Object -Last 15 | ForEach-Object { Say "  $_" }
+    # ⚠️ 2026-10-02 实测：**不要**写 `& $javaExe -jar <jar> --installServer`
+    #    —— 新设备上 PowerShell 把 `--installServer` 传成了 JVM 选项，报
+    #       `Unrecognized option: --installServer` / `Could not create the Java Virtual Machine`。
+    #    正解 = Start-Process + -ArgumentList 数组（实测跑通）。
+    $instOut = Join-Path $ServerDir "forge-install.out.log"
+    $instErr = Join-Path $ServerDir "forge-install.err.log"
+    $ip = Start-Process -FilePath $javaExe -ArgumentList @("-jar", $installer.FullName, "--installServer") `
+          -WorkingDirectory $ServerDir -PassThru -Wait -NoNewWindow `
+          -RedirectStandardOutput $instOut -RedirectStandardError $instErr -ErrorAction SilentlyContinue
+    Say "  安装器退出码 = $($ip.ExitCode)"
+    Get-Content $instOut -Tail 12 -ErrorAction SilentlyContinue | ForEach-Object { Say "  $_" }
     Pop-Location
     $argsFile = if (Test-Path $winArgs) { $winArgs } elseif (Test-Path $unixArgs) { $unixArgs } else { $null }
     if (-not $argsFile) { Die "安装后仍找不到 win_args.txt（看上面安装器输出）" 4 }
@@ -217,21 +255,42 @@ if (-not $NoMods) {
     if (-not (Test-Path $clientMods)) { Warn "客户端模组目录不存在：$clientMods ⇒ 只装 Alice jar（craft 类步骤会**假红**）" }
     else {
         # ⚠️ 云端实测的坑（CLOUD_MIGRATION §9-39）：不给客户端模组 ⇒ craft 类步骤假红
-        $clientOnly = @()   # 预留：客户端专属（光影/输入类）如需排除，在这里加名字
+        # ⭐ 客户端专属模组名单 —— **必须与 tools/headless-battery.sh:128 的 `CLIENT_ONLY_DEFAULT` 一致**。
+        # 2026-10-02 实测（新设备首跑崩服）：漏掉它 ⇒ `jecharacters` 在专用服务端上
+        # `NoClassDefFoundError: net/minecraft/client/searchtree/SuffixArray` ⇒
+        # `Failed to complete lifecycle event CONSTRUCT` ⇒ 服务端 12 秒退出、**永远等不到判决**。
+        # （`D-324`：Xaero 世界地图是纯客户端；JEI 与拼音搜索同理）
+        $clientOnly = @(
+            "[通用拼音搜索] jecharacters-1.20.1-forge-4.6.11.jar",
+            "[JEI物品管理器] jei-1.20.1-forge-15.58.0.209.jar",
+            "xaeroworldmap-forge-1.20.1-1.46.0.jar"
+        )
         foreach ($j in (Get-ChildItem $clientMods -Filter *.jar -ErrorAction SilentlyContinue)) {
             if ($j.Name -like "alice-*.jar" -or $j.Name -like "*.bak.*") { continue }
             if ($clientOnly -contains $j.Name) { Say "  跳过客户端专属：$($j.Name)"; continue }
-            Copy-Item $j.FullName (Join-Path $modsDir $j.Name) -Force
+            # ⭐ 2026-10-02 实测：必须用 -LiteralPath —— 模组名里的 `[` `]`
+            #    （如 `[JEI物品管理器] jei-….jar`）在 -Path 里是**通配符字符类** ⇒ Copy-Item
+            #    静默匹配不到 ⇒ 那只模组**没进服务端**（实测漏 4 个：FTB×2 / JEI / jecharacters）。
+            Copy-Item -LiteralPath $j.FullName -Destination (Join-Path $modsDir $j.Name) -Force
         }
     }
 }
+# Alice jar：优先用仓库构建产物；⭐ 没有就**回退用客户端那份**（测试机不构建 —— 用户 2026-10-02 定：
+# 新设备只负责跑测试，jar 从本机构建好后拷过来；实测新设备仓库里 build\libs 不存在）。
+$art = $null
 if ($Repo) {
     $art = Get-ChildItem (Join-Path $Repo "build\libs") -Filter "alice-*.jar" -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -notlike "*sources*" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($art) { Copy-Item $art.FullName (Join-Path $modsDir $art.Name) -Force; Say "Alice 工件：$($art.Name)" }
-    else { Warn "没找到 Alice 工件（$Repo\build\libs\alice-*.jar）⇒ 先在仓库跑 gradlew build" }
+    if ($art) { Say "Alice 工件（仓库构建产物）：$($art.Name)" }
 }
-Say "mods 共 $((Get-ChildItem $modsDir -Filter *.jar | Measure-Object).Count) 个"
+if (-not $art -and (Test-Path $clientMods)) {
+    $art = Get-ChildItem -LiteralPath $clientMods -Filter "alice-*.jar" -ErrorAction SilentlyContinue |
+           Where-Object { $_.Name -notlike "*.bak.*" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($art) { Warn "仓库没有构建产物 ⇒ **回退用客户端那份 Alice jar**：$($art.Name)（先确认它是最新的）" }
+}
+if ($art) { Copy-Item -LiteralPath $art.FullName -Destination (Join-Path $modsDir $art.Name) -Force }
+else { Warn "找不到 Alice jar（仓库 build\libs 与客户端 mods 都没有）⇒ 电池不会跑起来" }
+Say "mods 共 $((Get-ChildItem -LiteralPath $modsDir -Filter *.jar | Measure-Object).Count) 个"
 
 # ---------- ⑦ 起服务端 ----------
 $result = Join-Path $ServerDir "headless-result.txt"
