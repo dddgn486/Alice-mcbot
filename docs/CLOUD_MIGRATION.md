@@ -742,3 +742,65 @@ WSL 侧 `alice-cloud-remote.sh`（默认 3 次、退避 2/5 秒）· Windows 侧
 **新坑 51**：⭐ **`gh codespace ssh -- <参数>` 的引号规则**已在 §9-16 记过；
 本次补一条同类：`$Gh codespace list --json …` 这种写法在 **PowerShell 5.1** 里**解析不了**
 （`UnexpectedToken @L…C…`，症状还会把行号指向别处）⇒ 一律写 `& $Gh codespace list --json …`（带调用运算符）。
+
+## §18 ⭐ 官方桌面版（0.2.0-rc.2）实测与世代风险（2026-10-01）
+
+**背景**：用户问「官方桌面版有没有优势、新设备要不要装」。本机 Windows（`DESKTOP-1MGHVSF`）**已装**：
+`DeepSeek Harness` **0.2.0-rc.2**（`D:\DeepSeek Harness`，Electron + **内嵌完整 DSH 运行时**：
+`resources\app.asar` 里 12,967 条，`@deepseek-ai/dsh-desktop-runtime 0.2.0-rc.2`，含 `dsh-web-app` 与 web preset 模板）
+＋ 第三方 `DSH Desktop 0.9.0`（另一个 Electron 壳，**不必再装**）。
+
+### §18.1 优势（真用得上）
+
+1. **新设备零配置**：Node/npm/PATH/preset 全免 ⇒ `client-agent.cmd` 里"刷 PATH、npx 兜底 rc.2/rc.3"那一整类坑消失。
+2. 设置/插件管理**直接可用**（不再受「非回环页面设置不可用」那条限制，`§9-24`）。
+3. 自带 `dsh-session-log-export`、插件管理、自动化任务（v0.2 预览版说明）。
+
+### §18.2 ⚠️ 实测三条（都是**事实**，不是推测）
+
+| # | 事实 | 怎么测的 |
+|---|---|---|
+| 1 | 桌面版跑起来 = **5 个 Electron 进程**；`Start-Process` 本身立刻返回（不是它崩了） | 进程表 |
+| 2 | ⭐ **它不认 `DSH_HOME`**：设了 `DSH_HOME=%TEMP%\dsh-desktop-test` 启动，沙盒**始终为空**，数据全落进**真实 `~/.dsh`** | 对比沙盒与 `~/.dsh` 内容 |
+| 3 | ⭐⭐ **它写 `v4` 世代**：`~/.dsh/sessions/--D-~5D4C~5165~5F0F~5F00~53D1--/<新会话>/session.v4.jsonl.zstd`，同时新建 `~/.dsh/profiles/desktop/cordis.yml` | 按世代统计文件名 |
+
+**它自己的缓存**在 `%APPDATA%\@deepseek-ai\dsh-desktop\`（`--user-data-dir` 实测）——但那**不是** DSH 数据目录。
+
+### §18.3 影响面（实测：**项目数据没被动**）
+
+启动前后对 `~/.dsh/sessions/--C-Users-dddgn--/`（项目 slug）逐文件比时间戳：**4 个 v3 会话仍是 9-14 / 9-20** ⇒
+桌面版**新增**了它自己的 v4 会话，**没有**迁移或改写我们的 v3 文件。
+
+⚠️ **仍未验证（要真人）**：桌面版**能不能在读 v3 之后把它升成 v4**。我做过一次"喂食"实验
+（把一份 v3 会话放进桌面版的 cwd slug 再启动）：**文件字节数前后一致、没生成 v4 副本** ——
+但这**只证明"没有立刻改写"**，⛔ **不证明**它读得动、也不证明"打开就升级"不存在（读/升级只可能发生在**人在 UI 里点开**那一刻）。
+⇒ 要下结论**必须有人在桌面版里真的点开那个会话**，然后看它有没有多出 `session.v4.*`。
+
+### §18.4 结论与纪律（在用户拍板前）
+
+- ⛔ **别把项目 `~/.dsh` 暴露给桌面版做实验**（它不认 `DSH_HOME`，隔离手段只剩"换 Windows 用户账户"）。
+- ⛔ **别用桌面版打开项目会话**，直到上面那条真人判据有了结论（`v3 → v4` 升级是**单向**的：
+  升完本机 0.1.5-rc.1 与云端 0.1.5-rc.3 **可能就读不动了**，而我们的 `dsh-session-log.mjs` 会在升代时**响亮失败**）。
+- ⛔ **"三端统一升到 0.2"现在不能做**：① 隔离手段缺失 ② 桌面版是**打包产物**，本机那棵 0.1.5-rc.1 是**源码检出**
+  ⇒ 升 0.2 会丢掉"源码可改"这条属性；③ 项目依赖 `dsh-agent-bus` 等自建插件与 `link:` 覆盖，跨代未验证。
+- ✅ **安全试法**：**换一个 Windows 用户账户**（全新 `%USERPROFILE%\.dsh`）装/跑桌面版；项目那个账户不装。
+
+### §18.5 与"无头测试上云"的额度账（2026-10-01 现场算，实测值）
+
+| 项 | 实测/口径 | 结论 |
+|---|---|---|
+| 机器 | `basicLinux32gb` = **2 核 / 7 G / 32 G 盘**（云端 `nproc`/`free`/`df` 实测；空闲 28 G 可用） | 够 |
+| 一轮 CORE | **≈ 248 s**（`§14` 云端实测）· 2 核 ⇒ **≈ 8 core-minutes** | 100 轮 ≈ **13 core-h** |
+| 免费档（个人） | 120 core-h/月 + **15 GB-month** 存储 | 学生包 ⇒ **Pro**（180 core-h/月 + **20 GB-month**） |
+| ⭐ 存储怎么算 | = **分配的盘 × 该 codespace 处于 active 的小时数**（`stop` 后不计时） | 32 G × 12 h ≈ **16 GB-month** ⇒ **一个月大约 14 个 active 小时是天花板** |
+| ⇒ 真正的瓶颈 | **不是 CPU（180 core-h 够跑几百轮），是 32 G 的盘 × active 时长** | 纪律：**跑完立刻 `stop`**，别让它挂机 |
+| ⚠️ 政策 | GitHub 的 Codespaces / AUP 对**跑服务器**有明确限制（Minecraft 服务端会长时间 listen + 打满 CPU） | ⛔ **风险自担**，见 §18.6 |
+
+### §18.6 ⛔ 政策风险（必须显式裁）
+
+`§14` 那次云端 CORE 41/41 **技术上确实跑通了**，但"能跑"≠"允许跑"。GitHub 侧有两条要一起读：
+[Codespaces Beta Terms](https://docs.github.com/en/early-access/github/site-policy/github-codespaces-beta-terms)（禁止把 Codespaces 当"跑与开发无关的服务器/负载"）
+＋ [Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies)（含"不得把 GitHub 当 CDN/主机"一类口径）。
+社区里"能不能在 Codespaces 跑 Minecraft 服务器"的结论也是**技术上能、条款上不行**（[SO 75413589](https://stackoverflow.com/questions/75413589/is-it-possible-to-host-a-minecraft-server-on-github-codespaces)）。
+⇒ 我们的用途（**回环 + 离线模式 + 软件回归测试**、不对外服务）**更接近"测试"**，但**仍落在灰区**。
+**建议**：默认把无头测试留在**自有设备**；要用云，先明确接受这条风险。
