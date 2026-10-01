@@ -27790,3 +27790,66 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 （日志/夹具/`EXPECTED_REDS`/文档都在引）⇒ **改它是一次数值口径变更**，⛔ 我没有顺手改，**等你裁**；
 ② **夹具侧局部名**（`zones`/`zone` 在 8 个夹具文件里）＋ `task/SafeReturnTask` 的 `zones` 局部 ·
 `task/ScaffoldLifecycleTask.zone` —— 纯局部名，机械改但要单独一轮验证。
+
+---
+
+## D-568：结构线八问一次性裁定（用户 2026-10-01 逐条裁定；AI 落章）
+
+- 状态：**已裁**（用户「**好，裁定冲突请按最新的裁定为准，然后我们一次性来讨论这八个问题**」）。
+- 承接：**`O94` A 串**（六项）＋ 后续轮新增（`§30.3(d)` · `§35.6`① · `§30.4` #1/#3/#4）＋ `O92`（波 4 卡点）。
+- 前置：**只读侦察 = `docs/reviews/2026-09-30-包结构与层序实测.md` §38**（已裁／仍开总表，每条带出处）；
+  八问的「判断＋代价＋替代＋推荐」见同轮对话（摘要落在 `HANDOVER.md` 断点五十八 §C）。
+- ⛔ 本件**只写 docs**（零 `src/`、零 `tools/`）。
+
+### 〇 · ⭐ 冲突处置口径（用户逐字：「按最新的裁定为准」）
+
+| 冲突 | 旧（先） | ✅ **新（后，为准）** |
+|---|---|---|
+| `authz` 的位置 | 层表 `§30.1` **L3**：`authz/` 是**顶层**层 | **`D-566`**：**`region/` 顶层 ＋ `region/authz/`（子包）** |
+| `write/` | 层表 L3 准入写「`write/` ＋ `protection/`」 | **`D-563`**：`write/` = **旧设计**；`protection/` 已拆进 `region/` |
+
+⇒ 层表 L3 行**已就地加指针**（⛔ 原文不改）。⚠️ **仍未裁**：**层表本身从未进 `AI_DECISIONS`**（`§29.1` 已登记）。
+
+### 一 · 八条裁定
+
+| # | 问题 | ✅ 裁定 | 落点/代价 |
+|---|---|---|---|
+| **1** | `spec/`（表 ＋ 活配置）立不立 | **甲：立 `spec/`，并把已存在的 `config/` 并入**（⛔ 不留两个同义顶包） | `WritePolicyMatrix`(1032 行) 是 `check-policy-matrix` 的**真源** ⇒ 搬家须**同刀**动 `tools/policy-map.py`/`authz-map.py` 与生成物；`decision/` 里住错包的 3 个（`MachineMap`·`RecipeDump`·`LlmConfig`）同族 |
+| **2** | `unit/` 包名 | **维持「先不动」**（触发条件 = bot 动作单槽位讨论结束；`O120`） | ⛔ 不给可能改形状的契约提前钉名 |
+| **3** | 假人**本体**包名 | **`fakeplayer/`**（⛔ 本体不在 `botdata/` 内） | 零新造词（Forge 的 `FakePlayer` 项目已在用） |
+| **4** | 开发期物品包名（77 件） | **`dev/item/`** | 连带：新建 `dev/` ＋ ⚠️ **`AliceItems` 的 76 个 `register(` 必须分家**（否则 `presentation/ → dev/` 成真违例，`§30.3(b)`） |
+| **5** | `compat/` 与模组适配 | **⭐ 保留 `compat/`；并「排期」把 `ChainMining` 等机器联动适配件迁进来，且<u>每个模组一个子包</u>** | ⚠️ **与既有状态冲突，见 §二**；清单见 §三；**只排期，⛔ 本刀不动** |
+| **6** | 顶包名 `action/` vs `act/` | **保持 `action/`**；⭐ **「`act/`」登记为<u>口语简称</u>** | 改名要动 67 文件 ＋ 6 个 tool 的硬编码路径，收益≈0 |
+| **7** | 层号规则那一格（`pathing/` 一个一级包两种权限） | **① `pathing/` 取<u>上层</u>层号，"零权限"由<u>代码/门禁</u>保证** | 与 `D-558` ③（门禁只认一级包、子包自由）**同向**；载体已在（`D-561` 的「`core` 不加调用点」门禁）。替代 ②「子包可声明层号」须动刚立的规则 |
+| **8** | 5 件任务事实的归属 | **进 `botdata/`**（⛔ 不另立 `facts/`）；⭐ 并**把 `BotEventLog` 作为 `botdata/` 下的一个子包** | ⇒ `botdata/` 的定义**扩容**为「bot 相关的只读数据 **＋ 任务事实**」；⚠️ **子包名待确认**（`event/`？`botevent/`？）。`BotEventLog` 挪出 `decision/` ⇒ `§12` 里指向它的那 3 处向上依赖**顺带消掉** |
+
+### 二 · ⚠️ 第 5 条**当场点出的冲突**（`AGENTS.md`：会削弱既有红线的要求必须当场点出冲突与最小补偿）
+
+**冲突事实**：`ChainMining` **今天已经在 `action/mining/`** —— `§36.5` 的推荐当时**已执行**
+（判据逐字：它**不在 `WriteGrant` 闸门里**（模组自己裁决），放进 `action/` 能让
+「**Alice 能让世界变的全部入口**」第一次成为**一个可以一眼看全的包**）。
+⇒ 本裁定把它搬回 `compat/`，**该收益原样退回**。
+
+**最小补偿（建议同刀带上，否则"写口清单"会再次散掉）**：
+1. `compat/<mod>/` 的 `package-info` 必须写明「**本包含模组侧<u>写口</u>**」；
+2. 「Alice 能让世界变的全部入口」这条**清单判据**改挂到 **`compat/` ＋ `action/` 的并集**上（门禁形态同 `check-frozen-code` 的 `consumer_needle`）。
+
+### 三 · 第 5 条的**只读侦察清单**（实测，2026-10-01）
+
+| 文件 | 今天的家 | 适配谁 | 判断 |
+|---|---|---|---|
+| `ChainMining` | ⚠️ **`action/mining/`**（已搬过） | **Create**（反射 `Class.forName(SCHEDULER_CLASS)` 调 `MiningScheduler`） | ⇒ `compat/create/` |
+| `MachineMap` | `decision/` | **mekanism ＋ thermal 两个模组**（含 jar 名与机器 id） | ⚠️ **「每个模组一个子包」要求拆表**，而它是红线门禁 `check-machine-map` 的**真源** ⇒ **拆法与门禁同刀**；⇒ **待裁的下一格** |
+| `CraftStation` | `task/craft/` | **sophisticatedstorage**（容器/升级识别） | ⚠️ **部分**模组专属（其余是通用配方路径）⇒ 是否切分**待裁** |
+
+**⛔ 明确**不是模组专属（通用能力层，⛔ 不搬）：`task/craft/MachineCycle`（单机闭环执行器，依赖通用 `MachineMap`）·
+`task/craft/MachineRecipeFacts`（**先原版语义、读不出才退模组名族**）· `capability/InterfaceScanner`（Forge Capability 扫描 =
+「未知模组只读」红线的载体）· `job/mine/PlanRefinedCostProvider`（名字里的 "Refined" 是**精算**，误命中）·
+`transfer/TransferLedgerData`（误命中 `createdTick`）。
+
+### 四 · 本裁定**不改**什么
+
+- ⛔ **不改主线排期**（`批次 1 收口 → 批 2 夹具 → 3a 契约 → 4a job 契约`）。
+- ⛔ **不放宽任何红线**（尤其「未知模组能力默认只读」—— 第 5 条只改**包位**，⛔ 不改扫描语义）。
+- ⛔ **不动 `D-566`/`D-567`**（`region/` ＋ `region/authz/` 与两词口径照旧）。
+- ⛔ **本件不产生任何 `src/` 改动**；八条全部**待排期**，其中第 1/5 条**带前置**（见上表）。
