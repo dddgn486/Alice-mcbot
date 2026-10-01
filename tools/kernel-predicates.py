@@ -669,7 +669,7 @@ def rule_no_permitted_candidate():
         body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
         body = re.sub(r"//[^\n]*", "", body)
         # ⛔ 2026-10-01：`"protected_safe_zone"` **已从人口里移除** —— 用户裁定「**确实要撤掉，确认有意**」，
-        # 该码**连发射点一起删除**（`ZoneAuthority.authorize` 的安全区分支 ＋ `JobAreaRegistry.declare`
+        # 该码**连发射点一起删除**（`ZoneAuthority.authorize` 的安全区分支 ＋ `JobRegionRegistry.declare`
         # 的 `CONFLICT_SUBZONE`）⇒ 安全区格今天走与保护区**完全相同**的 `protected_area`。
         # ⚠️ 继续断言它 = 断言一个**已删除的行为**（死规则），故本规则人口同步收窄。
         # ⭐ 2026-10-01 刀 2（`D-565` ⑤）：**`"protected_block_entity"` 加进人口** ——
@@ -1229,7 +1229,7 @@ def rule_search_limit_not_unreachable():
         problems.append("扫完的收尾里没有 `not_found` 归因 ⇒ 失去『真的找遍了也没有』这一态")
 
     vis = method_body(src, "private void visit(ServerLevel level, ServerPlayer bot, "
-                           "AreaData safeZones, BlockPos pos) {")
+                           "AreaData claims, BlockPos pos) {")
     if vis and "not_found" in vis:
         problems.append("逐格 `visit()` 里写了 `not_found`"
                         " ⇒ **没扫完**也会被记成『没有』（S3 禁止：未扫 ≠ 没矿）")
@@ -1724,7 +1724,7 @@ def rule_intent_before_viability():
         problems.append("`JobDeclaration` 的**记录头**里没有意图组件（组件不在 ⇒ 意图只能靠散装字段传，迟早漂）")
 
     for signature, label in [
-        ("private void visit(ServerLevel level, ServerPlayer bot, AreaData safeZones, BlockPos pos) {", "visit"),
+        ("private void visit(ServerLevel level, ServerPlayer bot, AreaData claims, BlockPos pos) {", "visit"),
         ("public CandidateSet revalidate(ServerPlayer bot, int targetIndex) {", "revalidate"),
     ]:
         body = method_body(src, signature)
@@ -4045,7 +4045,7 @@ def rule_ledger_closure_zone_scoped():
     ① **闭合点只许用 `closure(...)`**：电池 `endStep` / 编排器终态 / 生产 `clearTask` /
        恢复入口，不得再拿裸 `pendingTemporary(` / `pendingForOwner(` 当"待收义务"的口径
        （裸视图含区外条目 ⇒ 拿它判红就是拿无主区域的事判我方的错，`D-398` R1/R2）；
-    ② **区内判据只有一个出处**：`closure` 的 `inZone` 必须来自 `pendingTemporaryProtected`，
+    ② **区内判据只有一个出处**：`closure` 的 `inArea` 必须来自 `pendingTemporaryProtected`，
        而后者必须问 `LedgerScope.isProtected`（不许各写一遍 ⇒ 消费漏接一处就是 D-338 那类事故）；
     ③ **空集必须可见**：闭合点要印人口（`Closure.describe()`），否则「账本空」=「世界干净」这个
        误读会静默复活（`Z2` 的唯一产出就是让这个误读**看得见**）；
@@ -4110,7 +4110,7 @@ def rule_ledger_closure_zone_scoped():
     # ---- 臂② 区内判据只有一个出处 ----
     closure_body = method_body(led, "public static Closure closure(")
     if "pendingTemporaryProtected(" not in closure_body:
-        problems.append("`closure(...)` 的 `inZone` 不是取自 `pendingTemporaryProtected` ⇒ "
+        problems.append("`closure(...)` 的 `inArea` 不是取自 `pendingTemporaryProtected` ⇒ "
                         "区内判据出现了第二个实现（必然漂移）")
     # ⚠️ 人口差值的**基准必须是窗口起点**：传 `Population.ZERO` 会静默退回"自服务器启动累计"，
     # 于是"本步期间发生了什么"这个读数就永远是对的假象（`silent-measurement-failure`）。

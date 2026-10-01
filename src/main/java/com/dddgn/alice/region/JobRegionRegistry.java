@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -32,7 +31,7 @@ import java.util.UUID;
  * <ul>
  *   <li><b>实际工作区域 work area</b> = **方块级**（任务语义：林场范围 / 蓝图 footprint / 目标簇），
  *       由**任务**给出（玩家给意图，任务算范围）；</li>
- *   <li><b>任务区 task zone</b> = 工作区域**所占区块的最小覆盖**（hull，**不扩边**），
+ *   <li><b>任务区 task jobRegion</b> = 工作区域**所占区块的最小覆盖**（hull，**不扩边**），
  *       由工作区域**单向派生**（反向不存在：任务区**绝不**裁剪工作区域）。</li>
  * </ul>
  * 为什么分两层：保护闸门与候选扫描是**逐方块热路径**，而区块集合是 **O(1) 查表**；
@@ -53,7 +52,7 @@ import java.util.UUID;
  * <p><b>锁定与生命周期（附注二第 2 条 + 主条 ⑦）</b>：任务区由**任务**声明、**随 `scopeId` 生灭**，
  * 任务存续期间**玩家不能手改** —— 这不是靠约定，而是结构性的：① 唯一的写入者是
  * {@link #declare}（只有任务调得到），命令层没有写入口；② 键就是当前作用域，
- * {@link #zoneOf} 每次都拿 {@link WorldModLedger#currentScope} 复核
+ * {@link #jobRegionOf} 每次都拿 {@link WorldModLedger#currentScope} 复核
  * ⇒ 作用域一收尾（正常终态、被替换、`/alice region stop` 显式打断…）**权威自动消失**，
  * 不需要任何调用方记得来关。
  *
@@ -67,50 +66,11 @@ import java.util.UUID;
  * 任务区接进闸门当"授权封套"（目标内 `KEEP` / 目标外 `TEMP` + 预算）属**第 4 件的下一片**，
  * 且要等**第 5 件权限等级阶梯**（台账 §5.12 第 5 行）拍板。
  */
-public final class JobAreaRegistry {
+public final class JobRegionRegistry {
 
-    /**
-     * **实际工作区域**（方块级）：一个水平矩形 + 它所在的维度。
-     *
-     * <p>为什么是矩形：今天唯一的真实工作区域是**玩家划的林场**（`LumberRegionState.Area` 就是
-     * `minX/minZ/maxX/maxZ`，只划水平范围、垂直自适应）。蓝图 footprint / 目标簇将来也用
-     * {@link #chunkCoverOf(Collection)} 那条**方块集合**口径，两条派生路径都在本类里，
-     * 且对矩形**结果必须相同**（夹具对这一点有判据）。
-     *
-     * <p>⚠️ **Y 不参与派生**：与保护区的口径一致（忽略 Y、覆盖全高度）—— 否则"同一条隧道里
-     * 上下两格拿到不同授权"这种怪事就会出现。
-     */
-    public record WorkingArea(ResourceLocation dimension, int minX, int minZ, int maxX, int maxZ) {
-
-        /** 规范化：两个角反过来写也得到同一个区域（`equals` 因此对"重划同一个区"稳定 ⇒ 幂等可判）。 */
-        public WorkingArea {
-            Objects.requireNonNull(dimension, "work area dimension");
-            if (minX > maxX) {
-                int swap = minX;
-                minX = maxX;
-                maxX = swap;
-            }
-            if (minZ > maxZ) {
-                int swap = minZ;
-                minZ = maxZ;
-                maxZ = swap;
-            }
-        }
-
-        /** 水平格数（**方块级**的规模；与区块数不是一回事，日志里两个都打）。 */
-        public long areaXZ() {
-            return (long) (maxX - minX + 1) * (long) (maxZ - minZ + 1);
-        }
-
-        /** 派生：本工作区域**所占区块的最小覆盖**（单向：工作区域 ⇒ 任务区）。 */
-        public Set<Long> chunkCover() {
-            return chunkCoverOf(this);
-        }
-
-        public String describe() {
-            return "[" + minX + ".." + maxX + "," + minZ + ".." + maxZ + "]";
-        }
-    }
+    // ⭐ 2026-10-01：嵌套的 `WorkingArea` **已删除** —— 它并入顶层 {@link WorkingArea}
+    //（用户逐字「这两个同名类不能合并吗？本来就是重复的」）。⚠️ `dimension` 也随之搬到
+    // {@link JobRegion#dimension()} 上：维度是"区域"的属性，不是 footprint 的属性。
 
     /**
      * 一条**已声明的任务区**：派生的区块集合 + 归属元数据（谁的任务、哪种任务、多大面积、什么时候声明的）
@@ -118,10 +78,10 @@ public final class JobAreaRegistry {
      *
      * <p>`kind` 用任务的稳定名（如 `region_lumber`，`Job#taskName` 的口径）而不是实现类名。
      */
-    public record JobArea(String scopeId, UUID owner, String kind, Level level, WorkingArea area,
-                       Set<Long> chunks, long declaredTick, boolean playerDriven) {
+    public record JobRegion(String scopeId, UUID owner, String kind, Level level, WorkingArea area,
+                       ResourceLocation dimension, Set<Long> chunks, long declaredTick, boolean playerDriven) {
 
-        public JobArea {
+        public JobRegion {
             chunks = Set.copyOf(chunks);
         }
 
@@ -170,7 +130,7 @@ public final class JobAreaRegistry {
      * 覆盖规则今天只剩「一条允许（`job` 区 → 保护区）＋ 一条拒绝（**任何区域 → `job` 区**）」，
      * ⛔ 不再有"子类冲突"这个概念。
      */
-    public record Result(Declare status, JobArea zone) {
+    public record Result(Declare status, JobRegion jobRegion) {
 
         /** 是否真的有一条生效的任务区在起作用。 */
         public boolean active() {
@@ -178,12 +138,12 @@ public final class JobAreaRegistry {
         }
 
         public String describe() {
-            return zone == null ? status.name() : status + " " + zone.describe();
+            return jobRegion == null ? status.name() : status + " " + jobRegion.describe();
         }
     }
 
     /** 进程内状态（**故意不持久化**，理由见类注释）：scopeId → 任务区。 */
-    private static final Map<String, JobArea> ZONES = new HashMap<>();
+    private static final Map<String, JobRegion> REGIONS = new HashMap<>();
 
     /**
      * ⭐ **区内放置计数**（`D-338` 附注七②：`L1` 的"≤8 次"）：scopeId → 已在**任务区内**落地的放置次数。
@@ -192,9 +152,9 @@ public final class JobAreaRegistry {
      * 而"≤8"是**区内**配额 —— 用 caps 实现会把任务在**野外**的放置也一起清零
      * （一个 `L0` 的区会让整条任务失去野外写入权，那是错的）。所以按位置计数、只记区内的。
      */
-    private static final Map<String, Integer> ZONE_PLACES = new HashMap<>();
+    private static final Map<String, Integer> PLACE_COUNTS = new HashMap<>();
 
-    private JobAreaRegistry() {
+    private JobRegionRegistry() {
     }
 
     // ==================== 派生（纯函数）====================
@@ -207,13 +167,8 @@ public final class JobAreaRegistry {
      * **逐方块枚举**那条独立路径对这一点做等式断言（不是同一公式抄两遍）。
      */
     public static Set<Long> chunkCoverOf(WorkingArea area) {
-        Set<Long> result = new LinkedHashSet<>();
-        for (int chunkX = area.minX() >> 4; chunkX <= area.maxX() >> 4; chunkX++) {
-            for (int chunkZ = area.minZ() >> 4; chunkZ <= area.maxZ() >> 4; chunkZ++) {
-                result.add(ChunkPos.asLong(chunkX, chunkZ));
-            }
-        }
-        return result;
+        // ⭐ 单一实现：派生的**唯一出处**在 `WorkingArea.chunkCover()`（本方法只是给调用方留的入口）
+        return area.chunkCover();
     }
 
     /**
@@ -249,25 +204,25 @@ public final class JobAreaRegistry {
      *                     `false` 时 `L3` 降级为 `L2`）
      */
     public static Result declare(MinecraftServer server, UUID owner, String kind, WorkingArea area,
-                                 boolean playerDriven) {
-        if (server == null || owner == null || area == null) {
+                                 ResourceLocation dimension, boolean playerDriven) {
+        if (server == null || owner == null || area == null || dimension == null) {
             return new Result(Declare.NO_SCOPE, null);
         }
         String scopeId = WorldModLedger.currentScope(server, owner);
         if (scopeId == null) {
-            BotLog.warn("[TaskZone] 没有打开的**任务作用域** ⇒ 拒绝声明任务区（owner={} kind={} area={}）"
+            BotLog.warn("[JobRegion] 没有打开的**任务作用域** ⇒ 拒绝声明任务区（owner={} kind={} area={}）"
                             + " —— 任务区是「一次任务一个作用域」的授权封套，不许在任务之外存在",
                     owner, kind, area.describe());
             return new Result(Declare.NO_SCOPE, null);
         }
         Set<Long> chunks = area.chunkCover();
         if (chunks.isEmpty()) {
-            BotLog.warn("[TaskZone] 工作区域为空 ⇒ 拒绝声明（scope={} kind={} area={}）",
+            BotLog.warn("[JobRegion] 工作区域为空 ⇒ 拒绝声明（scope={} kind={} area={}）",
                     scopeId, kind, area.describe());
             return new Result(Declare.EMPTY_AREA, null);
         }
-        Level level = WritePolicyMatrix.zoneLevel(kind, playerDriven);
-        JobArea existing = ZONES.get(scopeId);
+        Level level = WritePolicyMatrix.areaLevel(kind, playerDriven);
+        JobRegion existing = REGIONS.get(scopeId);
         // ⭐ `D-338` 附注十四：**驱动身份也是声明的一部分** —— 同一任务区"换个身份再声明"
         // （`playerDriven` 变）必须**真的重建**（`REPLACED`），否则会留下**过时的封顶标记**
         // （门禁实测抓到：同 kind/同区域的再声明被判 `ALREADY` ⇒ 新的身份被忽略）。
@@ -276,22 +231,22 @@ public final class JobAreaRegistry {
                 && existing.playerDriven() == playerDriven) {
             return new Result(Declare.ALREADY, existing);
         }
-        JobArea zone = new JobArea(scopeId, owner, kind, level, area, chunks,
+        JobRegion jobRegion = new JobRegion(scopeId, owner, kind, level, area, dimension, chunks,
                 server.overworld() == null ? 0L : server.overworld().getGameTime(), playerDriven);
-        ZONES.put(scopeId, zone);
+        REGIONS.put(scopeId, jobRegion);
         // 换区/换等级 ⇒ 区内放置配额重新开始（配额是**区内**记账，跟着这条任务区走）
-        ZONE_PLACES.remove(scopeId);
-        Level ceiling = WritePolicyMatrix.zoneLevel(WritePolicyMatrix.taskOf(kind));
-        BotLog.info("[TaskZone] {} scope={} owner={} {} blocks={} conflicts=0（派生工作区域 ⇒ 区块最小覆盖；"
+        PLACE_COUNTS.remove(scopeId);
+        Level ceiling = WritePolicyMatrix.areaLevel(WritePolicyMatrix.taskOf(kind));
+        BotLog.info("[JobRegion] {} scope={} owner={} {} blocks={} conflicts=0（派生工作区域 ⇒ 区块最小覆盖；"
                         + "单向派生，不许反向裁剪工作区域）{}",
                 existing == null ? "declared（声明任务区）" : "replaced（换工作区域/等级 ⇒ 旧区块不再覆盖）",
-                scopeId, owner.toString().substring(0, 8), zone.describe(), area.areaXZ(),
+                scopeId, owner.toString().substring(0, 8), jobRegion.describe(), area.areaXZ(),
                 (ceiling == level ? "" : " ⚠ 等级已降级：请求 " + ceiling.label()
                         + " ⇒ 授予 " + level.label() + "（L3 全权只能由玩家显式取得）")
                         + (playerDriven ? ""
                         : " ⚠ 非玩家发起（LLM/未归因）⇒ **保护区内按 "
                         + level.cappedForUnattended().label() + " 执行**（拆不了玩家的方块；野外不受影响）"));
-        return new Result(existing == null ? Declare.DECLARED : Declare.REPLACED, zone);
+        return new Result(existing == null ? Declare.DECLARED : Declare.REPLACED, jobRegion);
     }
 
     /** 解除某作用域的任务区。返回是否真的移除了一条（**取消任务 ⇒ 自动解除**由作用域收尾调用）。 */
@@ -299,10 +254,10 @@ public final class JobAreaRegistry {
         if (scopeId == null) {
             return false;
         }
-        ZONE_PLACES.remove(scopeId);
-        boolean removed = ZONES.remove(scopeId) != null;
+        PLACE_COUNTS.remove(scopeId);
+        boolean removed = REGIONS.remove(scopeId) != null;
         if (removed) {
-            BotLog.info("[TaskZone] released scope={}（任务结束/被取消 ⇒ 任务区随之解除；玩家无需再点一次）", scopeId);
+            BotLog.info("[JobRegion] released scope={}（任务结束/被取消 ⇒ 任务区随之解除；玩家无需再点一次）", scopeId);
         }
         return removed;
     }
@@ -311,8 +266,8 @@ public final class JobAreaRegistry {
      * ⭐ **区内放置够不够配额**（`L1` 的"≤8 次"）：该作用域**已经**在区内放了几个。
      * 只统计"落点在**自己**任务区覆盖范围内"的放置（区外的放置不进这个计数）。
      */
-    public static int zonePlaceCount(String scopeId) {
-        return scopeId == null ? 0 : ZONE_PLACES.getOrDefault(scopeId, 0);
+    public static int inJobRegionPlaceCount(String scopeId) {
+        return scopeId == null ? 0 : PLACE_COUNTS.getOrDefault(scopeId, 0);
     }
 
     /**
@@ -323,16 +278,16 @@ public final class JobAreaRegistry {
      *
      * @return 该作用域累计的区内放置次数（不在区内 ⇒ 返回当前值、不计数）
      */
-    public static int recordZonePlacement(ServerLevel level, UUID owner, BlockPos pos) {
+    public static int recordJobRegionPlacement(ServerLevel level, UUID owner, BlockPos pos) {
         MinecraftServer server = level.getServer();
         if (server == null || owner == null || pos == null) {
             return 0;
         }
-        JobArea zone = zoneOf(server, owner);
-        if (zone == null || !zone.covers(pos)) {
-            return zone == null ? 0 : zonePlaceCount(zone.scopeId());
+        JobRegion jobRegion = jobRegionOf(server, owner);
+        if (jobRegion == null || !jobRegion.covers(pos)) {
+            return jobRegion == null ? 0 : inJobRegionPlaceCount(jobRegion.scopeId());
         }
-        return ZONE_PLACES.merge(zone.scopeId(), 1, Integer::sum);
+        return PLACE_COUNTS.merge(jobRegion.scopeId(), 1, Integer::sum);
     }
 
     /**
@@ -341,7 +296,7 @@ public final class JobAreaRegistry {
      * <p>作用域一收尾（终态 / 被替换 / 显式打断）⇒ `currentScope` 变了或为 null ⇒ 这里**立刻**返回
      * null —— 这就是"随 `scopeId` 生灭"的实现方式：**不靠谁记得来关**。
      */
-    public static JobArea zoneOf(MinecraftServer server, UUID owner) {
+    public static JobRegion jobRegionOf(MinecraftServer server, UUID owner) {
         if (server == null || owner == null) {
             return null;
         }
@@ -349,25 +304,25 @@ public final class JobAreaRegistry {
         if (scopeId == null) {
             return null;
         }
-        JobArea zone = ZONES.get(scopeId);
-        return zone != null && owner.equals(zone.owner()) ? zone : null;
+        JobRegion jobRegion = REGIONS.get(scopeId);
+        return jobRegion != null && owner.equals(jobRegion.owner()) ? jobRegion : null;
     }
 
     /**
      * **该位置被哪个任务区覆盖**（任意 bot；只读查询面用 —— `/alice protect list`）。
      * 只返回**作用域仍有效**的任务区（过期条目不会被当成权威）。
      */
-    public static JobArea zoneAt(ServerLevel level, BlockPos pos) {
+    public static JobRegion jobRegionAt(ServerLevel level, BlockPos pos) {
         MinecraftServer server = level.getServer();
         if (server == null) {
             return null;
         }
         ResourceLocation dimension = level.dimension().location();
         long key = chunkKey(pos);
-        for (JobArea zone : ZONES.values()) {
-            if (zone.area().dimension().equals(dimension) && zone.chunks().contains(key)
-                    && isCurrent(server, zone)) {
-                return zone;
+        for (JobRegion jobRegion : REGIONS.values()) {
+            if (jobRegion.dimension().equals(dimension) && jobRegion.chunks().contains(key)
+                    && isCurrent(server, jobRegion)) {
+                return jobRegion;
             }
         }
         return null;
@@ -375,58 +330,58 @@ public final class JobAreaRegistry {
 
     /** 当前生效的任务区条数（顺带清掉过期条目）。 */
     public static int activeCount(MinecraftServer server) {
-        return activeZones(server).size();
+        return activeRegions(server).size();
     }
 
     /** 当前生效的任务区（快照；**顺带 prune**）。 */
-    public static List<JobArea> activeZones(MinecraftServer server) {
+    public static List<JobRegion> activeRegions(MinecraftServer server) {
         prune(server);
-        return List.copyOf(ZONES.values());
+        return List.copyOf(REGIONS.values());
     }
 
     /**
      * 清掉**已过期**的任务区（作用域已收尾但条目还在 —— 只有"没走收尾钩子"的路径会留下）。
      *
-     * <p>过期条目**本来就不构成权威**（{@link #zoneOf} / {@link #zoneAt} 都复核作用域），
+     * <p>过期条目**本来就不构成权威**（{@link #jobRegionOf} / {@link #jobRegionAt} 都复核作用域），
      * prune 只是不让进程内表无限长。返回清掉的条数。
      */
     public static int prune(MinecraftServer server) {
         int dropped = 0;
-        var iterator = ZONES.entrySet().iterator();
+        var iterator = REGIONS.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<String, JobArea> entry = iterator.next();
+            Map.Entry<String, JobRegion> entry = iterator.next();
             if (!isCurrent(server, entry.getValue())) {
                 iterator.remove();
                 dropped++;
             }
         }
         if (dropped > 0) {
-            BotLog.info("[TaskZone] 清掉 {} 条过期任务区（作用域已收尾 ⇒ 授权封套随 scopeId 生灭）", dropped);
+            BotLog.info("[JobRegion] 清掉 {} 条过期任务区（作用域已收尾 ⇒ 授权封套随 scopeId 生灭）", dropped);
         }
         return dropped;
     }
 
     /** **夹具/收尾专用**：清空全部任务区（生产路径不许调用 —— 那是"静默留权"的反面：静默撤权）。 */
     public static void clearAll() {
-        ZONES.clear();
-        ZONE_PLACES.clear();
+        REGIONS.clear();
+        PLACE_COUNTS.clear();
     }
 
     /** 一行可读摘要（诊断/日志用）。 */
     public static String summary(MinecraftServer server) {
-        List<JobArea> active = activeZones(server);
+        List<JobRegion> active = activeRegions(server);
         if (active.isEmpty()) {
-            return "task_zones=0";
+            return "job_regions=0";
         }
         List<String> parts = new ArrayList<>();
-        for (JobArea zone : active) {
-            parts.add(zone.kind() + ":" + zone.chunks().size() + "chunks:scope=" + zone.scopeId());
+        for (JobRegion jobRegion : active) {
+            parts.add(jobRegion.kind() + ":" + jobRegion.chunks().size() + "chunks:scope=" + jobRegion.scopeId());
         }
-        return "task_zones=" + active.size() + "[" + String.join(", ", parts) + "]";
+        return "job_regions=" + active.size() + "[" + String.join(", ", parts) + "]";
     }
 
-    private static boolean isCurrent(MinecraftServer server, JobArea zone) {
-        return zone.scopeId().equals(WorldModLedger.currentScope(server, zone.owner()));
+    private static boolean isCurrent(MinecraftServer server, JobRegion jobRegion) {
+        return jobRegion.scopeId().equals(WorldModLedger.currentScope(server, jobRegion.owner()));
     }
 
     /** 区块键列表 → `chunkX,chunkZ | …`（日志与报错里给人看的形式）。 */

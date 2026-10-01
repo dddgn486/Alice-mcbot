@@ -394,7 +394,7 @@ public final class BlockInteraction {
             com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, placeAt,
                     previousState, level.getBlockState(placeAt));
             // ⭐ 区内放置计数（`L1` 的"≤8 次"配额，`D-338` 附注七②）：只统计落在**自己任务区**里的放置
-            com.dddgn.alice.region.JobAreaRegistry.recordZonePlacement(level, bot.getUUID(), placeAt);
+            com.dddgn.alice.region.JobRegionRegistry.recordJobRegionPlacement(level, bot.getUUID(), placeAt);
             return PlaceResult.PLACED;
         }
         return PlaceResult.NO_OPTION;
@@ -688,7 +688,7 @@ public final class BlockInteraction {
         level.setBlock(pos, state, 3);
         com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, pos,
                 previousState, state);
-        com.dddgn.alice.region.JobAreaRegistry.recordZonePlacement(level, bot.getUUID(), pos);
+        com.dddgn.alice.region.JobRegionRegistry.recordJobRegionPlacement(level, bot.getUUID(), pos);
         return true;
     }
 

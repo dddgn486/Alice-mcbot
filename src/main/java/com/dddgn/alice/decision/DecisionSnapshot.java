@@ -117,7 +117,7 @@ public final class DecisionSnapshot {
         tools.add("kinds", toolRows);
         root.add("tools", tools);
 
-        var regionState = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
+        var regionState = com.dddgn.alice.job.lumber.LumberAreaState.get(bot.getServer());
         var area = regionState.area(bot.getUUID());
         if (area != null) {
             JsonObject regionNode = new JsonObject();

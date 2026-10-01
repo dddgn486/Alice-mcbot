@@ -414,7 +414,7 @@ public final class MineRegressionTask implements Task {
                 return index >= CASES.size() ? finish() : Status.RUNNING;
             }
             scope.begin(current.target(), 16, bot.getUUID());
-            // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `JobAreaRegistry.declare`
+            // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `JobRegionRegistry.declare`
             // 的硬约束是"任务区必须挂在**打开的作用域**上"（不许在任务之外造授权封套），
             // 所以 `FixtureClaim` 只有在作用域已开时才**借**用现成 scope（不会另开一个、也不会替我们关）。
             if (current.expectSupport() && assertsLikeExecute(current.kind())) {

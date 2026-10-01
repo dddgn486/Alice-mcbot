@@ -2,7 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.job.lumber.LumberRegionState;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.fixture.LumberCourseAnchor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -16,7 +16,7 @@ import net.minecraft.world.phys.Vec3;
  * 可持续伐木区启动器（{@code alice:region_lumber}，J8 / §13）：普通右键，零参数。
  *
  * <p>把**测试场景的固定区域**（{@link LumberCourseAnchor#REGION_MIN_X}/{@link LumberCourseAnchor#REGION_MAX_X} × {@link LumberCourseAnchor#REGION_MIN_Z}/{@link LumberCourseAnchor#REGION_MAX_Z}）
- * 写进持久化的 {@code LumberRegionState} 并起 {@code RegionLumberJob}：巡查 → 挑一棵 → 复用一次性
+ * 写进持久化的 {@code LumberAreaState} 并起 {@code RegionLumberJob}：巡查 → 挑一棵 → 复用一次性
  * 伐木 Job 砍它 → 回来继续巡查。**默认常驻**（无活就退避等待，只由玩家/决策层显式打断）；
  * 只有 `/alice region idle-stop true` 打开时才退回旧的 `idle_no_work` 收工行为。
  *

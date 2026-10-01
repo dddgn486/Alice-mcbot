@@ -2,7 +2,7 @@ package com.dddgn.alice.region.authz;
 
 import com.dddgn.alice.bot.TaskMetrics;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.region.JobAreaRegistry;
+import com.dddgn.alice.region.JobRegionRegistry;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.write.WriteReason;
@@ -632,12 +632,12 @@ public final class Quota {
      *
      * @return 拒绝的 {@link AreaPermission.Decision}；`null` = 这一档在区内**没有**配额这一道（放行）
      */
-    static AreaPermission.Decision inZonePlaceRefusal(JobAreaRegistry.JobArea zone, AreaPermission.Act act) {
+    static AreaPermission.Decision inJobRegionPlaceRefusal(JobRegionRegistry.JobRegion zone, AreaPermission.Act act) {
         if (act != AreaPermission.Act.PLACE
                 || zone.effectiveLevel() != WritePolicyMatrix.Level.L1_SCAFFOLD) {
             return null;
         }
-        int used = JobAreaRegistry.zonePlaceCount(zone.scopeId());
+        int used = JobRegionRegistry.inJobRegionPlaceCount(zone.scopeId());
         if (used < L1_MAX_PLACES) {
             return null;
         }

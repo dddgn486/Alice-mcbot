@@ -332,7 +332,7 @@ public final class MineCandidateSource implements CandidateSource {
          */
         public Progress advance(ServerPlayer bot) {
             ServerLevel level = (ServerLevel) bot.level();
-            var safeZones = AreaData.get(level.getServer());
+            var claims = AreaData.get(level.getServer());
             int budget = (int) Math.min(perCallBudget, Math.max(0, totalBudget - visited));
             int did = 0;
             while (did < budget && !done) {
@@ -344,7 +344,7 @@ public final class MineCandidateSource implements CandidateSource {
                 int packed = ringPacked(shell, ring);
                 int dy = dyAt(dyIndex);
                 BlockPos pos = center.offset(dxOf(packed), dy, dzOf(packed));
-                visit(level, bot, safeZones, pos);
+                visit(level, bot, claims, pos);
                 did++;
                 ring++;
                 if (ring >= ringCount(shell)) {
@@ -387,7 +387,7 @@ public final class MineCandidateSource implements CandidateSource {
             }
         }
 
-        private void visit(ServerLevel level, ServerPlayer bot, AreaData safeZones, BlockPos pos) {
+        private void visit(ServerLevel level, ServerPlayer bot, AreaData claims, BlockPos pos) {
             visited++;
             // ⭐ D-329 ① / D-331 同类：**未加载的格一律不读**（`getBlockState` 会同步加载区块）。
             // 只记"未扫"，绝不冒充"没矿"；调用方据此把该区域视为**尚未感知**（等靠近/记忆累积）。
@@ -417,7 +417,7 @@ public final class MineCandidateSource implements CandidateSource {
                     rejected.get(i).add(id(pos) + ":" + areaRefusal);
                     continue;
                 }
-                String reason = viabilityRefusal(level, bot, safeZones, pos);
+                String reason = viabilityRefusal(level, bot, claims, pos);
                 if (reason != null) {
                     rejected.get(i).add(id(pos) + ":" + reason);
                     continue;
@@ -442,12 +442,12 @@ public final class MineCandidateSource implements CandidateSource {
          * <p>⚠️ 这是 `D-348` 同一条纪律的另一面：**别把代理判据当世界事实**。
          */
         private static String viabilityRefusal(ServerLevel level, ServerPlayer bot,
-                                               AreaData safeZones, BlockPos pos) {
+                                               AreaData claims, BlockPos pos) {
             // ⭐ 保护区这一层走**区域级授权面**（`D-338` 附注七③：与破坏/放置闸门**同一个函数**）。
             // 挖矿是 `L0`（`D-338` ④"挖矿 = 野外采集，不发生在保护区内"）⇒ 认领区块里的矿
             // **照旧被拒**（没有任务区时拒绝码逐字仍是 `protected_area`）。
             String reason = com.dddgn.alice.region.authz.AreaPermission.candidateRefusal(level,
-                    bot.getUUID(), pos, safeZones.protectionReason(level, pos),
+                    bot.getUUID(), pos, claims.protectionReason(level, pos),
                     WriteReason.EXPECTED_TARGET);
             if (reason != null) {
                 return reason;
@@ -477,13 +477,13 @@ public final class MineCandidateSource implements CandidateSource {
          */
         public CandidateSet revalidate(ServerPlayer bot, int targetIndex) {
             ServerLevel level = (ServerLevel) bot.level();
-            var safeZones = AreaData.get(level.getServer());
+            var claims = AreaData.get(level.getServer());
             List<Candidate> stillViable = new ArrayList<>();
             List<String> rejectedNow = new ArrayList<>(rejected.get(targetIndex));
             for (Candidate candidate : viable.get(targetIndex)) {
                 String refusal = intent.refusalFor(candidate.anchor());
                 if (refusal == null) {
-                    refusal = viabilityRefusal(level, bot, safeZones, candidate.anchor());
+                    refusal = viabilityRefusal(level, bot, claims, candidate.anchor());
                 }
                 if (refusal == null) {
                     stillViable.add(candidate);

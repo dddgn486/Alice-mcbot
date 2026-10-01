@@ -8,6 +8,7 @@ import com.dddgn.alice.gui.BotInventoryService;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
+import com.dddgn.alice.region.WorkingArea;
 import com.dddgn.alice.transfer.ChestEndpointRef;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
@@ -571,7 +572,7 @@ public final class DebugCommands {
      * 竖直方向**自适应**（基准层取两角较低的 Y，上界由巡查按实测树高收紧）。
      *
      * <p>**重划区域**（与已保存的不同）会重置按旧区域积累的派生记账（目标棵数/界外苗/界外待补种），
-     * 见 {@code LumberRegionState#setArea}；划**同一个**区域是幂等重入，不动记账。
+     * 见 {@code LumberAreaState#setArea}；划**同一个**区域是幂等重入，不动记账。
      */
     private static int regionSet(CommandSourceStack source, net.minecraft.core.BlockPos a,
                                  net.minecraft.core.BlockPos b) {
@@ -581,10 +582,10 @@ public final class DebugCommands {
             return 0;
         }
         int baseY = Math.min(a.getY(), b.getY());
-        var area = new com.dddgn.alice.job.lumber.LumberRegionState.Area(
-                a.getX(), a.getZ(), b.getX(), b.getZ(), baseY,
-                com.dddgn.alice.job.lumber.LumberRegionState.DEFAULT_MAX_HEIGHT);
-        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var area = new com.dddgn.alice.job.lumber.LumberAreaState.Area(
+                new com.dddgn.alice.region.WorkingArea(a.getX(), a.getZ(), b.getX(), b.getZ()),
+                baseY, com.dddgn.alice.job.lumber.LumberAreaState.DEFAULT_MAX_HEIGHT);
+        var state = com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         boolean redefined = state.area(bot.getUUID()) != null
                 && !state.area(bot.getUUID()).equals(area);
         state.setArea(bot.getUUID(), area);
@@ -629,7 +630,7 @@ public final class DebugCommands {
             source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
             return 0;
         }
-        com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer())
+        com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer())
                 .setAutoIdleStop(bot.getUUID(), value);
         source.sendSuccess(() -> Component.literal("[alice] 区域任务 idle-stop=" + value
                 + (value ? "（无活会自行 IDLE_NO_WORK 收工）" : "（常驻：只由玩家/决策层打断）")), false);
@@ -645,8 +646,8 @@ public final class DebugCommands {
             source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
             return 0;
         }
-        com.dddgn.alice.job.lumber.LumberRegionState state =
-                com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        com.dddgn.alice.job.lumber.LumberAreaState state =
+                com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         boolean had = state.area(bot.getUUID()) != null;
         state.clearArea(bot.getUUID());
         com.dddgn.alice.log.BotLog.info("region_clear: owner={} had={}", bot.getName().getString(), had);
@@ -662,7 +663,7 @@ public final class DebugCommands {
             source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
             return 0;
         }
-        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var state = com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         var area = state.area(bot.getUUID());
         source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区 area="
                 + (area == null ? "-（未设定）" : area.describe())
@@ -683,11 +684,10 @@ public final class DebugCommands {
         if (area != null) {
             var server = source.getServer();
             var level = source.getLevel();
-            var workingArea = new com.dddgn.alice.region.JobAreaRegistry.WorkingArea(
-                    level.dimension().location(), area.minX(), area.minZ(),
+            var workingArea = new WorkingArea(area.minX(), area.minZ(),
                     area.maxX(), area.maxZ());
             var chunks = workingArea.chunkCover();
-            var active = com.dddgn.alice.region.JobAreaRegistry.zoneOf(server, bot.getUUID());
+            var active = com.dddgn.alice.region.JobRegionRegistry.jobRegionOf(server, bot.getUUID());
             source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + workingArea.describe()
                     + " blocks=" + workingArea.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
                     + "（**单向派生**：工作区域 ⇒ 任务区）｜覆盖规则=可覆盖保护区与安全区；"
@@ -728,7 +728,7 @@ public final class DebugCommands {
             return 0;
         }
         String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
-        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var state = com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         boolean changed = add
                 ? state.addPickupItem(bot.getUUID(), itemId)
                 : state.removePickupItem(bot.getUUID(), itemId);
@@ -755,7 +755,7 @@ public final class DebugCommands {
             source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
             return 0;
         }
-        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var state = com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         var effective = state.effectivePickupItems(bot.getUUID());
         StringBuilder text = new StringBuilder("[alice] 区域拾取清单（生效 " + effective.size() + " 项）");
         for (String itemId : effective) {
@@ -795,7 +795,7 @@ public final class DebugCommands {
                     + "收到 " + itemId), false);
             return 0;
         }
-        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var state = com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         state.setSaplingItem(bot.getUUID(), itemId);
         com.dddgn.alice.log.BotLog.info("[alice] 区域补种树苗选择 = {}", itemId);
         source.sendSuccess(() -> Component.literal("[alice] 区域补种树苗已设为 " + itemId
@@ -811,7 +811,7 @@ public final class DebugCommands {
             source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
             return 0;
         }
-        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var state = com.dddgn.alice.job.lumber.LumberAreaState.get(source.getServer());
         var area = state.area(bot.getUUID());
         if (area == null) {
             source.sendSuccess(() -> Component.literal("[alice] 该 bot 还没有区域（用 alice:region_lumber "

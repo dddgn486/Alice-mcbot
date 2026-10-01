@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Set;
 import com.dddgn.alice.fixture.CollectOffcenterRetryCheckTask;
 import com.dddgn.alice.fixture.CollectSlotApproachCheckTask;
-import com.dddgn.alice.fixture.JobAreaGrantCheckTask;
+import com.dddgn.alice.fixture.JobRegionGrantCheckTask;
 import com.dddgn.alice.fixture.KillDropProvenanceCheckTask;
 import com.dddgn.alice.fixture.ScopePendingGraceCheckTask;
 
@@ -118,7 +118,7 @@ public final class PickupModule implements CheckModule {
                 // 自建地板 + 自己签/撤授权 ⇒ `List.of()`。四条臂里**臂②③ 是承重墙**
                 // （范围内玩家丢的东西、范围外的产物都必须仍不碰），臂④ 钉"撤销即关"。
                 CheckStep.of("job_area_grant", CheckProfile.EXTRA, List.of(), null,
-                        () -> new com.dddgn.alice.fixture.JobAreaGrantCheckTask(bot, observer),
+                        () -> new com.dddgn.alice.fixture.JobRegionGrantCheckTask(bot, observer),
                         900),
                 // ⭐ `step 5b` 刀①（`D-496` 丙，用户 2026-09-27 拍「全甲」）：**掉落物守恒
                 // （`MISMATCH`）的结构化读数**。四条臂：① 丢掉一件落物（`delta < expected`）

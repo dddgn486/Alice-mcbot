@@ -10,7 +10,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.protection.LedgerScope;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.region.JobAreaRegistry;
+import com.dddgn.alice.region.JobRegionRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -54,7 +54,7 @@ import com.dddgn.alice.task.FixtureClaim;
  * <h2>⚠️ 为什么要"借"一个 `L2` 任务区封套（诚实标注）</h2>
  * 保护区里的写入要过 `AreaPermission`，而**自检夹具的定位是 `DIAGNOSTIC` ⇒ `L0`（只读）**
  * （`D-338` 附注七③：未登记任务与自检夹具**不该**拿到区内写入权）。于是"在区内写字"这件事，
- * 夹具**必须**自己摆出前提：本步按 `JobAreaCheckTask` 的同一做法声明一个
+ * 夹具**必须**自己摆出前提：本步按 `JobRegionCheckTask` 的同一做法声明一个
  * `region_lumber`（`LUMBER ⇒ L2 工作面`）+ `playerDriven=true` 的封套 —— 它**不是**在验权限阶梯
  * （那是 `task_zone` 的活），而是**让闸门放行**，否则根本测不到"区内记账 / 回收"这半边。
  * 反过来这也顺带证明了那条阶梯是活的：**不声明封套 ⇒ 区内放置被拒 `protected_area`**
@@ -362,8 +362,8 @@ public final class LedgerScopeCheckTask implements Task {
         var closure = scopeId == null
                 ? new WorldModLedger.Closure(0, 0, 0, 0, 0, 0)
                 : WorldModLedger.closure(level, scopeId, populationBaseline);
-        check("收尾 本步作用域内**无区内遗留条目**（实测 " + closure.inZone() + " 条）"
-                + closure.describe(), closure.inZone() == 0);
+        check("收尾 本步作用域内**无区内遗留条目**（实测 " + closure.inArea() + " 条）"
+                + closure.describe(), closure.inArea() == 0);
         cleanup(level);
         BotLog.info("[Z1] SUMMARY checks={} failures={} outsideSkips={}→{} wildTerminal={} "
                         + "zoneTerminal={} zoneNotes={} purgeDropped={} ticks={} → {}",

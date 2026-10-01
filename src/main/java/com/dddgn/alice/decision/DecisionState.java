@@ -19,7 +19,7 @@ import java.util.UUID;
  * <p>盘点（2026-09-12 复核）：
  * <ul>
  *   <li>**已持久化**：能力分级（`PermissionsData`）、ALWAYS 授权、收集授权（`CollectGrants`）、
- *       区域（`LumberRegionState`）、世界改动账本（`WorldModLedger`）—— 这些按设计存活；</li>
+ *       区域（`LumberAreaState`）、世界改动账本（`WorldModLedger`）—— 这些按设计存活；</li>
  *   <li>**重启即丢（本类登记）**：① {@code PermissionGate} 的**未决请示**（内存队列）；
  *       ② **当前任务**（bot 是假人，重启后从 idle 开始）；③ 决策层的内存状态（上一次触发节流、菜单）。</li>
  * </ul>

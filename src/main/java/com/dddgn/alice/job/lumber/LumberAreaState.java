@@ -1,4 +1,5 @@
 package com.dddgn.alice.job.lumber;
+import com.dddgn.alice.region.WorkingArea;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -29,7 +30,7 @@ import java.util.UUID;
  * <p>与 {@code WorldModLedger} 同族（都是 {@link SavedData}），因为两者记的是同一件事的两面：
  * 账本记"我方改了世界的什么"（脚手架 `TEMP` / 补种 `KEEP`），区域状态记"这片区域该长什么样"。
  */
-public final class LumberRegionState extends SavedData {
+public final class LumberAreaState extends SavedData {
 
     private static final String DATA_KEY = "alice_lumber_regions";
 
@@ -48,32 +49,60 @@ public final class LumberRegionState extends SavedData {
      * <p>⚠️ **它是什么、不是什么**（2026-10-01 用户定的两词口径，见 {@code region/package-info.java}）：
      * 名字里的 `Area` 是**统称的抽象概念**（泛称）—— 具体指**玩家用 {@code /alice region set} 划的那块矩形**；
      * ⛔ **它不是一种「区域类型」**（保护区 / 任务区（job 区）/ 安全区 才是区域类型 = `region`）。
-     * ⇒ 它**没有**权限等级、**没有**生命周期、**不进** `JobAreaRegistry`；作业启动时由它**派生**出
-     * `JobAreaRegistry.WorkingArea`（方块级）→ 再派生 job 区（区块级封套，随 `scopeId` 生灭）。
+     * ⇒ 它**没有**权限等级、**没有**生命周期、**不进** `JobRegionRegistry`；作业启动时由它**派生**出
+     * `WorkingArea`（方块级）→ 再派生 job 区（区块级封套，随 `scopeId` 生灭）。
      *
      * <p>用户 2026-09-12 裁定：区域由玩家划分，但玩家只圈水平范围；竖直方向不该让玩家操心 ——
      * 这里存一个 {@code baseY}（基准层，取玩家选区较低的那个 Y）与 {@code maxHeight}（自适应**上限**），
      * 实际生效的上界由巡查按**实测树高**收紧（见 {@code RegionLumberJob#effectiveTopY}）：
      * 既不会漏掉刚长高的树，也不会有个"柱子一样"的固定高度把整片天空算进来。
      *
-     * <p>⛔ 2026-10-01：本记录原叫 `Region` ⇒ 用户裁定改名（「`LumberRegionState.Region` 实际该把
+     * <p>⛔ 2026-10-01：本记录原叫 `Region` ⇒ 用户裁定改名（「`LumberAreaState.Region` 实际该把
      * `Region` 替换为 `area`」）。⚠️ **存档键与命令字面量未动**（`"region"`/`"regions"`/
      * `/alice region …`）—— 那是**数据格式**，不是类型名。
      */
-    public record Area(int minX, int minZ, int maxX, int maxZ, int baseY, int maxHeight) {
+    public record Area(WorkingArea footprint, int baseY, int maxHeight) {
 
         public Area {
-            minX = Math.min(minX, maxX);
-            maxX = Math.max(minX, maxX);
-            minZ = Math.min(minZ, maxZ);
-            maxZ = Math.max(minZ, maxZ);
+            java.util.Objects.requireNonNull(footprint, "lumber working area");
             maxHeight = Math.max(1, maxHeight);
+        }
+
+        // ⚠️ 下面这些是**转发**：水平范围的事实**只有一份**（在 WorkingArea 里），
+        //    本记录只额外携带"竖直策略"（`baseY` / 自适应上限）—— 这就是两个同名类合并的结果。
+        public int minX() {
+            return footprint.minX();
+        }
+
+        public int minZ() {
+            return footprint.minZ();
+        }
+
+        public int maxX() {
+            return footprint.maxX();
+        }
+
+        public int maxZ() {
+            return footprint.maxZ();
         }
 
         /** 水平（x/z）是否落在区域内。 */
         public boolean containsHorizontal(BlockPos pos) {
-            return pos.getX() >= minX && pos.getX() <= maxX
-                    && pos.getZ() >= minZ && pos.getZ() <= maxZ;
+            return footprint.containsHorizontal(pos);
+        }
+
+        /** 覆盖该水平范围所需的外接半径（`TreeScanner` 只吃"中心 + 半径"）。 */
+        public int coverRadius() {
+            return footprint.coverRadius();
+        }
+
+        /** ⚠️ 中心点**要竖直信息**（`baseY`）⇒ 它留在本记录上，⛔ 不在 `WorkingArea` 上。 */
+        public BlockPos center() {
+            return new BlockPos((minX() + maxX()) / 2, baseY, (minZ() + maxZ()) / 2);
+        }
+
+        public int areaXZ() {
+            return footprint.areaXZ();
         }
 
         /** 是否落在区域盒内（竖直方向用"基准层往下留 2 格（树桩）+ 自适应上限"）。 */
@@ -83,23 +112,8 @@ public final class LumberRegionState extends SavedData {
                     && pos.getY() <= baseY + maxHeight;
         }
 
-        /** 覆盖该水平范围所需的外接半径（`TreeScanner` 只吃"中心 + 半径"）。 */
-        public int coverRadius() {
-            int dx = maxX - minX;
-            int dz = maxZ - minZ;
-            return (int) Math.ceil(Math.sqrt((double) dx * dx + (double) dz * dz) / 2.0D) + 2;
-        }
-
-        public BlockPos center() {
-            return new BlockPos((minX + maxX) / 2, baseY, (minZ + maxZ) / 2);
-        }
-
-        public int areaXZ() {
-            return (maxX - minX + 1) * (maxZ - minZ + 1);
-        }
-
         public String describe() {
-            return "x" + minX + ".." + maxX + " z" + minZ + ".." + maxZ
+            return footprint.describe()
                     + " baseY=" + baseY + " maxH=" + maxHeight + "（垂直自适应）";
         }
     }
@@ -117,7 +131,7 @@ public final class LumberRegionState extends SavedData {
          * ⭐ `D-344` ④：**可配置拾取清单** —— 用户用 `/alice region pickup add` **显式加过**的物品注册名。
          *
          * <p><b>这里只存"显式项"</b>：**生效清单** = 显式项 ∪ `{选定的树苗}`，由
-         * {@link LumberRegionState#effectivePickupItems} 派生 ——
+         * {@link LumberAreaState#effectivePickupItems} 派生 ——
          * 于是"默认捡选定的树苗"是**算出来的**，不是写死的（细节⑦「不许硬编码树苗」）；
          * 用户换树苗时，默认项**自动跟着换**，不需要再改一行配置。
          */
@@ -147,9 +161,9 @@ public final class LumberRegionState extends SavedData {
 
     private final java.util.Map<UUID, Entry> entries = new java.util.HashMap<>();
 
-    public static LumberRegionState get(MinecraftServer server) {
+    public static LumberAreaState get(MinecraftServer server) {
         return server.overworld().getDataStorage()
-                .computeIfAbsent(LumberRegionState::load, LumberRegionState::new, DATA_KEY);
+                .computeIfAbsent(LumberAreaState::load, LumberAreaState::new, DATA_KEY);
     }
 
     private Entry entry(UUID owner, boolean create) {
@@ -437,8 +451,8 @@ public final class LumberRegionState extends SavedData {
      * 「显式项留存 / **派生项不落盘**」）—— 只有把加载口开放出来，夹具才能验证"重启后清单还在"
      * 这件事，而不用真重启服务器。**生产路径只经 {@link #get(MinecraftServer)}**。
      */
-    public static LumberRegionState load(CompoundTag root) {
-        LumberRegionState state = new LumberRegionState();
+    public static LumberAreaState load(CompoundTag root) {
+        LumberAreaState state = new LumberAreaState();
         ListTag list = root.getList("regions", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
@@ -449,10 +463,13 @@ public final class LumberRegionState extends SavedData {
                 continue;
             }
             Entry entry = new Entry();
-            if (tag.contains("region")) {
-                CompoundTag r = tag.getCompound("region");
-                entry.area = new Area(r.getInt("min_x"), r.getInt("min_z"), r.getInt("max_x"),
-                        r.getInt("max_z"), r.getInt("base_y"), r.getInt("max_h"));
+            // ⭐ 2026-10-01 改名（`O135`）：内层键 `"region"` → `"area"` —— **读旧写新**（旧档照样能读）。
+            CompoundTag areaTag = tag.contains("area") ? tag.getCompound("area")
+                    : tag.contains("region") ? tag.getCompound("region") : null;
+            if (areaTag != null) {
+                entry.area = new Area(new WorkingArea(areaTag.getInt("min_x"), areaTag.getInt("min_z"),
+                        areaTag.getInt("max_x"), areaTag.getInt("max_z")),
+                        areaTag.getInt("base_y"), areaTag.getInt("max_h"));
             }
             entry.saplingItem = tag.contains("sapling_item") ? tag.getString("sapling_item") : null;
             // `D-344` ④：可配置拾取清单（旧存档没有这一项 ⇒ 空集合 = 只有派生的默认项，行为不变）

@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
-import com.dddgn.alice.job.lumber.LumberRegionState;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -22,6 +22,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import com.dddgn.alice.region.WorkingArea;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 
@@ -99,7 +100,7 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
     private final List<String> failures = new ArrayList<>();
 
     private RegionLumberJob job;
-    private LumberRegionState.Area area;
+    private LumberAreaState.Area area;
 
     // ---- 前提 ----
     private BlockPos entryFoot;
@@ -184,9 +185,10 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
         built = level.getBlockState(ORIGIN).is(Blocks.GRASS_BLOCK)
                 && level.getBlockState(ORIGIN.offset(LANE_LENGTH, 0, LANE_HALF_WIDTH)).is(Blocks.GRASS_BLOCK);
 
-        area = new LumberRegionState.Area(
-                ORIGIN.getX(), ORIGIN.getZ() - LANE_HALF_WIDTH,
-                ORIGIN.getX() + LANE_LENGTH, ORIGIN.getZ() + LANE_HALF_WIDTH,
+        area = new LumberAreaState.Area(
+                new com.dddgn.alice.region.WorkingArea(
+                        ORIGIN.getX(), ORIGIN.getZ() - LANE_HALF_WIDTH,
+                        ORIGIN.getX() + LANE_LENGTH, ORIGIN.getZ() + LANE_HALF_WIDTH),
                 ORIGIN.getY() + FOOT_DY, HEADROOM + 2);
         emptyNoTrees = countLogs(level) == 0 && countLeaves(level) == 0;
 
@@ -194,7 +196,7 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
         teleport(level, ORIGIN.offset(LANE_LENGTH / 2, FOOT_DY, 0));
 
         // ⚠️ 区域状态是**跨夹具共享的会话状态**：先存档，收尾还原（否则会算错别人的"欠树"）
-        LumberRegionState state = LumberRegionState.get(level.getServer());
+        LumberAreaState state = LumberAreaState.get(level.getServer());
         savedBaseline = state.baselineTrees(bot.getUUID());
         savedBaselineDerived = state.baselineDerived(bot.getUUID());
         savedSaplingItem = state.saplingItem(bot.getUUID());
@@ -239,11 +241,11 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
                             + " 上报的可做什么=「{}」",
                     triggeredAtTick, status, stillRunningWhenTriggered, remediation);
             // 恢复阶段：注入"欠树 + 手里有苗" ⇒ 有活可做
-            LumberRegionState state = LumberRegionState.get(bot.serverLevel().getServer());
+            LumberAreaState state = LumberAreaState.get(bot.serverLevel().getServer());
             state.setSaplingItem(bot.getUUID(), "minecraft:oak_sapling");
             state.setBaselineTrees(bot.getUUID(), RECOVER_BASELINE);
             // ⚠️ 补种点的**唯一出处**是 `RegionLumberJob.plantSpotFor`：它只认
-            // `LumberRegionState.pendingReplant` 里记着的点（"树桩空出来"），**不是**"随便一块草地"。
+            // `LumberAreaState.pendingReplant` 里记着的点（"树桩空出来"），**不是**"随便一块草地"。
             // 首跑就是漏了这一条 ⇒ 日志 `欠树 deficit=3 但当前没有可补种的位置` ⇒ 恢复阶段假红。
             // 点选在**紧邻 bot 站位**（不必走路 ⇒ 不依赖寻路在夹具里能不能跑）。
             plantSpot = ORIGIN.offset(LANE_LENGTH / 2, FOOT_DY, 1);
@@ -293,7 +295,7 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
 
     private Task.Status assertResult() {
         ServerLevel level = bot.serverLevel();
-        LumberRegionState state = LumberRegionState.get(level.getServer());
+        LumberAreaState state = LumberAreaState.get(level.getServer());
 
         // ---- 前提（红了先怀疑夹具）----
         check("前提：草方块地板铺好了（built=" + built + "）", built);

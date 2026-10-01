@@ -5,7 +5,7 @@ import com.dddgn.alice.decision.CollectGrants;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
-import com.dddgn.alice.job.lumber.LumberRegionState;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.log.BotLog;
@@ -135,7 +135,7 @@ public final class RegionSweepE2ECheckTask implements Task {
         var level = bot.serverLevel();
         var server = level.getServer();
         UUID owner = bot.getUUID();
-        LumberRegionState state = LumberRegionState.get(server);
+        LumberAreaState state = LumberAreaState.get(server);
 
         // 快照（无论如何都要还原：本夹具借的是用户的区域状态）
         savedSapling = state.saplingItem(owner);
@@ -394,8 +394,8 @@ public final class RegionSweepE2ECheckTask implements Task {
         }
     }
 
-    private LumberRegionState state() {
-        return LumberRegionState.get(bot.getServer());
+    private LumberAreaState state() {
+        return LumberAreaState.get(bot.getServer());
     }
 
     private net.minecraft.server.level.ServerLevel level() {

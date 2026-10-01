@@ -283,10 +283,10 @@ public final class CheckHarness {
                 //   ② 作用域是本步自己的（原先读 `pendingForOwner` = 跨 scope 的 owner 口径，
                 //      别的步的遗留会误伤本步 —— 那正是 D-298 那一类假红）。
                 var closure = WorldModLedger.closure(bot.serverLevel(), stepScope, stepPopulationBaseline);
-                boolean leakFailed = closure.inZone() > 0 && !step.keepWorldState();
+                boolean leakFailed = closure.inArea() > 0 && !step.keepWorldState();
                 if (leakFailed) {
                     pass = false;
-                    currentResultDetail = "leaked_temporary_blocks=" + closure.inZone()
+                    currentResultDetail = "leaked_temporary_blocks=" + closure.inArea()
                             + "（未声明 KEEP ✗）ledger[" + closure.describe() + "]";
                 } else if (!closure.empty() || closure.anythingHappened()) {
                     // ⭐ `Z2` **可见性**：账本侧发生过事情就印人口读数 —— 否则"账本空"会被读成"没写世界"

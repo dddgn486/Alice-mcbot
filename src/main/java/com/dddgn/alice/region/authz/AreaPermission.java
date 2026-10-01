@@ -2,7 +2,7 @@ package com.dddgn.alice.region.authz;
 
 import com.dddgn.alice.ledger.ModifyAudit;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.region.JobAreaRegistry;
+import com.dddgn.alice.region.JobRegionRegistry;
 import com.dddgn.alice.write.WriteReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -21,7 +21,7 @@ import java.util.UUID;
  *   <tr><td><b>E</b></td><td>授权**到哪一档**（`L0…L3` ＋ 非玩家发起封顶）</td>
  *       <td>{@link AreaPermissionLevel}</td></tr>
  *   <tr><td><b>F</b></td><td>还能**动几次**（`L1` 的区内放置配额）</td>
- *       <td>{@link Quota#inZonePlaceRefusal}</td></tr>
+ *       <td>{@link Quota#inJobRegionPlaceRefusal}</td></tr>
  * </table>
  * ⛔ **三者不许再合成一个函数**：D/E/F 是三个不同的问题，混在一处就是"授权臃肿"（`A2` `§2`）。
  * ⛔ **而入口只有一个**：`AreaPermissionLevel` 是**包内可见** ⇒ 编译器保证没有第二个授权入口
@@ -154,7 +154,7 @@ public final class AreaPermission {
      * ⭐ **唯一判据（D 维 ＋ 编排 E/F）**：这一格、这个理由、这个动作，在（可能的）保护区里被授权了吗。
      *
      * <p>顺序 = 问题的顺序：**D**（这一格允不允许动）⇒ 不允许就到此为止；**E**（到哪一档）；
-     * **F**（还能动几次）。三处判据分别住在 {@link AreaPermissionLevel} 与 {@link Quota#inZonePlaceRefusal}。
+     * **F**（还能动几次）。三处判据分别住在 {@link AreaPermissionLevel} 与 {@link Quota#inJobRegionPlaceRefusal}。
      *
      * @param reason 声明式写入理由；{@code null} = 调用方没声明 ⇒ **不给区域级放行**
      *               （保守方向：没有理由就没有授权，且逐字保持旧行为 `protected_area`）
@@ -172,7 +172,7 @@ public final class AreaPermission {
         // ⛔ 2026-10-01 用户裁定：**撤掉"安全区无条件拒"**（原 `protected_safe_zone` 那一档）——
         // 安全区**退化**为「保护区上的一个标记位」，与保护区**同权限**（专属语义只剩"返程首选目的地"）。
         // ⇒ 安全区内的格子走**与保护区完全相同**的判据（任务区覆盖 ＋ 等级）。
-        JobAreaRegistry.JobArea zone = JobAreaRegistry.zoneOf(level.getServer(), owner);
+        JobRegionRegistry.JobRegion zone = JobRegionRegistry.jobRegionOf(level.getServer(), owner);
         if (zone == null || !zone.covers(pos)) {
             return new Decision(Verdict.DENY, "protected_area",
                     "保护区内的写入需要**生效的任务区**覆盖这一格（owner=" + shortId(owner)
@@ -215,7 +215,7 @@ public final class AreaPermission {
             return byLevel;
         }
         // ══════════════ F 维：还能**动几次** ══════════════
-        Decision byQuota = Quota.inZonePlaceRefusal(zone, act);
+        Decision byQuota = Quota.inJobRegionPlaceRefusal(zone, act);
         return byQuota != null ? byQuota : byLevel;
     }
 

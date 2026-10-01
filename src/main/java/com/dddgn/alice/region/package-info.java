@@ -16,13 +16,13 @@
  *   <tr><td><b>{@code region}</b></td>
  *       <td>⭐ 项目里的**确定概念**：**保护区** · **任务区（job 区）** · **安全区** ——
  *           有名字、有声明入口、有生命周期的**区域类型**（＝本包回答的四问的那个对象）</td>
- *       <td>本包名 · 区域类型本身（{@code AreaData} 的认领集 / {@code JobAreaRegistry.JobArea}）·
+ *       <td>本包名 · 区域类型本身（{@code AreaData} 的认领集 / {@code JobRegionRegistry.JobRegion}）·
  *           区域型作业与目标的招牌（`region_lumber`）</td></tr>
  *   <tr><td><b>{@code Area}</b></td>
  *       <td>⭐ **统称的抽象概念**（泛称）—— ⛔ **不是一种区域类型**，不携带权限/生命周期语义</td>
- *       <td>**上层下层都能用**：数据载体（{@code AreaData}）· 声明出来的实例（{@code JobArea}）·
+ *       <td>**上层下层都能用**：数据载体（{@code AreaData}）· 声明出来的实例（{@code JobRegion}）·
  *           作业内几何（{@code WorkingArea}）· 对"这一格"的裁决（{@code AreaPermission}/
- *           {@code AreaPermissionLevel}）· **玩家划的那块作业范围**（{@code LumberRegionState.Area}）</td></tr>
+ *           {@code AreaPermissionLevel}）· **玩家划的那块作业范围**（{@code LumberAreaState.Area}）</td></tr>
  *   <tr><td>⛔ <b>{@code zone}</b></td>
  *       <td>**已废词** —— 刀 5 只清了**类名**（你当时裁的是「一个一个清理带 `Zone` 的**类**」），
  *           **字段/方法/日志/存档键级残留仍在**</td>
@@ -31,7 +31,7 @@
  *
  * <p>⚠️ **用 {@code Area} 的硬要求**：它**不携带具体语义** ⇒ **每一处都要让读者就地看懂它指什么**
  * （是玩家的那块地？作业范围？认领集？声明出来的实例？）—— ⛔ 不许只留一个 `area` 让后人猜。
- * ✅ 正例：{@code LumberRegionState.Area} 的 javadoc 逐字写了"**具体指玩家用 `/alice region set`
+ * ✅ 正例：{@code LumberAreaState.Area} 的 javadoc 逐字写了"**具体指玩家用 `/alice region set`
  * 划的那块矩形**，⛔ 不是区域类型"。
  *
  * <p>⚠️ **⛔ 不随之改的两类**（它们是**数据/接口**，不是类型名）：① **存档键**（`alice_lumber_regions` ·
@@ -39,7 +39,7 @@
  * （`/alice region …` · `region_lumber`）—— 改名会破既有存档/接口，⛔ 除非同刀写迁移。
  *
  * <p>⚠️ **当前状态：`protection/` → `region/` 只搬了 3 个「原样类」**（刀 3，结构提案 `§8` 步 2）：
- * {@link com.dddgn.alice.region.JobAreaRegistry}（job 区）·
+ * {@link com.dddgn.alice.region.JobRegionRegistry}（job 区）·
  * {@link com.dddgn.alice.region.ClaimService}（区域管理的**写入口**，原 `ProtectionClaimService`）·
  * {@link com.dddgn.alice.region.MapGeometry}（区域几何，原 `ProtectionMapGeometry`）。
  * ⛔ **其余 5 个类仍在 `protection/`**（`§2` 的 9 类落点表还没走完：`AreaData` 要拆三份、
@@ -52,7 +52,7 @@
  *
  * <h2>一 · 四问 ⇒ ⛔ **不建四个子包**（这是契约，不是偏好）</h2>
  *
- * <p>四问**今天全在同一处**（{@link com.dddgn.alice.region.JobAreaRegistry#declare} 建实例 ·
+ * <p>四问**今天全在同一处**（{@link com.dddgn.alice.region.JobRegionRegistry#declare} 建实例 ·
  * `kind`/`owner` 谁声明 · 覆盖检查 谁能覆盖谁 · {@code release} 何时消失）——
  * 它们是**一个生命周期**，⛔ 不是四种东西。拆成四个子包 = 把一个生命周期劈成四段跨包调用，
  * 而它们**永远一起变**（改一个字段必然动其它三处）⇒ 制造四份耦合、换不到任何独立性（结构提案 `§9.2`）。
@@ -64,7 +64,7 @@
  *   <tr><th>区域</th><th>谁声明</th><th>生命周期</th></tr>
  *   <tr><td><b>保护区</b>（玩家认领的区块）</td><td>玩家（`AreaData.claim`）</td>
  *       <td>持久；与任务无关</td></tr>
- *   <tr><td><b>job 区</b>（原「任务区」）</td><td>任务（{@code JobAreaRegistry.declare}）</td>
+ *   <tr><td><b>job 区</b>（原「任务区」）</td><td>任务（{@code JobRegionRegistry.declare}）</td>
  *       <td>区块级、**随 `scopeId` 生灭**（终态/被替换/显式打断 ⇒ 权威自动消失）</td></tr>
  *   <tr><td><b>安全区</b></td><td>玩家（`AreaData.declareSafe`）</td>
  *       <td>⭐ `D-565` ②：退化为「**保护区上的一个标记位**」，与保护区**同权限**；

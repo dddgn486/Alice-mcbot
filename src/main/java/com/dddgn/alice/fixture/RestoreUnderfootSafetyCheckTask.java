@@ -527,11 +527,11 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         // 前提 = 认领场景区块 + L2 任务区封套（理由见 `FixtureClaim` 类注释）。
         //
         // ⭐⭐ `A4`（2026-09-23）：**顺序不能反** —— 必须**先开作用域、再声明任务区**。
-        // `JobAreaRegistry.zoneOf` 是**按"当前作用域"**找生效任务区的：
-        //     `scopeId = WorldModLedger.currentScope(server, owner); zone = ZONES.get(scopeId);`
+        // `JobRegionRegistry.jobRegionOf` 是**按"当前作用域"**找生效任务区的：
+        //     `scopeId = WorldModLedger.currentScope(server, owner); zone = REGIONS.get(scopeId);`
         // 旧版反着来（先 `protect` ⇒ 任务区挂在外层电池步作用域 `#N:Regression:<step>` 上，
         // 再 `openScope("c2_underfoot")` ⇒ 当前作用域变成新的内层 `#N+1`）⇒ 回收期的每一次写入
-        // 都在**另一个**作用域上 ⇒ `zoneOf` 返回 null ⇒ `AreaPermission` 判 `protected_area`
+        // 都在**另一个**作用域上 ⇒ `jobRegionOf` 返回 null ⇒ `AreaPermission` 判 `protected_area`
         // ⇒ `BlockInteraction.breakable=false` ⇒ `MineRunner: TARGET_NOT_BREAKABLE` ⇒ `restored=0`。
         // **实测链条（2026-09-23，探针已删）**：`[PROBE-A4] breakAllowed=true refusal=protected_area
         // grant=RestoreScope:SCAFFOLD_RESTORE`；`[PathRetry] plan_failed UNREACHABLE goal=…`；

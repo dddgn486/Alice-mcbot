@@ -2,7 +2,7 @@ package com.dddgn.alice.decision;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.job.lumber.LumberRegionState;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.job.lumber.TreeScanner;
 import com.dddgn.alice.log.BotLog;
 import com.google.gson.JsonArray;
@@ -210,7 +210,7 @@ public final class CandidateMenu {
                 mineCandidates.size(), MINE_SCAN_RADIUS, mineTargets.size());
 
         // ④ 已保存的可持续伐木区 —— 区域型候选（**只能用已存在的区域**，LLM 不能发明）
-        LumberRegionState regionState = LumberRegionState.get(bot.getServer());
+        LumberAreaState regionState = LumberAreaState.get(bot.getServer());
         var area = regionState.area(bot.getUUID());
         if (area != null) {
             entries.add(new Entry("area:saved", "region_lumber",

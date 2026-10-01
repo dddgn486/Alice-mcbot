@@ -652,19 +652,19 @@ public final class BotManager {
      * **可持续伐木区（MAINTAIN）入口**（J8 / §13）：设定区域 → 起 {@code RegionLumberJob}。
      *
      * <p>与一次性伐木共用同一套候选源/策略/内嵌 `LumberJob`（§13 的"一个 Job 两套参数"）；
-     * 这里额外做两件事：把**区域边界**写进持久化的 {@link com.dddgn.alice.job.lumber.LumberRegionState}
+     * 这里额外做两件事：把**区域边界**写进持久化的 {@link com.dddgn.alice.job.lumber.LumberAreaState}
      * （跨会话记得"这片区域该长什么样"），以及入口发料（D-119 起生产任务不发工具）。
      */
     public static boolean assignRegionLumber(BotPlayer bot, ServerPlayer observer,
-                                             com.dddgn.alice.job.lumber.LumberRegionState.Area area,
+                                             com.dddgn.alice.job.lumber.LumberAreaState.Area area,
                                              com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         provisioning.axe(bot);
         provisioning.pickaxe(bot);
         provisioning.cobblestone(bot, 12);
-        com.dddgn.alice.job.lumber.LumberRegionState state =
-                com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
+        com.dddgn.alice.job.lumber.LumberAreaState state =
+                com.dddgn.alice.job.lumber.LumberAreaState.get(bot.getServer());
         state.setArea(bot.getUUID(), area);
         // 树苗选择接口的**默认值**（用户裁定：补种树苗不必与被砍的树一一对应）：
         // 未配置时用橡树苗；想换就用 `/alice region sapling <item>`（写进持久化的区域状态）
@@ -2431,7 +2431,7 @@ com.dddgn.alice.task.mining.MiningBudget
                 // **任务区随作用域解除**（`D-338` 附注二第 2 条"取消任务自动解除"）：显式打断
                 // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
                 // 否则会留下一个"没有任务对应的授权封套"。
-                com.dddgn.alice.region.JobAreaRegistry.release(closedScope);
+                com.dddgn.alice.region.JobRegionRegistry.release(closedScope);
                 // ⭐ `Z2`：闭合读数**要在 `dropStale` 之前**读（区外遗留一旦被销掉就看不见了）
                 var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
                         bot.serverLevel(), closedScope, ledgerPopulationBaseline);
@@ -2450,7 +2450,7 @@ com.dddgn.alice.task.mining.MiningBudget
                             bot.controller().getInputStateString());
                     bot.controller().stopMovement();
                 }
-                if (closure.inZone() > 0) {
+                if (closure.inArea() > 0) {
                     // **只报信号，不自动追任务**（2026-09-11 简化，D-103）：
                     // 原先在这里自动追加一个"远程恢复任务"，但那时 bot 已经离开脚手架，
                     // 于是被迫引入"走回去 / 跨场景寻路 / 站位选择 / 侧拆兜底 / 放支撑块"——
@@ -2461,7 +2461,7 @@ com.dddgn.alice.task.mining.MiningBudget
                     // 免得把"账本空"读成"没写世界"。
                     BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条我方临时放置未拆除"
                                     + "（建拆同权未闭合；如需手动清理用 /alice restore）｜ledger[{}]",
-                            closedScope, closure.inZone(), closure.describe());
+                            closedScope, closure.inArea(), closure.describe());
                 } else if (!closure.empty() || closure.anythingHappened()) {
                     BotLog.info("world_mod_ledger_close scope={} 无区内待收｜ledger[{}]",
                             closedScope, closure.describe());

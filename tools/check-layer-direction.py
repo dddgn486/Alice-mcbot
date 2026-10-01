@@ -63,7 +63,7 @@
    ⛔ 不许靠"空过"留着（同 `O85` §② 两条）。**反空转判据**：`task/` 里**有** `.java` 却读不出任何
    `生产/step` 行 ⇒ 红（读不到台账 **响亮失败**；⛔ 不许静默当成"没有生产类"）。
 7. ⭐ **刀 3（`D-566`）的搬包判据：`protection/` → `region/` 是"移动"，⛔ 不是"复制"**：
-   `region/` 里必须有 `{JobAreaRegistry, ClaimService, MapGeometry}.java`，且 `protection/` 里
+   `region/` 里必须有 `{JobRegionRegistry, ClaimService, MapGeometry}.java`，且 `protection/` 里
    **零残留**；`region/` 人口下限 `MIN_REGION_FILES`（反空转 ③：搬空也能"看起来通过"）。
    ⚠️ **本条只判"搬没搬完"**，⛔ 不判 `region/` 的 import 方向 —— 那个（`§7` #6）**尚未裁定**（台账 `O130`）。
 
@@ -115,10 +115,10 @@ LEDGER_MOVED = ("ModifyAudit",)
 #: （`§1` 原方案：authz = "允不允许动 ＋ 还能动几次"）。判据同"搬包不是复制"。
 
 #: ⭐ **刀 3**（`D-566`，2026-10-01）：`§8` 步 2 从 `protection/` **原样搬进** `region/` 的 3 个类
-#: （`JobAreaRegistry` · `ProtectionClaimService`→`ClaimService` · `ProtectionMapGeometry`→`MapGeometry`）。
+#: （`JobRegionRegistry` · `ProtectionClaimService`→`ClaimService` · `ProtectionMapGeometry`→`MapGeometry`）。
 #: ⚠️ 用途 = **"搬包不是删除"**：搬完之后 ① `region/` 里必须**有**、② `protection/` 里必须**没有**
 #: —— 否则"把包搬空"或"复制一份留着"都能看起来通过（`O85` §② 同族：⛔ 不许靠"空过"留着）。
-REGION_MOVED = ("JobAreaRegistry", "ClaimService", "MapGeometry")
+REGION_MOVED = ("JobRegionRegistry", "ClaimService", "MapGeometry")
 
 #: ⭐ **刀 4 第 4 件**（2026-10-01，用户裁定「拆三个谓词后定名」；结构提案 `§5`）：
 #: `protection/ZoneAuthority` **整体消失** —— 裁决面进 `region/authz/`，

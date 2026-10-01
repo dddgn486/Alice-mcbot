@@ -126,13 +126,13 @@ public final class AreaData extends SavedData {
         readIds(root.getList("tags", Tag.TAG_STRING), data.protectedTags);
         if (data.migratedLegacyAreas > 0 || data.droppedLegacyAreas > 0) {
             // ⭐ 响亮提示（D-307：不静默丢）。这条日志是**人看得见**的迁移证据，也是夹具的判据来源。
-            BotLog.warn("[SafeZone] 旧格式（圆形半径）保护区已迁移为**区块认领**：migrated={} 条 / 丢弃={} 条"
+            BotLog.warn("[Claim] 旧格式（圆形半径）保护区已迁移为**区块认领**：migrated={} 条 / 丢弃={} 条"
                             + "（规则 = 与该圆相交即认领；忽略 Y ⇒ 覆盖全高度）⇒ 现在 {}",
                     data.migratedLegacyAreas, data.droppedLegacyAreas, data.summary());
         }
         if (data.droppedOrphanSafeClaims > 0) {
             // 安全区必须是保护区的子集（`D-338` ②）⇒ 孤儿条目既不能留（会破坏不变量），也不能静默丢
-            BotLog.warn("[SafeZone] 孤儿**安全区**标记已丢弃：orphans={}（安全区 ⊆ 保护区；这些区块不在认领集合里）"
+            BotLog.warn("[Claim] 孤儿**安全区**标记已丢弃：orphans={}（安全区 ⊆ 保护区；这些区块不在认领集合里）"
                             + "⇒ 现在 {}",
                     data.droppedOrphanSafeClaims, data.summary());
         }
@@ -328,7 +328,7 @@ public final class AreaData extends SavedData {
      * `D-327` 机制 B 用 `isClaimed`（"走到认领区块边界就算到家"）；`D-338` ③ 起改成这一条
      * （"走到**安全区的内部**才算到家"）。
      */
-    public boolean isInReturnZone(ServerLevel level, BlockPos pos) {
+    public boolean isInReturnArea(ServerLevel level, BlockPos pos) {
         return returnArrivalChunks(level.dimension().location())
                 .contains(ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4));
     }

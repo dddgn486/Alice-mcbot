@@ -1152,7 +1152,7 @@ public final class RegressionBatteryTask implements Task {
         com.dddgn.alice.region.authz.Quota.closeScope(closed);
         // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
         // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
-        com.dddgn.alice.region.JobAreaRegistry.release(closed);
+        com.dddgn.alice.region.JobRegionRegistry.release(closed);
         // ⭐ `Z2`：**先读人口，再看账本** —— `dropStale` 会把区外条目销掉 ⇒ 在它之后读就看不到
         // "账本里还留着区外旧条目"这件事了（那正是"先记账、后 unclaim"的现场）。
         var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
@@ -1173,14 +1173,14 @@ public final class RegressionBatteryTask implements Task {
         // `no_world_write`（跨 scope 的 `pendingForOwner`）红，理由与现场毫不相干 ✗。
         // 现在错误**当场**出现在漏收尾的那一步；真需要留东西的步用 `stepKeeping(...)` 显式声明。
         // ⭐ `Z2`：判据只认**保护区内**条目（`D-398` R1/R2：区外不负任何责任 ⇒ 不许拿它判红本步）。
-        if (closure.inZone() > 0) {
+        if (closure.inArea() > 0) {
             boolean keep = currentStep() != null && currentStep().keepWorldState();
             if (keep) {
                 BotLog.info("[Regression] step={} 声明 KEEP：留下 {} 条我方临时方块（放行）",
-                        currentStepName(), closure.inZone());
+                        currentStepName(), closure.inArea());
             } else {
                 record(currentStepName(), "FAIL",
-                        "leaked_temporary_blocks=" + closure.inZone()
+                        "leaked_temporary_blocks=" + closure.inArea()
                                 + "（本步留下我方临时方块却未收尾；要么收尾，要么用 stepKeeping 声明 KEEP）"
                                 + " ticks=" + stepTicks + " ledger[" + closure.describe() + "]");
             }
@@ -1308,7 +1308,7 @@ public final class RegressionBatteryTask implements Task {
                         + "区外放置被跳过 {} 次 ⇒ 「我没写世界 / 无残留」类读数的样本**只含保护区内条目**"
                         + "（区外修改既不入账也不恢复，`D-398` R1/R2）；"
                         + "「记账 0 次」与「收干净了」是两回事，看这两个数分开读",
-                closure.inZone(), closure.wildInLedger(), closure.recordedSince(),
+                closure.inArea(), closure.wildInLedger(), closure.recordedSince(),
                 closure.wildSkippedSince());
     }
 

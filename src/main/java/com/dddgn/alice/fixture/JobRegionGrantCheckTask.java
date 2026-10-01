@@ -57,7 +57,7 @@ import com.dddgn.alice.task.TaskTarget;
  * ② "等世界发生某事"一律用**等条件 + 上限**（不用固定 tick 数赌实体什么时候开始被 tick）；
  * ③ 收尾**必须撤销夹具自己签的作业级授权** —— 授权是全局内存表，留着会漏给后面的步（比方块残留更隐蔽）。
  */
-public final class JobAreaGrantCheckTask implements Task {
+public final class JobRegionGrantCheckTask implements Task {
 
     /** 孤立原点（`C2`=4000 / `RC3`=4100 / `Z1`=4200 / `A3`=4300 段，本夹具接在 4400）。 */
     private static final BlockPos ORIGIN = new BlockPos(4400, 100, 2600);
@@ -123,14 +123,14 @@ public final class JobAreaGrantCheckTask implements Task {
     private java.util.UUID uuidAfterRevoke;
     private String dropsAtEnd = "-";
 
-    public JobAreaGrantCheckTask(BotPlayer bot, ServerPlayer observer) {
+    public JobRegionGrantCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
         this.observer = observer;
     }
 
     @Override
     public String taskName() {
-        return "JobAreaGrantCheck";
+        return "JobRegionGrantCheck";
     }
 
     @Override

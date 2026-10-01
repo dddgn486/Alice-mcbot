@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture.check.modules;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.fixture.ClaimCheckTask;
 import com.dddgn.alice.fixture.SafeReturnCheckTask;
-import com.dddgn.alice.fixture.JobAreaCheckTask;
+import com.dddgn.alice.fixture.JobRegionCheckTask;
 import com.dddgn.alice.fixture.check.CheckContext;
 import com.dddgn.alice.fixture.check.CheckModule;
 import com.dddgn.alice.fixture.check.CheckProfile;
@@ -55,6 +55,6 @@ public final class ProtectionModule implements CheckModule {
                 // 不得覆盖安全区 ⇒ 报错且不裁剪）+ 随 scopeId 生灭 + **真跑一次 RegionLumberJob**。
                 // EXTRA：会临时认领/声明几个孤立区块（收尾按增量还原）并跑一个真实 Job。
                 CheckStep.of("task_zone", CheckProfile.EXTRA, List.of(), null,
-                        () -> new JobAreaCheckTask(bot, observer, ctx.scope()), 600));
+                        () -> new JobRegionCheckTask(bot, observer, ctx.scope()), 600));
     }
 }

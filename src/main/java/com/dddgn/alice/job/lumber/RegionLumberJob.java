@@ -9,7 +9,8 @@ import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.region.JobAreaRegistry;
+import com.dddgn.alice.region.JobRegionRegistry;
+import com.dddgn.alice.region.WorkingArea;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -101,7 +102,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private static final int SWEEP_GRANT_TICKS = 20 * 120;
 
     private final BotPlayer bot;
-    private final LumberRegionState.Area area;
+    private final LumberAreaState.Area area;
     /** 连续在作业区外的 tick 数（D-179 漂移守卫）。 */
     private int driftTicks;
     private final ScopeBuffer scope;
@@ -194,7 +195,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      * （`§11` 判据 6：破裂 ⇒ 触发一次；恢复 ⇒ 不再触发；再破裂 ⇒ 再触发）。
      *
      * ⚠️ **它不越权**：不擅自收工 —— 用户 2026-09-12 裁定「常驻任务只由玩家/决策层显式打断」，
-     * 收工仍只在 `idle-stop=true` 时发生（{@link LumberRegionState#autoIdleStop}）。本字段只负责**说清事实**。
+     * 收工仍只在 `idle-stop=true` 时发生（{@link LumberAreaState#autoIdleStop}）。本字段只负责**说清事实**。
      */
     private boolean maintainUnreachable;
     /** 上报过一次就不再刷屏（恢复后复位 ⇒ 下次再破裂会再报一次）。 */
@@ -225,19 +226,19 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      */
     private boolean zoneResolved;
     /** 本任务区的 scopeId（收尾用它 release；**解算时抓下来**，不依赖收尾时作用域还开着）。 */
-    private String taskZoneScope;
+    private String jobRegionScope;
     /** 任务区状态文本（日志/夹具/失败报告可见），如 `DECLARED chunks=6`、`NO_SCOPE`。 */
-    private String taskZoneStatus = "-";
+    private String jobRegionStatus = "-";
     /** 任务区覆盖的区块数（夹具/日志用）。 */
-    private int taskZoneChunks;
+    private int jobRegionChunks;
 
-    public RegionLumberJob(BotPlayer bot, LumberRegionState.Area area, ScopeBuffer scope,
+    public RegionLumberJob(BotPlayer bot, LumberAreaState.Area area, ScopeBuffer scope,
                            LumberCandidateSource source, SelectionPolicy policy,
                            int patrolIntervalTicks, int maxTicks) {
         this(bot, area, scope, source, policy, patrolIntervalTicks, maxTicks, null);
     }
 
-    public RegionLumberJob(BotPlayer bot, LumberRegionState.Area area, ScopeBuffer scope,
+    public RegionLumberJob(BotPlayer bot, LumberAreaState.Area area, ScopeBuffer scope,
                            LumberCandidateSource source, SelectionPolicy policy,
                            int patrolIntervalTicks, int maxTicks,
                            net.minecraft.server.level.ServerPlayer observer) {
@@ -320,7 +321,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
     /** 本会话是否已至少补种一棵（夹具/电池断言用）。 */
     public boolean plantedSomething() {
-        return LumberRegionState.get(bot.getServer()).saplingsPlanted(bot.getUUID()) > 0;
+        return LumberAreaState.get(bot.getServer()).saplingsPlanted(bot.getUUID()) > 0;
     }
 
     /** J-4：常驻 Job 的失败报告要说清"区域状态 + 巡查了多少轮 + 最近一次子任务为什么失败"。 */
@@ -330,8 +331,8 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 failureReason(), "maintain", progressSummary()
                 + " terminal=" + terminalReason
                 + " waitingFor=" + waitingFor
-                + " zone=" + taskZoneStatus
-                + " mySaplings=" + com.dddgn.alice.job.lumber.LumberRegionState
+                + " zone=" + jobRegionStatus
+                + " mySaplings=" + com.dddgn.alice.job.lumber.LumberAreaState
                         .get(bot.getServer()).mySaplingCount(bot.getUUID())
                 + (failure.isBlank() ? "" : " failure=" + failure),
                 com.dddgn.alice.bot.RecoveryStage.NONE, java.util.List.of());
@@ -339,7 +340,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
     public String progressSummary() {
         return "area=" + area.describe() + " chopped=" + treesChopped + " failed=" + treesFailed
-                + " mySaplings=" + LumberRegionState.get(bot.getServer()).mySaplingCount(bot.getUUID());
+                + " mySaplings=" + LumberAreaState.get(bot.getServer()).mySaplingCount(bot.getUUID());
     }
 
     @Override
@@ -351,7 +352,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             // 首 tick 先解算任务区（**在这一 tick 的最前面** ⇒ "第一 tick 必有定论"是可断言前提）：
             // 有冲突就地如实失败，绝不带着一个无效的授权封套继续跑。
             zoneResolved = true;
-            com.dddgn.alice.task.Task.Status zoneVerdict = resolveTaskZone();
+            com.dddgn.alice.task.Task.Status zoneVerdict = resolveJobRegion();
             if (zoneVerdict != null) {
                 return zoneVerdict;
             }
@@ -428,48 +429,48 @@ com.dddgn.alice.pathing.MovementHelper
      *
      * @return `null` = 继续跑；非 null = 本 tick 的终态
      */
-    private com.dddgn.alice.task.Task.Status resolveTaskZone() {
+    private com.dddgn.alice.task.Task.Status resolveJobRegion() {
         var server = bot.getServer();
         if (server == null) {
             return null;
         }
-        taskZoneScope = WorldModLedger.currentScope(server, bot.getUUID());
-        // 维度取**bot 所在维度**：`LumberRegionState.Area` 只有水平范围（玩家只划水平），
+        jobRegionScope = WorldModLedger.currentScope(server, bot.getUUID());
+        // 维度取**bot 所在维度**：`LumberAreaState.Area` 只有水平范围（玩家只划水平），
         // 而工作区域必须落在某个维度里 ⇒ 以作业时的维度为准（跨维度作业本来也不成立）。
-        var workingArea = new JobAreaRegistry.WorkingArea(bot.serverLevel().dimension().location(),
-                area.minX(), area.minZ(), area.maxX(), area.maxZ());
+        var workingArea = new WorkingArea(area.minX(), area.minZ(), area.maxX(), area.maxZ());
         // ⭐ `D-338` 附注十四：**玩家显式**的判据 = 命令（`IN_GAME_PLAYER`）或物品/夹具（`FIXTURE`）发起；
         // LLM（`LLM`）与未归因（`SYSTEM`）**不算** ⇒ 在保护区内的生效等级封顶 `L1`（拆不了玩家的方块）。
         // 野外/无认领区块不受影响（`AreaPermission` 在未认领时即 `NOT_GATED`）。
         String driver = com.dddgn.alice.decision.Driver.of(bot);
         boolean playerDriven = com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(driver)
                 || com.dddgn.alice.decision.Driver.FIXTURE.equals(driver);
-        JobAreaRegistry.Result result = JobAreaRegistry.declare(
-                server, bot.getUUID(), NAME, workingArea, playerDriven);
+        JobRegionRegistry.Result result = JobRegionRegistry.declare(
+                server, bot.getUUID(), NAME, workingArea,
+                bot.serverLevel().dimension().location(), playerDriven);
         // 解算结果**逐字留痕一次**（含 `ALREADY`/`REPLACED`/`NO_SCOPE` 这些"没发生事"的分支）——
         // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
-        BotLog.info("[TaskZone] region_lumber 解算结果：{}", result.describe());
+        BotLog.info("[JobRegion] region_lumber 解算结果：{}", result.describe());
         switch (result.status()) {
             // ⛔ 2026-10-01：`CONFLICT_SUBZONE` 分支**已删除** —— 安全区退化为"保护区上的标记位"、
             // 与保护区同权限 ⇒ 工作区域压在安全区上**不再失败**（覆盖规则只剩"任何区域不可覆盖 job 区"）。
-            case NO_SCOPE -> taskZoneStatus = "NO_SCOPE";
-            case EMPTY_AREA -> taskZoneStatus = "EMPTY_AREA";
+            case NO_SCOPE -> jobRegionStatus = "NO_SCOPE";
+            case EMPTY_AREA -> jobRegionStatus = "EMPTY_AREA";
             default -> {
-                taskZoneChunks = result.zone().chunks().size();
-                taskZoneStatus = result.status() + " chunks=" + taskZoneChunks;
+                jobRegionChunks = result.jobRegion().chunks().size();
+                jobRegionStatus = result.status() + " chunks=" + jobRegionChunks;
             }
         }
         return null;
     }
 
     /** 任务区状态文本（**夹具/诊断可见**）：`DECLARED chunks=6` / `NO_SCOPE` / `-`。 */
-    public String taskZoneStatus() {
-        return taskZoneStatus;
+    public String jobRegionStatus() {
+        return jobRegionStatus;
     }
 
     /** 任务区覆盖的区块数（未生效时为 0）。 */
-    public int taskZoneChunks() {
-        return taskZoneChunks;
+    public int jobRegionChunks() {
+        return jobRegionChunks;
     }
 
     // ==================== 扫描阶段的观察口（夹具/诊断；不改行为）====================
@@ -521,7 +522,7 @@ com.dddgn.alice.pathing.MovementHelper
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
         var server = bot.serverLevel().getServer();
-        LumberRegionState state = LumberRegionState.get(server);
+        LumberAreaState state = LumberAreaState.get(server);
         var spec = JobDeclaration.harvestUnits(area.center(), area.coverRadius(), 1, maxTicks);
         CandidateSet raw = source.candidates(bot, spec);
 
@@ -573,7 +574,7 @@ com.dddgn.alice.pathing.MovementHelper
                 raw.viable().size(), inRegion.size(), tried.size(),
                 mySaplings, standing, state.baselineTrees(bot.getUUID()),
                 deficit, treesChopped, treesFailed,
-                LumberRegionState.get(server).saplingsPlanted(bot.getUUID()),
+                LumberAreaState.get(server).saplingsPlanted(bot.getUUID()),
                 state.pendingReplantCount(bot.getUUID()), waitingFor, currentPatrolInterval,
                 server.getTickCount());
 
@@ -813,7 +814,7 @@ com.dddgn.alice.pathing.MovementHelper
      * <p>**为什么不看 `viable`**：调用方只在 `inRegion.isEmpty()` 时问它 —— **"无权"与"没有"必须分开**：
      * 前者该如实失败，后者该照旧等生长（那是常驻作业的设计语义、也是用户要的"等窗口"）。
      */
-    public static String permissionBlock(LumberRegionState.Area area, List<String> rejected,
+    public static String permissionBlock(LumberAreaState.Area area, List<String> rejected,
                                          int effectiveTop) {
         List<String> hits = new ArrayList<>();
         String code = null;
@@ -864,7 +865,7 @@ com.dddgn.alice.pathing.MovementHelper
      * **对账"我种的苗"**（§13.2）：位置已不是树苗（长成树 / 被拔掉）⇒ 从"我种的"里销账。
      * 长成树的那些会在下一轮作为候选出现，所以销账不会丢信息。
      */
-    private void reconcileMySaplings(LumberRegionState state) {
+    private void reconcileMySaplings(LumberAreaState state) {
         var level = bot.serverLevel();
         for (var pos : state.mySaplings(bot.getUUID())) {
             var block = level.getBlockState(pos).getBlock();
@@ -882,7 +883,7 @@ com.dddgn.alice.pathing.MovementHelper
      *
      * @return null = 本轮补种成功（或本轮不需要补）；非 null = **如实失败**的终态
      */
-    private com.dddgn.alice.task.Task.Status tryPlant(LumberRegionState state, int deficit) {
+    private com.dddgn.alice.task.Task.Status tryPlant(LumberAreaState state, int deficit) {
         String itemId = state.saplingItem(bot.getUUID());
         if (itemId == null) {
             terminalReason = "sapling_unavailable";
@@ -998,9 +999,9 @@ com.dddgn.alice.pathing.MovementHelper
         String reason = current.terminalReason();
         if (status == com.dddgn.alice.task.Task.Status.DONE && "quota_met".equals(reason)) {
             treesChopped++;
-            LumberRegionState.get(bot.serverLevel().getServer()).addChopped(bot.getUUID());
+            LumberAreaState.get(bot.serverLevel().getServer()).addChopped(bot.getUUID());
             // §13.2：树桩记为待补种位置（区域不变量：欠树则补种）
-            LumberRegionState.get(bot.serverLevel().getServer())
+            LumberAreaState.get(bot.serverLevel().getServer())
                     .addPendingReplant(bot.getUUID(), base);
             BotLog.info("[Job] maintain tree@{} 完成 chopped={}", base.toShortString(), treesChopped);
         } else {
@@ -1031,7 +1032,7 @@ com.dddgn.alice.pathing.MovementHelper
      * <p>判据：待补种点 + 该格**是空气** + 下方**是泥土/草**（树苗的放置前提）⇒ 取**第一个**命中的
      * （顺序确定 ⇒ 可复现）。
      */
-    public static net.minecraft.core.BlockPos plantSpotFor(LumberRegionState state, UUID owner,
+    public static net.minecraft.core.BlockPos plantSpotFor(LumberAreaState state, UUID owner,
                                                           net.minecraft.server.level.ServerLevel level) {
         if (state == null || owner == null || level == null) {
             return null;
@@ -1057,7 +1058,7 @@ com.dddgn.alice.pathing.MovementHelper
      *
      * <p>清单为空 ⇒ **直接返回空**：清单为空意味着"用户没说要捡什么" ⇒ **不猜**。
      */
-    private List<net.minecraft.world.entity.item.ItemEntity> listDropsInRegion(LumberRegionState state) {
+    private List<net.minecraft.world.entity.item.ItemEntity> listDropsInRegion(LumberAreaState state) {
         Set<String> wanted = new LinkedHashSet<>(state.effectivePickupItems(bot.getUUID()));
         if (wanted.isEmpty()) {
             return List.of();
@@ -1081,7 +1082,7 @@ com.dddgn.alice.pathing.MovementHelper
     }
 
     /** 背包里**选定的那种**树苗件数（与 `tryPlant` 找槽位的判据同源：`stack.is(item)`）。 */
-    private int saplingInInventoryCount(LumberRegionState state) {
+    private int saplingInInventoryCount(LumberAreaState state) {
         var item = selectedSaplingItem(state);
         if (item == null) {
             return 0;
@@ -1098,7 +1099,7 @@ com.dddgn.alice.pathing.MovementHelper
     }
 
     /** 用户选定的树苗物品（`null` = 未配置或注册名无效）。 */
-    private net.minecraft.world.item.Item selectedSaplingItem(LumberRegionState state) {
+    private net.minecraft.world.item.Item selectedSaplingItem(LumberAreaState state) {
         String itemId = state.saplingItem(bot.getUUID());
         if (itemId == null) {
             return null;
@@ -1149,11 +1150,11 @@ com.dddgn.alice.pathing.MovementHelper
         // 换成来源**不放松授权**：能不能捡仍由 `DropPolicy.mayCollect` 把关（`FOREIGN` 要靠 ①的授权）。
         sweepTask = new com.dddgn.alice.task.CollectDropsTask(bot, nearest.blockPosition(), scope,
                 ids, false, budget, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
-                () -> listDropsInRegion(LumberRegionState.get(bot.getServer())), null);
+                () -> listDropsInRegion(LumberAreaState.get(bot.getServer())), null);
         sweepTargets = targets.size();
         workedThisPatrol = true;      // `D-344` ②：起了扫描 = 有活
         BotLog.info("[Job] maintain sweep 开始 目标={} 清单={} 预算={} tick（按落物数缩放，不设人为上限）",
-                targets.size(), LumberRegionState.get(bot.getServer()).effectivePickupItems(bot.getUUID()),
+                targets.size(), LumberAreaState.get(bot.getServer()).effectivePickupItems(bot.getUUID()),
                 budget);
         return com.dddgn.alice.task.Task.Status.RUNNING;
     }
@@ -1169,7 +1170,7 @@ com.dddgn.alice.pathing.MovementHelper
         if (status == com.dddgn.alice.task.Task.Status.RUNNING) {
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
-        var state = LumberRegionState.get(bot.getServer());
+        var state = LumberAreaState.get(bot.getServer());
         int collected = sweepTask.collected();
         int left = listDropsInRegion(state).size();
         String reason = sweepTask.terminalReason();
@@ -1213,7 +1214,7 @@ com.dddgn.alice.pathing.MovementHelper
      * <p>⚠️ 必须在**撤销扫描授权之后**调用：它回答的是"**在没有放宽权限的世界里**，这批东西算什么"
      * —— `FOREIGN` = 权限问题（授权了也拿不到），其余（我方登记在册的）= "是我的，但我够不着"。
      */
-    private String classifySweepBlockers(LumberRegionState state) {
+    private String classifySweepBlockers(LumberAreaState state) {
         int foreign = 0;
         int unreachable = 0;
         for (var item : listDropsInRegion(state)) {
@@ -1286,17 +1287,17 @@ com.dddgn.alice.pathing.MovementHelper
         // **取消任务 ⇒ 自动解除任务区**（D-338 附注二第 2 条）：任务区内所有区块的授权都由任务持有，
         // 任务一结束就没有持有者了 ⇒ 就地解除，玩家不需要再点一次。
         // （`/alice region stop` 那种**不经 finish** 的显式打断走的是作用域收尾钩子
-        //  `JobAreaRegistry.release(closedScope)`；两条路都堵住。）
-        JobAreaRegistry.release(taskZoneScope);
+        //  `JobRegionRegistry.release(closedScope)`；两条路都堵住。）
+        JobRegionRegistry.release(jobRegionScope);
         BotLog.info("[Job] maintain SUMMARY area={} chopped={} failed={} patrols={} mySaplings={}"
                         + " planted={} baseline={} saplingItem={} zone={} reason={} → {}",
                 area.describe(), treesChopped, treesFailed,
-                LumberRegionState.get(bot.getServer()).patrols(bot.getUUID()),
-                LumberRegionState.get(bot.getServer()).mySaplingCount(bot.getUUID()),
-                LumberRegionState.get(bot.getServer()).saplingsPlanted(bot.getUUID()),
-                LumberRegionState.get(bot.getServer()).baselineTrees(bot.getUUID()),
-                String.valueOf(LumberRegionState.get(bot.getServer()).saplingItem(bot.getUUID())),
-                taskZoneStatus, terminalReason, status);
+                LumberAreaState.get(bot.getServer()).patrols(bot.getUUID()),
+                LumberAreaState.get(bot.getServer()).mySaplingCount(bot.getUUID()),
+                LumberAreaState.get(bot.getServer()).saplingsPlanted(bot.getUUID()),
+                LumberAreaState.get(bot.getServer()).baselineTrees(bot.getUUID()),
+                String.valueOf(LumberAreaState.get(bot.getServer()).saplingItem(bot.getUUID())),
+                jobRegionStatus, terminalReason, status);
         // 终态也回聊天（否则"任务悄悄结束/悄悄失败"只有日志里看得到）
         if ("idle_no_work".equals(terminalReason)) {
             tell("区域没有活干了（无树无苗无欠）⇒ idle_no_work 收工；"

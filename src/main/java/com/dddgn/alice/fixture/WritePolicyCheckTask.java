@@ -28,7 +28,7 @@ import com.dddgn.alice.task.TaskTarget;
  * {@code WritePolicyMatrix}，不经会先短路的调用点），B **额外**断言在**接线后的规划器层**
  *（{@code CorePathPlanner.plan} 必须把它转成 {@code ERROR} plan + 可归因 diagnostics——
  * 这是"异常不会逃逸打断服务端 tick"的证据）；② **世界/模组/几何假设** —— 无：本自检不读地形、
- * 不依赖任何模组、也不依赖夹具场景（`zoneAt` 今天恒 `EXTERNAL`），唯一的前提是表内容本身（由 A 断言）；
+ * 不依赖任何模组、也不依赖夹具场景（`jobRegionAt` 今天恒 `EXTERNAL`），唯一的前提是表内容本身（由 A 断言）；
  * ③ **失败时用户看到什么** —— 玩家侧**没有可见动作**，判据是聊天 `SUMMARY <key>=FAIL` 与
  * `[WritePolicy] case=… result=FAIL` 行（G 失败会在日志里点名未登记 requester）。
  *
@@ -478,7 +478,7 @@ public class WritePolicyCheckTask implements Task {
         BotLog.info("[WritePolicy] 表 {}", WritePolicyMatrix.describe());
         for (WritePolicyMatrix.Row row : WritePolicyMatrix.ROWS) {
             BotLog.info("[WritePolicy] row={} zone={} task={} obligation={} movements={} reasons={}",
-                    row.id(), row.zone(), row.task(), row.obligation(),
+                    row.id(), row.tenure(), row.task(), row.obligation(),
                     row.movements(), row.reasons() == null ? 0 : row.reasons().size());
         }
         if (observer != null) {

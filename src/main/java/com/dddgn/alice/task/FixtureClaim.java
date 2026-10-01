@@ -3,7 +3,8 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.region.JobAreaRegistry;
+import com.dddgn.alice.region.JobRegionRegistry;
+import com.dddgn.alice.region.WorkingArea;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -27,7 +28,7 @@ import java.util.UUID;
  * <h2>为什么不给夹具开特权、也不改检测代码</h2>
  * 让 `recordPlacement` 对"自检任务"网开一面，等于**在生产代码里为测试开洞**，而且会让
  * `ledger_zone_scope` 那类判据失去意义（它验的正是"区外一律不记"）。所以走**夹具摆前提**这条正路：
- * 和生产里 `RegionLumberJob` 声明任务区是同一个入口、同一套判据（`JobAreaRegistry.declare`）。
+ * 和生产里 `RegionLumberJob` 声明任务区是同一个入口、同一套判据（`JobRegionRegistry.declare`）。
  *
  * <h2>诚实标注：这是"借用"一个 L2 工作面封套</h2>
  * 夹具自己的定位是 `DIAGNOSTIC` ⇒ 按阶梯是 `L0`（只读）。所以这里显式传
@@ -78,7 +79,7 @@ public final class FixtureClaim {
                 }
             }
         }
-        // 任务区必须挂在**打开的作用域**上（`JobAreaRegistry.declare` 的硬约束：不允许任务之外造授权封套）
+        // 任务区必须挂在**打开的作用域**上（`JobRegionRegistry.declare` 的硬约束：不允许任务之外造授权封套）
         String scopeId = WorldModLedger.currentScope(server, owner);
         boolean ownsScope = false;
         if (scopeId == null) {
@@ -89,8 +90,8 @@ public final class FixtureClaim {
         int maxX = Math.max(cornerA.getX(), cornerB.getX());
         int minZ = Math.min(cornerA.getZ(), cornerB.getZ());
         int maxZ = Math.max(cornerA.getZ(), cornerB.getZ());
-        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension, minX, minZ, maxX, maxZ);
-        JobAreaRegistry.Result declared = JobAreaRegistry.declare(server, owner, kind, area, true);
+        WorkingArea area = new WorkingArea(minX, minZ, maxX, maxZ);
+        JobRegionRegistry.Result declared = JobRegionRegistry.declare(server, owner, kind, area, dimension, true);
         Handle handle = new Handle(level, owner, added, scopeId, ownsScope, declared, area,
                 null);
         BotLog.info("[FixtureClaim] 夹具前提 = 保护区 + {} 任务区 ｜ {} ｜ {}", kind, area.describe(),
@@ -106,13 +107,13 @@ public final class FixtureClaim {
         private final List<Long> added;
         private final String scopeId;
         private final boolean ownsScope;
-        private final JobAreaRegistry.Result declared;
-        private final JobAreaRegistry.WorkingArea area;
+        private final JobRegionRegistry.Result declared;
+        private final WorkingArea area;
         private final String problem;
         private boolean released;
 
         Handle(ServerLevel level, UUID owner, List<Long> added, String scopeId, boolean ownsScope,
-               JobAreaRegistry.Result declared, JobAreaRegistry.WorkingArea area, String problem) {
+               JobRegionRegistry.Result declared, WorkingArea area, String problem) {
             this.level = level;
             this.owner = owner;
             this.added = List.copyOf(added);
@@ -129,8 +130,8 @@ public final class FixtureClaim {
         }
 
         /** 生效的任务区（`ok()` 为假时可能为 null）——夹具据此断言等级。 */
-        public JobAreaRegistry.JobArea declaredZone() {
-            return declared == null ? null : declared.zone();
+        public JobRegionRegistry.JobRegion declaredZone() {
+            return declared == null ? null : declared.jobRegion();
         }
 
         /** 新认领的区块数（**本夹具自己加的那些**；本来就是我方的地不算）。 */
@@ -145,9 +146,9 @@ public final class FixtureClaim {
             return "新认领区块=" + added.size()
                     + (area == null ? "" : " 范围=" + area.describe())
                     + " 任务区=" + (declared == null ? "-"
-                            : declared.status() + "/" + (declared.zone() == null ? "-"
-                                    : declared.zone().level().label() + " chunks="
-                                            + declared.zone().chunks().size()))
+                            : declared.status() + "/" + (declared.jobRegion() == null ? "-"
+                                    : declared.jobRegion().level().label() + " chunks="
+                                            + declared.jobRegion().chunks().size()))
                     + " scope=" + scopeId;
         }
 
@@ -162,7 +163,7 @@ public final class FixtureClaim {
                 data.unclaim(level, ChunkPos.getX(key), ChunkPos.getZ(key));
             }
             if (scopeId != null) {
-                JobAreaRegistry.release(scopeId);
+                JobRegionRegistry.release(scopeId);
             }
             if (ownsScope) {
                 WorldModLedger.closeScope(level.getServer(), owner);

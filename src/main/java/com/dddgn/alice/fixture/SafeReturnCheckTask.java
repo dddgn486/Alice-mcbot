@@ -300,7 +300,7 @@ public final class SafeReturnCheckTask implements Task {
                 check("⭐ 且**没有**跑回区里（区几何本来可用：到达集 "
                                 + zones.returnArrivalChunks(level.dimension().location()).size()
                                 + " 个区块；距区中心=" + toZone + " ⇒ 必须仍远）",
-                        toZone > 30 && !zones.isInReturnZone(level, now));
+                        toZone > 30 && !zones.isInReturnArea(level, now));
                 task = null;
                 var server = level.getServer();
                 var source = server.createCommandSourceStack().withEntity(bot).withPosition(bot.position())

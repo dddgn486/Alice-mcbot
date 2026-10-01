@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.job.lumber.LumberRegionState;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.nbt.CompoundTag;
@@ -19,7 +19,7 @@ import com.dddgn.alice.task.TaskTarget;
  *
  * <p><b>它断言哪一层</b>（技能 §6.9.1 ③「层归属」——答不上来就别写夹具）：
  * <b>判定层</b>（{@link RegionLumberJob#sweepDecision} 的四态判定表）与
- * <b>配置层</b>（{@code LumberRegionState} 的"可配置拾取清单"：派生默认值 + NBT 持久化）。
+ * <b>配置层</b>（{@code LumberAreaState} 的"可配置拾取清单"：派生默认值 + NBT 持久化）。
  * **不**断言端到端（"真去把地面上的苗捡回来"）—— 那需要"零树苗 + 区域地面有苗"的场景与真实跑动，
  * 属**下一步**（登记在 `docs/REGION_REPLANT_ASYNC_DESIGN.md` §7），本夹具**不假装**覆盖了它。
  *
@@ -72,7 +72,7 @@ public final class RegionSweepCheckTask implements Task {
     }
 
     private void runChecks() {
-        LumberRegionState state = LumberRegionState.get(bot.getServer());
+        LumberAreaState state = LumberAreaState.get(bot.getServer());
         UUID owner = bot.getUUID();
         // 快照（还原用）：本夹具借用户区域状态做断言 ⇒ 结束后必须原样还回去
         String savedSapling = state.saplingItem(owner);
@@ -162,7 +162,7 @@ public final class RegionSweepCheckTask implements Task {
      * <p>核心断言：默认项是**算出来的**（显式项 ∪ 选定树苗）⇒ 换树苗时它**自动跟随**，
      * 代码里没有任何一处写死 `minecraft:oak_sapling`。
      */
-    private void checkListDerivation(LumberRegionState state, UUID owner) {
+    private void checkListDerivation(LumberAreaState state, UUID owner) {
         for (String item : state.pickupItems(owner)) {
             state.removePickupItem(owner, item);
         }
@@ -195,11 +195,11 @@ public final class RegionSweepCheckTask implements Task {
     /**
      * **NBT 往返**（`D-344` 夹具 #5）：显式项要留存；**派生项不落盘**（否则换树苗后会残留旧默认项）。
      */
-    private void checkNbtRoundTrip(LumberRegionState state, UUID owner) {
+    private void checkNbtRoundTrip(LumberAreaState state, UUID owner) {
         state.setSaplingItem(owner, "minecraft:spruce_sapling");
         state.addPickupItem(owner, "minecraft:stick");
         CompoundTag tag = state.save(new CompoundTag());
-        LumberRegionState reloaded = LumberRegionState.load(tag);
+        LumberAreaState reloaded = LumberAreaState.load(tag);
 
         check("NBT 往返：**显式项留存**（重启后清单还在）",
                 reloaded.pickupItems(owner).contains("minecraft:stick"));

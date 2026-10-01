@@ -566,7 +566,7 @@ public final class WorldModLedger extends SavedData {
      *
      * <h2>口径（四个数一起交出来，使"空"可分辨）</h2>
      * <ul>
-     *   <li>{@code inZone} —— 保护区内的待收临时方块：**这就是 `D-398` 意义上的义务**；</li>
+     *   <li>{@code inArea} —— 保护区内的待收临时方块：**这就是 `D-398` 意义上的义务**；</li>
      *   <li>{@code wildInLedger} —— 账本里仍在的区外条目（旧存档遗留 / "先记账、后 unclaim"；
      *       {@link #dropStale} 会把它们销掉 ⇒ **要在它之前读**）；</li>
      *   <li>{@code recordedSince} —— 窗口内**真正记进账本**的放置次数（>0 ⇒ "空"= 收干净了）；</li>
@@ -580,17 +580,17 @@ public final class WorldModLedger extends SavedData {
      * </ul>
      *
      * <p>⚠️ 本记录**自己不下判决**（它不判"空是不是问题"）：它只保证调用方与读日志的人
-     * **看得见人口**，由调用方按自己的语义决定怎么记账（电池/编排器的泄漏判据只认 {@code inZone}；
+     * **看得见人口**，由调用方按自己的语义决定怎么记账（电池/编排器的泄漏判据只认 {@code inArea}；
      * 生产收尾把它印进告警）。
      *
      * @param skipBaseline 任务/步开始时的 {@link #outsideSkipCount}（无基线概念时传 -1 ⇒ 不做差值）
      */
-    public record Closure(int inZone, int wildInLedger, int recordedSince, int wildSkippedSince,
+    public record Closure(int inArea, int wildInLedger, int recordedSince, int wildSkippedSince,
                           int lossyWritesSince, int lossyRefusalsSince) {
 
         /** 两个"账本里的条目数"都是 0 ⇒ **账本为空**（空不等于"干净"，见类 javadoc）。 */
         public boolean empty() {
-            return inZone == 0 && wildInLedger == 0;
+            return inArea == 0 && wildInLedger == 0;
         }
 
         /** 本窗口**有没有真的记过账**（区分"写了又收干净"与"压根没记"）。 */
@@ -616,7 +616,7 @@ public final class WorldModLedger extends SavedData {
          * ③ 一次都没记、也没有区外放置 ⇒ 本窗口真的没写世界。
          */
         public String describe() {
-            String base = "inZone=" + inZone + " wildInLedger=" + wildInLedger
+            String base = "inArea=" + inArea + " wildInLedger=" + wildInLedger
                     + " recorded=+" + recordedSince + " wildSkipped=+" + wildSkippedSince
                     + " lossy=+" + lossyWritesSince + " lossyRefused=+" + lossyRefusalsSince;
             if (!empty()) {
@@ -638,7 +638,7 @@ public final class WorldModLedger extends SavedData {
     }
 
     /**
-     * ⭐ `Z2` 闭合读数（见 {@link Closure}）。**架在两个已有视图之上**（`inZone` = 区内视图，
+     * ⭐ `Z2` 闭合读数（见 {@link Closure}）。**架在两个已有视图之上**（`inArea` = 区内视图，
      * `wildInLedger` = 裸视图 − 区内视图）⇒ **不复制**保护区判据，不会与
      * {@link #pendingTemporaryProtected} 漂移。
      *
@@ -652,18 +652,18 @@ public final class WorldModLedger extends SavedData {
         if (server == null) {
             return new Closure(0, 0, 0, 0, 0, 0);
         }
-        int inZone = pendingTemporaryProtected(level, scopeId).size();
+        int inArea = pendingTemporaryProtected(level, scopeId).size();
         int raw = pendingTemporary(server, scopeId).size();
-        // `raw - inZone` = 裸视图里那些**区外**条目（两个视图的唯一差别就是这个过滤器）
+        // `raw - inArea` = 裸视图里那些**区外**条目（两个视图的唯一差别就是这个过滤器）
         if (baseline == null) {
-            return new Closure(inZone, raw - inZone, -1, -1, -1, -1);
+            return new Closure(inArea, raw - inArea, -1, -1, -1, -1);
         }
         WorldModLedger ledger = get(server);
         int lossy = 0;
         for (int n : ledger.lossyFamily) {
             lossy += n;
         }
-        return new Closure(inZone, raw - inZone,
+        return new Closure(inArea, raw - inArea,
                 ledger.recorded - baseline.recorded(), ledger.outsideSkips - baseline.wildSkipped(),
                 lossy - baseline.lossyWrites(), ledger.lossyRefusals - baseline.lossyRefusals());
     }

@@ -1,6 +1,6 @@
 package com.dddgn.alice.region.authz;
 
-import com.dddgn.alice.region.JobAreaRegistry;
+import com.dddgn.alice.region.JobRegionRegistry;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.write.WriteReason;
 
@@ -11,14 +11,14 @@ import com.dddgn.alice.write.WriteReason;
  * **这个动作**在这片 job 区被授予的档位上**允不允许**：破坏要 `allowsBreak()`，放置要 `allowsPlace()`，
  * 且 `L1`（临时脚手架）只许**临时**放置（{@link WriteReason#temporary()}）。
  *
- * <p>⭐ **档位从哪来**：`zone.level()` = **声明者的初始授予**（`WritePolicyMatrix.zoneLevel`），
+ * <p>⭐ **档位从哪来**：`zone.level()` = **声明者的初始授予**（`WritePolicyMatrix.areaLevel`），
  * `zone.effectiveLevel()` = 再按 `D-338` 附注十四**封顶**后的结果（保护区内、非玩家发起
  * ⇒ 从 `L2/L3` 降到 `L1`：能垫脚，**拆不了玩家的方块**）。**只收紧、不放宽**。
- * ⇒ 这里**只读**这两个值，⛔ 不自己造档位、⛔ 不改写它们（封顶的唯一出处仍是 `JobAreaRegistry.JobArea`）。
+ * ⇒ 这里**只读**这两个值，⛔ 不自己造档位、⛔ 不改写它们（封顶的唯一出处仍是 `JobRegionRegistry.JobRegion`）。
  *
  * <p>⛔ **不是入口**（这就是本类**包内可见**的原因）：外部要问授权只能走
  * {@link AreaPermission#authorize} 及其包装 —— 编译器保证**不存在第二个授权入口**。
- * ⛔ 也**不许**把"还能动几次"（F 维）搬进来：那是 {@link Quota#inZonePlaceRefusal} 的问题。
+ * ⛔ 也**不许**把"还能动几次"（F 维）搬进来：那是 {@link Quota#inJobRegionPlaceRefusal} 的问题。
  */
 final class AreaPermissionLevel {
 
@@ -30,7 +30,7 @@ final class AreaPermissionLevel {
      *
      * @return `ALLOW` = 这一档放行这个动作（F 维还会接着问"还能动几次"）；`DENY` = 带码拒绝
      */
-    static AreaPermission.Decision check(JobAreaRegistry.JobArea zone, WriteReason reason,
+    static AreaPermission.Decision check(JobRegionRegistry.JobRegion zone, WriteReason reason,
                                          AreaPermission.Act act) {
         WritePolicyMatrix.Level declared = zone.level();
         WritePolicyMatrix.Level effective = zone.effectiveLevel();

@@ -5,7 +5,7 @@ import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberJob;
-import com.dddgn.alice.job.lumber.LumberRegionState;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.fixture.FixtureThirdParty;
@@ -104,7 +104,7 @@ public final class LumberModule implements CheckModule {
                 CheckStep.skippable("region_maintain", CheckProfile.EXTRA, course, () -> {
                     tools.run();
                     // Slice B：区域欠树要补种 ⇒ 夹具发**选定的那种**树苗（未选则默认橡树苗）
-                    var state = LumberRegionState.get(bot.getServer());
+                    var state = LumberAreaState.get(bot.getServer());
                     if (state.saplingItem(bot.getUUID()) == null) {
                         state.setSaplingItem(bot.getUUID(), "minecraft:oak_sapling");
                     }

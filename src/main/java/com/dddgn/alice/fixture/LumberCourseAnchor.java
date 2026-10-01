@@ -1,4 +1,5 @@
 package com.dddgn.alice.fixture;
+import com.dddgn.alice.region.WorkingArea;
 
 import net.minecraft.core.BlockPos;
 
@@ -38,10 +39,11 @@ public final class LumberCourseAnchor {
     public static final int REGION_MAX_HEIGHT = 48;
 
     /** 夹具用的区域定义（玩家自定义走 {@code /alice region set <pos1> <pos2>}）。 */
-    public static com.dddgn.alice.job.lumber.LumberRegionState.Area area() {
-        return new com.dddgn.alice.job.lumber.LumberRegionState.Area(
-                REGION_MIN_X, REGION_MIN_Z, REGION_MAX_X, REGION_MAX_Z, REGION_BASE_Y,
-                REGION_MAX_HEIGHT);
+    public static com.dddgn.alice.job.lumber.LumberAreaState.Area area() {
+        return new com.dddgn.alice.job.lumber.LumberAreaState.Area(
+                new com.dddgn.alice.region.WorkingArea(
+                        REGION_MIN_X, REGION_MIN_Z, REGION_MAX_X, REGION_MAX_Z),
+                REGION_BASE_Y, REGION_MAX_HEIGHT);
     }
 
     private LumberCourseAnchor() {

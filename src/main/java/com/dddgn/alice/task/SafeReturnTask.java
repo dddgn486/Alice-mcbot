@@ -37,7 +37,7 @@ import com.dddgn.alice.pathing.path.PathRetryRunner;
  * **到达判据 = 脚位落在"返程到达集"里** = 目标区的**内部区块**（自身及四邻都已认领 ⇒ "向区域中心靠"），
  * 内部集为空（1 区块 / 条带 / ≤3×2）⇒ **退化为目标区本身**（"进区即到"）。
  * ⚠️ 旧口径是"进认领区块即到"（`isClaimed`）—— 它会让 bot **贴着边界停下**，且**看不见安全区**。
- * 全部判据都在 {@link AreaData}（`isInReturnZone` / `nearestReturnCell`，纯集合查询、不读方块）。
+ * 全部判据都在 {@link AreaData}（`isInReturnArea` / `nearestReturnCell`，纯集合查询、不读方块）。
  *
  * <p><b>兜底语义（用户 2026-09-19 重新声明）</b>：**"就地固守"不是兜底** —— 它是"避免死亡的最保守行为"，
  * 勘测侧意见是**现在不做**（那等于把责任转接给玩家）。因此本任务**不新造固守行为**：
@@ -112,7 +112,7 @@ public final class SafeReturnTask implements Task {
         if (homeOf(level, botId) != null) {
             return true;    // 有归位点（同维度）⇒ **归位点优先**，跳过区几何
         }
-        return !zones.isInReturnZone(level, foot) && zones.nearestReturnCell(level, foot) != null;
+        return !zones.isInReturnArea(level, foot) && zones.nearestReturnCell(level, foot) != null;
     }
 
     /**
@@ -176,7 +176,7 @@ public final class SafeReturnTask implements Task {
                 // 末段：终点区块已加载 ⇒ 直取**认领区内**的一个可站格（精确目标）
                 BlockPos stand = standableNear(level, entry, cell -> home != null
                         ? FarWalkTask.distanceXZ(cell, home.pos()) <= home.radius()
-                        : zones.isInReturnZone(level, cell), foot);
+                        : zones.isInReturnArea(level, cell), foot);
                 if (stand == null) {
                     return fail("return_no_standable_cell", "entry=" + entry.toShortString()
                             + " search=" + STAND_SEARCH + " from=" + foot.toShortString());
@@ -198,7 +198,7 @@ public final class SafeReturnTask implements Task {
             }
             legCurve.add("leg=" + rounds + (finalLeg ? " final " : " hop ") + note);
             BotLog.info("[SafeReturn] leg={} kind={} zone={} arrivalChunks={} distance={} from={} entry={} {}",
-                    rounds, finalLeg ? "final" : "hop", zoneKind(zones, level, home),
+                    rounds, finalLeg ? "final" : "hop", regionKind(zones, level, home),
                     zones.returnArrivalChunks(level.dimension().location()).size(),
                     distance, foot.toShortString(), entry.toShortString(), note);
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
@@ -308,11 +308,11 @@ public final class SafeReturnTask implements Task {
         if (home != null) {
             return FarWalkTask.distanceXZ(foot, home.pos()) <= home.radius();
         }
-        return zones.isInReturnZone(level, foot);
+        return zones.isInReturnArea(level, foot);
     }
 
     /** 目标区种类（日志/诊断用）：归位点 ⇒ `home`；有安全区 ⇒ `safe`；否则 ⇒ `protect`。 */
-    private static String zoneKind(AreaData zones, ServerLevel level, ReturnPointData.Point home) {
+    private static String regionKind(AreaData zones, ServerLevel level, ReturnPointData.Point home) {
         if (home != null) {
             return "home";
         }

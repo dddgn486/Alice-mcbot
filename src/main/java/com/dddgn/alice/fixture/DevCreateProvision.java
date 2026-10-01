@@ -63,7 +63,7 @@ public final class DevCreateProvision implements ToolProvision {
                 FixtureToolKit.ensurePickaxe(bot);
                 cobblestone(bot, 12);
                 String saplingId = request.area() == null ? null
-                        : com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
+                        : com.dddgn.alice.job.lumber.LumberAreaState.get(bot.getServer())
                         .saplingItem(bot.getUUID());
                 var id = saplingId == null ? null : net.minecraft.resources.ResourceLocation.tryParse(saplingId);
                 var item = id == null ? null : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);

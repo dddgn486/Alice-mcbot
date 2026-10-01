@@ -194,7 +194,7 @@ public sealed interface GoalAction {
                     target != null && target.amount() > 0 ? Math.min(quota, target.amount()) : quota,
                     maxTicks), note, clamps);   // 能不能捡由归属+策略决定（LLM 不能自造授权）
             case "region_lumber", "region" -> {
-                var area = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
+                var area = com.dddgn.alice.job.lumber.LumberAreaState.get(bot.getServer())
                         .area(bot.getUUID());
                 if (area == null) {
                     // LLM **不能凭空发明区域**（区域是玩家划的，见 D-130）

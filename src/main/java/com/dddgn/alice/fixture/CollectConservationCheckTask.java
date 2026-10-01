@@ -167,7 +167,7 @@ public final class CollectConservationCheckTask implements Task {
     private static final Item NON_PRODUCT = Items.COBBLESTONE;
     /**
      * **判据出处 = 生产过滤器**（与 `FishboneJob.countProductItems()` 同一个类、同一个入口）
-     * —— 夹具**不自己编**「什么算产物」（先例：`PickupGateCheckTask` 主动臂、`JobAreaGrantCheckTask`）。
+     * —— 夹具**不自己编**「什么算产物」（先例：`PickupGateCheckTask` 主动臂、`JobRegionGrantCheckTask`）。
      */
     private static final MineProductFilter PRODUCT_FILTER = MineProductFilter.forTag(null);
 

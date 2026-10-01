@@ -132,7 +132,7 @@ public final class CollectDropsTask implements Task {
      * `MineJob` / `LumberJob` / `CollectJob` / 多个夹具共用 —— 伐木的"产物"是原木与树苗，
      * 清障的"产物"就是石头本身。**判据只有一个出处**：调用方自己的产物谓词
      * （矿类作业传 {@code MineProductFilter} 的入口，夹具已钉"产物口径来自生产过滤器"，
-     * 见 `JobAreaGrantCheckTask:335`）。
+     * 见 `JobRegionGrantCheckTask:335`）。
      *
      * <p>{@code null} = **全部落物**（既有行为**逐字不变**）。
      */

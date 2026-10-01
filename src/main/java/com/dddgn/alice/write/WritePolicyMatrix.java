@@ -110,7 +110,7 @@ public final class WritePolicyMatrix {
         L1_SCAFFOLD("L1", false, true, 8),
         /** **工作面**：目标内（`Policy.EXPLICIT_TARGET`）+ 目标外（`Policy.CLEARING`，走显式授权/预算/`TEMP`）都放行。 */
         L2_WORKFACE("L2", true, true, 0),
-        /** **全权**：只剩预算/账本这一层；**只能由玩家显式取得**（见 {@link #zoneLevel(String, boolean)}）。 */
+        /** **全权**：只剩预算/账本这一层；**只能由玩家显式取得**（见 {@link #areaLevel(String, boolean)}）。 */
         L3_FULL("L3", true, true, 0);
 
         private final String label;
@@ -163,7 +163,7 @@ public final class WritePolicyMatrix {
      * <p>为什么 `UNREGISTERED`/`DIAGNOSTIC` ⇒ `L0`：未登记的任务与自检夹具**不该**拿到区内写入权
      * （保守方向，且让"没登记"这件事保持可见）。
      */
-    public static Level zoneLevel(Task task) {
+    public static Level areaLevel(Task task) {
         return switch (task) {
             case LUMBER, RESTORE, SURVIVAL -> Level.L2_WORKFACE;
             case BUILD, MANUAL -> Level.L3_FULL;
@@ -181,8 +181,8 @@ public final class WritePolicyMatrix {
      * @param playerDriven 调用方（任务层）用 {@code Driver.of(bot)} 判定后传进来 ——
      *                     本类在 `action` 层，不去反向依赖 `decision` 层
      */
-    public static Level zoneLevel(String requester, boolean playerDriven) {
-        Level level = zoneLevel(taskOf(requester));
+    public static Level areaLevel(String requester, boolean playerDriven) {
+        Level level = areaLevel(taskOf(requester));
         if (level == Level.L3_FULL && !playerDriven) {
             return Level.L2_WORKFACE;
         }
@@ -273,7 +273,7 @@ public final class WritePolicyMatrix {
      * @param movements 该组合允许的移动授权集合；{@code null} = **未声明**（不拦、只留痕，用于 {@code UNREGISTERED}）
      * @param reasons   该组合登记的理由（覆盖检查的比对基准；未登记的写入会 WARN 留痕）
      */
-    public record Row(String id, Tenure zone, Task task, Obligation obligation,
+    public record Row(String id, Tenure tenure, Task task, Obligation obligation,
                       Set<MovementGrant> movements, Set<WriteReason> reasons,
                       String codeRef, String note) {
     }
@@ -411,7 +411,7 @@ public final class WritePolicyMatrix {
                     Set.of(WriteReason.LINE_OF_SIGHT, WriteReason.EXPECTED_TARGET, WriteReason.REGION_REPLANT,
                             WriteReason.STEP_PLACEMENT, WriteReason.SUPPORT_PLACEMENT,
                             WriteReason.STANDING_SPACE),
-                    "job/lumber/LumberRegionState.java:32", "工作区的**唯一来源**就是这里的已划区域"),
+                    "job/lumber/LumberAreaState.java:32", "工作区的**唯一来源**就是这里的已划区域"),
             new Row("P-16", Tenure.WORKSPACE, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
@@ -582,14 +582,14 @@ public final class WritePolicyMatrix {
     /**
      * 区域归属的来源。**默认恒 {@link Tenure#EXTERNAL}**。
      *
-     * <p>为什么不直接调 {@code LumberRegionState}：那是 `job.lumber` 的高层类，
+     * <p>为什么不直接调 {@code LumberAreaState}：那是 `job.lumber` 的高层类，
      * 而本类在 `action`（低层）。低层不该反向依赖 job 层（今天仓库里没有这种依赖，别开这个头）；
      * R1b 接线时由**上层**注入（`installTenureSource`）。
      *
      * <p>今天不接线也**不丢任何行为**：EXTERNAL 与 WORKSPACE 对每个理由解析相同（见类注释）。
      */
     public interface TenureSource {
-        Tenure zoneAt(ServerLevel level, BlockPos pos, java.util.UUID owner);
+        Tenure areaAt(ServerLevel level, BlockPos pos, java.util.UUID owner);
     }
 
     private static volatile TenureSource tenureSource = (level, pos, owner) -> Tenure.EXTERNAL;
@@ -600,24 +600,24 @@ public final class WritePolicyMatrix {
     }
 
     /** 该位置属于哪种归属（今天恒 EXTERNAL）。 */
-    public static Tenure zoneAt(ServerLevel level, BlockPos pos, java.util.UUID owner) {
+    public static Tenure areaAt(ServerLevel level, BlockPos pos, java.util.UUID owner) {
         if (level == null || pos == null) {
             return Tenure.EXTERNAL;
         }
-        return tenureSource.zoneAt(level, pos, owner);
+        return tenureSource.areaAt(level, pos, owner);
     }
 
     // ==================== 解析 ====================
 
     /** 精确查行；缺失时回退到同任务的 EXTERNAL 行，再回退到 UNREGISTERED 行（**函数总是全的**）。 */
-    public static Row row(Tenure zone, Task task) {
+    public static Row row(Tenure tenure, Task task) {
         for (Row candidate : ROWS) {
-            if (candidate.zone() == zone && candidate.task() == task) {
+            if (candidate.tenure() == tenure && candidate.task() == task) {
                 return candidate;
             }
         }
         for (Row candidate : ROWS) {
-            if (candidate.zone() == Tenure.EXTERNAL && candidate.task() == task) {
+            if (candidate.tenure() == Tenure.EXTERNAL && candidate.task() == task) {
                 return candidate;
             }
         }
@@ -630,8 +630,8 @@ public final class WritePolicyMatrix {
     }
 
     /** 回收义务（**执行期与账本的唯一判据**）。 */
-    public static Obligation obligation(Tenure zone, Task task, WriteReason reason) {
-        Row row = row(zone, task);
+    public static Obligation obligation(Tenure tenure, Task task, WriteReason reason) {
+        Row row = row(tenure, task);
         return switch (row.obligation()) {
             case TEMP -> Obligation.TEMP;
             case KEEP -> Obligation.KEEP;
@@ -640,13 +640,13 @@ public final class WritePolicyMatrix {
     }
 
     /** 该组合允许的移动授权；{@code null} = 未声明（不拦）。 */
-    public static Set<MovementGrant> grants(Tenure zone, Task task) {
-        return row(zone, task).movements();
+    public static Set<MovementGrant> grants(Tenure tenure, Task task) {
+        return row(tenure, task).movements();
     }
 
     /** 该组合允许的 Movement 类型全集；未声明 ⇒ {@code null}。 */
-    public static Set<MovementType> allowedMovementTypes(Tenure zone, Task task) {
-        Set<MovementGrant> grants = grants(zone, task);
+    public static Set<MovementType> allowedMovementTypes(Tenure tenure, Task task) {
+        Set<MovementGrant> grants = grants(tenure, task);
         if (grants == null) {
             return null;
         }
@@ -692,8 +692,8 @@ public final class WritePolicyMatrix {
         if (task == Task.UNREGISTERED) {
             noteUnregistered(request.requester(), "pathing");
         }
-        Tenure zone = zoneAt(level, request.startFoot(), null);
-        Set<MovementType> allowed = allowedMovementTypes(zone, task);
+        Tenure tenure = areaAt(level, request.startFoot(), null);
+        Set<MovementType> allowed = allowedMovementTypes(tenure, task);
         if (allowed == null) {
             return;   // 未声明 ⇒ 不拦
         }
@@ -702,9 +702,9 @@ public final class WritePolicyMatrix {
         if (!extra.isEmpty()) {
             throw new Violation("WRITE_POLICY_MOVEMENT_DENIED",
                     "世界写入授权越权：requester=" + request.requester() + " task=" + task
-                            + " zone=" + zone + " row=" + row(zone, task).id()
+                            + " tenure=" + tenure + " row=" + row(tenure, task).id()
                             + " 未授权的 Movement=" + extra
-                            + "（该行只授权 " + row(zone, task).movements() + "）");
+                            + "（该行只授权 " + row(tenure, task).movements() + "）");
         }
     }
 
@@ -722,13 +722,13 @@ public final class WritePolicyMatrix {
         if (task == Task.UNREGISTERED) {
             noteUnregistered(grant == null ? null : grant.requester(), "place");
         }
-        Tenure zone = zoneAt(level, pos, owner);
+        Tenure tenure = areaAt(level, pos, owner);
         WriteReason reason = grant == null ? null : grant.reason();
-        Row row = row(zone, task);
+        Row row = row(tenure, task);
         if (reason != null && !row.reasons().contains(reason)) {
             noteUndeclared(row, reason);
         }
-        return obligation(zone, task, reason) == Obligation.TEMP
+        return obligation(tenure, task, reason) == Obligation.TEMP
                 ? com.dddgn.alice.ledger.WorldModLedger.Policy.TEMP
                 : com.dddgn.alice.ledger.WorldModLedger.Policy.KEEP;
     }
@@ -781,7 +781,7 @@ public final class WritePolicyMatrix {
         if (task == Task.UNREGISTERED) {
             return Decision.UNREGISTERED;
         }
-        Row row = row(zoneAt(level, pos, owner), task);
+        Row row = row(areaAt(level, pos, owner), task);
         if (row.movements() == null) {
             return Decision.UNREGISTERED;   // 该行没声明任何能力 ⇒ 不拦（与 allowedMovementTypes==null 同口径）
         }
@@ -806,7 +806,7 @@ public final class WritePolicyMatrix {
                     // 到不了这里（UNDECLARED 的前提是 requester 已登记、grant 必非空）；响亮记一笔而不是 NPE
                     BotLog.warn("[WritePolicy] container_write 判定 UNDECLARED_REASON 但 reason 为空（调用点 bug）");
                 } else {
-                    noteUndeclared(row(zoneAt(level, pos, owner), taskOf(grant.requester())), reason);
+                    noteUndeclared(row(areaAt(level, pos, owner), taskOf(grant.requester())), reason);
                 }
             }
             case DECLARED -> {
@@ -907,9 +907,9 @@ public final class WritePolicyMatrix {
         UNDECLARED_SEEN.merge(key, 1, Integer::sum);
         if (!UNDECLARED_LOGGED.contains(key)) {
             UNDECLARED_LOGGED.add(key);
-            BotLog.warn("[WritePolicy] undeclared_reason row={} zone={} task={} reason={}"
+            BotLog.warn("[WritePolicy] undeclared_reason row={} tenure={} task={} reason={}"
                             + " ⇒ 表与该调用点不一致（补行或改调用点）",
-                    row.id(), row.zone(), row.task(), reason);
+                    row.id(), row.tenure(), row.task(), reason);
         }
     }
 
@@ -945,16 +945,16 @@ public final class WritePolicyMatrix {
         List<String> problems = new ArrayList<>();
 
         // 1) Tenure × Task 全枚举
-        for (Tenure zone : Tenure.values()) {
+        for (Tenure tenure : Tenure.values()) {
             for (Task task : Task.values()) {
                 int count = 0;
                 for (Row candidate : ROWS) {
-                    if (candidate.zone() == zone && candidate.task() == task) {
+                    if (candidate.tenure() == tenure && candidate.task() == task) {
                         count++;
                     }
                 }
                 if (count != 1) {
-                    problems.add("行数异常 " + zone + "×" + task + "=" + count + "（应为 1）");
+                    problems.add("行数异常 " + tenure + "×" + task + "=" + count + "（应为 1）");
                 }
             }
         }
