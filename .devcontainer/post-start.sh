@@ -104,12 +104,12 @@ if [ -n "$TREE" ]; then
         #    （只有一个写者：云端这个钩子；设备只读）⇒ **--force 才是正确语义**，不是绕过保护。
         PUSHED=1
         if [ -n "$PUSH_URL" ]; then
-            git push -q "$PUSH_URL" "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
+            git push -q --force "$PUSH_URL" "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
             PUSHED=${PIPESTATUS[0]}
         fi
         if [ "$PUSHED" -ne 0 ]; then
             say "  token 路径没成（GITHUB_TOKEN ${GITHUB_TOKEN:+有}${GITHUB_TOKEN:-空}）⇒ 回退 origin"
-            git push -q origin "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
+            git push -q --force origin "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
             PUSHED=${PIPESTATUS[0]}
         fi
         if [ "$PUSHED" -eq 0 ]; then
