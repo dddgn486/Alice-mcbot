@@ -52,29 +52,67 @@ if (-not $Repo) {
 }
 if (-not $Repo) { Die "没找到 Alice 仓库（找 build.gradle）⇒ 用 -Repo 指定" }
 
+
+# ---------- ⭐ 编码感知读取（管家 2026-10-02 实测证实的真缺陷）----------
+# 为什么必须有：归档日志在 Windows 上常是 **cp936(GBK)**，而 `Select-String` 的**默认解码**
+# 会把 `→`(U+2192) 读成 **U+FFFD** ⇒ 尾锚正则 `→\s*(PASS|FAIL)\s*$` **静默匹配不上** ⇒
+# SUMMARY 读成空 ⇒ 回执退化成"只有判决、没有步级读数"。⇒ **一律自己按显式编码读文本**。
+function Read-TextSmart([string]$path) {
+    $utf8 = New-Object System.Text.UTF8Encoding($false, $true)   # throwOnInvalidBytes
+    try {
+        $t = [IO.File]::ReadAllText($path, $utf8)
+        if ($t -notmatch "\uFFFD") { return @{ Text = $t; Enc = "utf8" } }
+    } catch { }
+    try {
+        $t936 = [IO.File]::ReadAllText($path, [Text.Encoding]::GetEncoding(936))
+        return @{ Text = $t936; Enc = "cp936" }
+    } catch { }
+    return @{ Text = ([IO.File]::ReadAllText($path, [Text.Encoding]::Default)); Enc = "default" }
+}
+# 从**已解码文本**里取最后一条 SUMMARY（不再用 Select-String ⇒ 绕开它的解码）
+function Get-LastSummaryLine([string]$text) {
+    if (-not $text) { return "" }
+    $lines = @($text -split "\r?\n" | Where-Object { $_ -match "Regression\] SUMMARY" })
+    if ($lines.Count -eq 0) { return "" }
+    $l = $lines[-1]
+    # 剥 ANSI 颜色转义（Forge 日志带 `\e[32m…\e[m`，锚定正则会静默失配）
+    return ($l -replace "\x1b\[[0-9;]*[A-Za-z]", "") -replace "\x1b\][^\x07]*\x07", ""
+}
+
 # ---------- ⭐ 定位"本轮读数源"：**一个文件**里同时拿判决与步级读数 ----------
 # ⚠️ 实测教训（2026-10-02）：判决与 SUMMARY 若从**两个不同文件**读，会产出
 #    「verdict=FAIL 但红集合=无」这种**自相矛盾的回执** —— 正是 `silent-measurement-failure`
 #    那一族（同一个量有多个副本，我读了甲、判定器用乙）。⇒ 一律**单一真相源**。
 $archDir = Join-Path $Repo "run\headless-logs"
-$srcLog = $null
+# ⭐ 选源规则（管家 2026-10-02 实测修正）：
+#   ① 按**时间戳前缀分组**（同一次运行归档成多个文件：`<TS>-latest.log` / `<TS>-headless-stdout-<TS>.log` /
+#      `<TS>-headless-result.txt`）；② 取**最新那一组**；③ 组内**优先 `-latest.log`**
+#      —— 因为 stdout 重定向件的 LastWriteTime 更晚，原先"按时间倒序取第一个命中的"会**选错文件**。
+$srcLog = $null; $srcText = ""; $srcEnc = ""
 if (Test-Path $archDir) {
-    foreach ($c in (Get-ChildItem $archDir -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)) {
-        if ($c.Name -like "*-headless-result.txt") { continue }          # 判决文件本身没有 SUMMARY
-        if ($c.Name -like "headless-receipt-*") { continue }             # ⛔ 别读自己写的回执（自指循环！）
-        if (Select-String -LiteralPath $c.FullName -Pattern "Regression\] SUMMARY" -ErrorAction SilentlyContinue) { $srcLog = $c; break }
+    $cands = @(Get-ChildItem $archDir -File -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -notlike "*-headless-result.txt" -and $_.Name -notlike "headless-receipt-*" })
+    $groups = @{}
+    foreach ($c in $cands) {
+        $key = if ($c.Name -match '^(\d{8}-\d{6})') { $Matches[1] } else { "zzz_" + $c.LastWriteTime.ToString("yyyyMMddHHmmss") }
+        if (-not $groups.ContainsKey($key)) { $groups[$key] = New-Object System.Collections.ArrayList }
+        [void]$groups[$key].Add($c)
+    }
+    foreach ($key in ($groups.Keys | Sort-Object -Descending)) {
+        $g = @($groups[$key])
+        $pref = @($g | Where-Object { $_.Name -like "*-latest.log" })
+        if ($pref.Count -eq 0) { $pref = @($g | Where-Object { $_.Name -notlike "*-headless-stdout-*" }) }
+        if ($pref.Count -eq 0) { $pref = $g }
+        foreach ($c in $pref) {
+            $r = Read-TextSmart $c.FullName
+            $ln = Get-LastSummaryLine $r.Text
+            if ($ln) { $srcLog = $c; $srcText = $r.Text; $srcEnc = $r.Enc; break }
+        }
+        if ($srcLog) { break }
     }
 }
-$summary = ""
-if ($srcLog) {
-    $m = Select-String -LiteralPath $srcLog.FullName -Pattern "Regression\] SUMMARY" -ErrorAction SilentlyContinue | Select-Object -Last 1
-    if ($m) {
-        # ⭐ 必须**先剥 ANSI 颜色转义**：Forge 的日志带 `\e[32m…\e[m`，而锚定正则 `^…$`
-        #    在带转义时会**静默匹配不上** ⇒ 实测产出过「verdict=FAIL 但红集合=空」的自相矛盾回执。
-        $summary = ($m.Line -replace "\x1b\[[0-9;]*[A-Za-z]", "") -replace "\x1b\][^\x07]*\x07", ""
-    }
-}
-$verdictSrc = if ($srcLog) { "读数源（判决＋步级同一文件）：归档日志 " + $srcLog.Name + "（" + $srcLog.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "）" }
+$summary = Get-LastSummaryLine $srcText
+$verdictSrc = if ($srcLog) { "读数源（判决＋步级同一文件）：归档日志 " + $srcLog.Name + "（" + $srcLog.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "，解码=" + $srcEnc + "）" }
               else { "读数源：**无归档日志**" }
 
 # 判决：优先取 SUMMARY 行尾的 `→ PASS|FAIL|DEGRADED`（与步级读数**同源**）
@@ -90,9 +128,16 @@ if (-not (Test-Path $vfile) -and (Test-Path $archDir)) {
 }
 $vfileVerdict = ""
 if (Test-Path $vfile) {
-    $raw = Get-Content -LiteralPath $vfile -Raw -Encoding UTF8
-    $vfileVerdict = (($raw -split "`r?`n" | Where-Object { $_ -match '^\s*verdict=' } | Select-Object -First 1)).Trim()
-    if (-not $vfileVerdict) { $vfileVerdict = ($raw.Trim() -split "`r?`n")[0].Trim() }
+    # ⛔ 防 null：管家实测这里对空表达式调 `.Trim()` 直接崩（`You cannot call a method on a null-valued expression`）
+    $raw = (Read-TextSmart $vfile).Text
+    if ($raw) {
+        $first = @($raw -split "`r?`n" | Where-Object { $_ -match '^\s*verdict=' } | Select-Object -First 1)
+        if ($first.Count -gt 0 -and $first[0]) { $vfileVerdict = ([string]$first[0]).Trim() }
+        if (-not $vfileVerdict) {
+            $head = @($raw.Trim() -split "`r?`n" | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1)
+            if ($head.Count -gt 0 -and $head[0]) { $vfileVerdict = ([string]$head[0]).Trim() }
+        }
+    }
 }
 $mismatch = ""
 if ($verdict -and $vfileVerdict -and ($vfileVerdict -notmatch [regex]::Escape(($verdict -replace '^verdict=','')))) {
@@ -130,7 +175,17 @@ foreach ($cand in @((Join-Path $Repo "build\libs"), (Join-Path $ServerDir "mods"
          Where-Object { $_.Name -notlike "*.bak.*" -and $_.Name -notlike "*sources*" } |
          Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($j) {
-        $jarLine = "$($j.Name) · $([math]::Round($j.Length/1MB,2)) MB · 改动 $($j.LastWriteTime.ToString('yyyy-MM-dd HH:mm')) · sha256=" + (Get-FileHash -LiteralPath $j.FullName -Algorithm SHA256).Hash.Substring(0,16).ToLower()
+        # ⛔ `Get-FileHash` 在此机**可能 MISSING**（管家实测根因：PSModulePath 把
+        #    `Program Files\PowerShell\7\Modules` 排在 5.1 自带模块目录**之前** ⇒ Import-Module
+        #    解析到 PS7 那份 7.0.0.0，其 ExportedFunctions **不含** Get-FileHash）
+        #    ⇒ 一律走 .NET 兜底，别依赖那个 cmdlet。
+        $hash = $null
+        try { if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) { $hash = (Get-FileHash -LiteralPath $j.FullName -Algorithm SHA256).Hash } } catch { }
+        if (-not $hash) {
+            try { $sha = [System.Security.Cryptography.SHA256]::Create(); $fs = [IO.File]::OpenRead($j.FullName); $hash = ([BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-',''); $fs.Close(); $sha.Dispose() } catch { }
+        }
+        $hashShort = if ($hash) { $hash.Substring(0,16).ToLower() } else { "hash-unavailable" }
+        $jarLine = "$($j.Name) · $([math]::Round($j.Length/1MB,2)) MB · 改动 $($j.LastWriteTime.ToString('yyyy-MM-dd HH:mm')) · sha256=" + $hashShort
         break
     }
 }

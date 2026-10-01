@@ -66,6 +66,35 @@ $ErrorActionPreference = "Continue"
 # ⭐ 自己刷新 PATH：Java 刚装完只在**新终端**可见（同 client-agent 的理由）
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
 
+
+# ---------- ⭐ 环境去重：PS 5.1 的 Start-Process 遇"大小写孪生"键会**直接崩** ----------
+# 管家 2026-10-02 实测（本机确定性可复现）：进程环境里同时有 `NO_PROXY` 和 `no_proxy` 时，
+# Start-Process 装子进程环境块抛：
+#     Item has already been added. Key in dictionary: 'NO_PROXY' Key being added: 'no_proxy'
+# ⇒ **服务端压根不启动**。根因 = PS 5.1 用**大小写不敏感**字典装环境，Windows 环境却允许大小写孪生。
+# ⇒ 修法：**只在小写孪生存在时**丢掉对应大写项（实测值完全相同 ⇒ 丢掉不损失语义）。
+# ⚠️ 必须在**每个** Start-Process 之前调用（安装器那处也会踩同一个雷）。
+function Remove-ProxyEnvCollisions {
+    $pairs = @(
+        @("HTTP_PROXY",  "http_proxy"),
+        @("HTTPS_PROXY", "https_proxy"),
+        @("NO_PROXY",    "no_proxy"),
+        @("ALL_PROXY",   "all_proxy")
+    )
+    $dropped = @()
+    foreach ($pair in $pairs) {
+        $up = $pair[0]; $lo = $pair[1]
+        $vUp = [Environment]::GetEnvironmentVariable($up, "Process")
+        $vLo = [Environment]::GetEnvironmentVariable($lo, "Process")
+        if ($vUp -and $vLo) {
+            [Environment]::SetEnvironmentVariable($up, $null, "Process")
+            $dropped += $up
+            Say "  环境去重：丢掉 $up（与 $lo 撞键 ⇒ PS 5.1 的 Start-Process 会崩）"
+        }
+    }
+    if ($dropped.Count -eq 0) { Say "  环境去重：无大小写孪生键（不用处理）" }
+}
+
 function Say($m)  { Write-Host ("[headless] " + $m) }
 function Warn($m) { Write-Host ("[headless] !! " + $m) -ForegroundColor Yellow }
 function Die($m, $code) { Write-Host ("[headless] 错误：" + $m) -ForegroundColor Red; exit $code }
@@ -219,6 +248,7 @@ if (-not $argsFile) {
     #    正解 = Start-Process + -ArgumentList 数组（实测跑通）。
     $instOut = Join-Path $ServerDir "forge-install.out.log"
     $instErr = Join-Path $ServerDir "forge-install.err.log"
+    Remove-ProxyEnvCollisions
     $ip = Start-Process -FilePath $javaExe -ArgumentList @("-jar", $installer.FullName, "--installServer") `
           -WorkingDirectory $ServerDir -PassThru -Wait -NoNewWindow `
           -RedirectStandardOutput $instOut -RedirectStandardError $instErr -ErrorAction SilentlyContinue
@@ -368,6 +398,7 @@ $stdoutLog = Join-Path $ServerDir "headless-stdout-$stamp.log"
 
 Say "── 启动无头服务端：mode=$Mode timeout=${TimeoutSec}s"
 $argList = @("-Xmx$($MaxHeapMB)M", "-Dalice.headless.battery=$Mode", "@user_jvm_args.txt", "@$argsFile", "nogui")
+Remove-ProxyEnvCollisions
 $proc = Start-Process -FilePath $javaExe -ArgumentList $argList -WorkingDirectory $ServerDir -PassThru -NoNewWindow `
         -RedirectStandardOutput $stdoutLog -RedirectStandardError ($stdoutLog + ".err") -ErrorAction SilentlyContinue
 if (-not $proc) { Die "起不来（Start-Process 失败）" 4 }
