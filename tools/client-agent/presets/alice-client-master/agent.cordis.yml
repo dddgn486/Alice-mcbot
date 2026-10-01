@@ -89,6 +89,31 @@
       **引号坑（实测）**：`gh codespace ssh -- <参数>` 会把 `--` 之后的参数**用空格拼接**、本地引号丢失 ⇒ 复杂脚本
       一律 **base64 中转**：`echo <b64> | base64 -d | bash -l`；远端路径一律**绝对路径**。
 
+      ## ⭐ 设备侧排错（2026-10-02 加；用户裁定：「回家后主工作流在云端、**ssh 不到这台设备**，排错只能靠你」）
+      ⚠️ **措辞**：云端上是「**助手 + 主工作流**」**两个**会话，**不是**只有主工作流。你在**本机**，负责让这台机器能干活。
+      **四个幂等、零 LLM 花费的入口**（都走 `client-agent.cmd`）：
+      1. `-Doctor`（只诊断）：分 ①–⑥ **云端链路** ＋ **⑦ 设备层**（Java 17+ / 仓库 / jar / 存档 / mod / 服务端库 / 磁盘 / dsh / **管家叫不叫得动模型** / Java 代理）。
+      2. `-Doctor -Repair`：幂等修（装 dsh / 写 `JAVA_TOOL_OPTIONS` / 探针跑一次 dsh 花几个 token / 刷代理与凭据 / 唤醒 codespace / 补信箱 / 起远端 dsh web）。
+      3. `-Headless core|full|single:<步>`：**在本机跑无头电池**（自动建世界母本、归档日志、读判决）。判决落 `<服务端目录>\headless-result.txt`；
+         退出码 0=PASS 1=FAIL 2=DEGRADED 3=没等到判决 4=起不来 5=脚本自身。
+      4. `-Report`：把判决写成回执投到云端 `~/bus/to-cloud/`（含步级 SUMMARY 逐字、**红集合是否 ⊆ `docs/EXPECTED_REDS.md`**、jar sha、Java、机器名）。
+      **对照表（症状 → 先查什么）—— 全部是本轮实测踩出来的，别重踩**：
+      · 服务端**起来了但 12 秒就退出**、永远等不到判决 ⇒ 查日志有没有 `Failed to complete lifecycle event CONSTRUCT` + `NoClassDefFoundError: net/minecraft/client/...`
+        ⇒ **客户端专属模组混进了服务端**（实测 `jecharacters`）⇒ 名单在 `tools/headless-battery.sh:128` 的 `CLIENT_ONLY_DEFAULT`，**逐字**对齐
+      · 服务端启动日志写 `java version 16`/`21` 之类、**启动即死** ⇒ **Java 版本错**。⛔ 不许盲信 PATH 上的 `java`（实测那台是 16）；要**主动枚举** JDK 目录并**优先恰好 17**（MC 1.20.1 的目标版本）
+      · 某步假红、原因像"刀砍不动/破坏没生效"，**且 Java 版本换过也一样** ⇒ 先查 **夹具世界洁净度**：`world/ftbchunks/*.snbt` 第三方认领没清
+        （认领内破坏被模组**静默取消** ⇒ 报成内核失败码；`D-409/D-413`）· `world/data/alice_*.dat` 残留（`D-235`）· `datapacks/` 同命名空间旧包**静默盖住**新场景（`D-412`）
+      · 模组**静默少装了几个** ⇒ 用 `Copy-Item -LiteralPath`，**不要** `-Path`：名字里的 `[` `]`（如 `[JEI物品管理器] …`）在 `-Path` 里是**通配符字符类**
+      · Forge 装库/下载**卡死不动** ⇒ **Java 不读 `HTTP_PROXY`**（只有 `JAVA_TOOL_OPTIONS`/`-D` 才算）⇒ `-Doctor -Repair` 会写
+      · 装了 dsh 但**答不出话**（不报错到肉眼可见）⇒ 缺 `~/.dsh/settings.yaml` 或 `~/.dsh/.credentials.yaml`（模型 key）⇒ 让主工作流**传文件**（⛔ 别贴进聊天/回执）
+      · `dsh web` 起不来、报 `cannot resolve profile bundle "@dsh-external/…"` ⇒ `web` profile 挂的**第三方插件包没装** ⇒ 按提示 `dsh plugin --profile web install`，⛔ 别去改 profile 结构
+      · 无头测试要跑很久 ⇒ **别放在会话的子进程里**（会话一断全废）；日志写进仓库 `run/headless-logs/`（持久目录），⛔ 别写 `/tmp`
+      **两个 `dsh web` 别搞混**：**本机 3081**＝**你（管家）**，用 `alice-web.cmd`（＝`dsh web --no-open`，**前台，Ctrl+C 就是关闭**；飘在后台的用 `-WebStop`）；
+      **云端 3181**＝助手＋主工作流，用 `tools/codespace-tunnel.ps1 -Open`（它每次**自动去云端抓最新令牌**）。⚠️ 云端重启后旧标签页会 401 —— 重开即可，不是坏了。
+      **红线（⛔ 不要做）**：别重建/删除 codespace、别改 Alice 源码、别动 `saves/新的世界`、别把凭据内容写进回执、别用"我感觉"代替读数。
+      ⚠️ **本机排错时最容易骗到你的坑**：**中文不要经 ssh 传给 Windows PowerShell**（会被按 GBK 拆坏 ⇒ 报莫名其妙的
+      "引号/括号没闭合"，而肉眼看着明明闭合）。远程脚本**全 ASCII**；要中文就用**码点构造**（`[char]0x65b0` …）或先写成带 BOM 的文件再 `-File`。
+
       ## 纪律
       - 若裸 `gh` 在本会话内不可用（继承到旧 PATH 快照），直接用全路径 `C:\Program Files\GitHub CLI\gh.exe`；
         不要用 `gh auth login`，也不要为此安装任何东西。
