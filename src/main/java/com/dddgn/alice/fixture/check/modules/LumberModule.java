@@ -91,7 +91,11 @@ public final class LumberModule implements CheckModule {
                         guarded(bot, "lumber_failure", () -> new LumberFailureCheckTask(bot, scope)),
                         1800, LumberModule::premiseFailed),
                 // 伐木 Job：手动场景（terrain + 手写树）⇒ 电池自己跑场景函数 + 复刻 LumberJobItem 的发料
-                CheckStep.skippable("lumber_job", CheckProfile.BASELINE, course, tools,
+                // ⚠️ 2026-10-01：档位跟着 `RegressionBatteryTask.CURATION` 走 —— `lumber_job`
+                // 由 BASELINE 降 **EXTRA**（用户裁定「移出 CORE」；它是**间歇红**，见台账 `O132`）。
+                // ⭐ 两处**同源**（`check-capability-list` 的 [A2] 就是抓这个漂移）：
+                // 改 CURATION 必须同步改这里，否则门禁红。
+                CheckStep.skippable("lumber_job", CheckProfile.EXTRA, course, tools,
                         guarded(bot, "lumber_job", () -> new LumberJob(bot,
                                 JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 4, 3600),
                                 scope, new LumberCandidateSource(), new NearestPolicy())),

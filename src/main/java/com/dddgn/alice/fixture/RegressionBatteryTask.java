@@ -149,6 +149,22 @@ public final class RegressionBatteryTask implements Task {
      * <p>刻意用"按名字的清单"而不是给每个步骤加参数：① 一处可见、便于 review；
      * ② 构造时会**自校验**（有步骤没归属 / 有归属没步骤 ⇒ 直接判红），防止"悄悄漏测"。
      *
+     * <p>⭐ <b>2026-10-01 CORE 瘦身（用户裁定「把 `lumber_job` 移出 CORE」）：CORE 45 → 44</b>
+     * （BASELINE 15 → **14**，MAIN 30 不变）—— 降级 1 步 ⇒ `EXTRA`（**FULL 仍全覆盖，一步没删**）：
+     * <ul>
+     *   <li><b>`lumber_job`</b> —— ⭐ 它是**间歇红**（台账 `O132`）：同一份代码相邻两次跑 PASS/FAIL 各一
+     *       （`20260923-124423 PASS` / `124551 FAIL`）；失败签名
+     *       `partial_quota tree@22,64,218:trunk_too_tall,33, 64, 208:already_attempted` 与
+     *       `20260925-224452` / `20260927-192757`（**都早于刀 4**）**逐字相同**。
+     *       ⚠️ 根因**未查**（不是"已修"）—— 移出 CORE 只是**不让间歇红随机污染构建**；
+     *       该步仍可用 `single:lumber_job` 单跑 / `full` 全量跑。⚠️ 与 `mine_regression` 那条
+     *       **计划内红**不同：那条是**稳定**红，能登记；间歇红**登记不进** `docs/EXPECTED_REDS.md`
+     *       （清单要求"本表的步本轮必须仍红"，一 PASS 就判陈旧行）。</li>
+     * </ul>
+     * ⚠️ <b>撤步骤的纪律仍然适用</b>（`D-201` 附注一）：撤完**必须复跑 CORE 并逐步对比** ——
+     * 被撤的步可能在替**后面的步**做前置/清场（当年 `craft_furnace`/`craft_cooking`/`transfer`
+     * 就是这么红的）⇒ 本刀已按同一条纪律跑一轮 CORE 逐步 diff。
+     *
      * <p>⭐ <b>2026-09-22 CORE 瘦身（用户："整理下 CORE 内容，次要的剔除"）：CORE 53 → 41</b>
      * （BASELINE 15 + MAIN 26）。降级 12 步 ⇒ `EXTRA`（**FULL 仍全覆盖，一步没删**）：
      * <ul>
@@ -172,12 +188,19 @@ public final class RegressionBatteryTask implements Task {
      * 逐条回滚**而不是继续砍。
      */
     private static final Map<String, Profile> CURATION = Map.ofEntries(
-            // ---- BASELINE：必要基础（15）----
+            // ---- BASELINE：必要基础（14；⚠️ 2026-10-01 `lumber_job` 降 EXTRA ⇒ 原 15）----
             Map.entry("pathing", Profile.BASELINE),
             Map.entry("write_budget", Profile.BASELINE),
             Map.entry("mine_regression", Profile.BASELINE),
             Map.entry("mine_job", Profile.BASELINE),
-            Map.entry("lumber_job", Profile.BASELINE),
+            // ⭐ 2026-10-01（用户裁定「把 `lumber_job` 移出 CORE」）：**BASELINE → EXTRA** ——
+            // 它是**间歇红**（`O132`）：同一份代码相邻两次跑 PASS/FAIL 各一；失败签名
+            // `partial_quota tree@22,64,218:trunk_too_tall,33, 64, 208:already_attempted`
+            // 与 2026-09-23/09-25/09-27 的历史**逐字相同**（那几次都早于刀 4）。
+            // ⚠️ 间歇红**登记不进** `docs/EXPECTED_REDS.md`（它一 PASS 就判"陈旧行"为红）
+            // ⇒ 留在 CORE = `check-expected-reds` 随机红。移到 EXTRA 后仍可用
+            // `single:lumber_job` 单跑 / `full` 全量跑（**一步没删**）。
+            Map.entry("lumber_job", Profile.EXTRA),
             Map.entry("transfer", Profile.BASELINE),
             Map.entry("clear_guard", Profile.BASELINE),
             Map.entry("clear_retry", Profile.BASELINE),

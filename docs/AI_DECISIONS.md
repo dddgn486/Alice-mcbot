@@ -27634,3 +27634,20 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 - ⚠️ **本刀 CORE 首次跑命中一个既有间歇红**：`lumber_job=FAIL`（签名与 `20260925`/`20260927`
   **逐字相同**，且同代码相邻两跑 PASS/FAIL 各一）⇒ **与刀 4 无关**，已登记 **`O132`**
   （连带发现：`EXPECTED_REDS` **登记不了间歇红** —— 它一 PASS 就被判"陈旧行"）
+
+**刀 4 附带（2026-10-01，用户当场裁定）**：⭐ **`lumber_job` 移出 CORE**（`Profile.BASELINE` → `EXTRA`）。
+
+| 项 | 内容 |
+|---|---|
+| 用户逐字 | 在我给的四选一里选了「**把 `lumber_job` 移出 CORE**」（选项原文：「按 `D-332` 自测档位那套，CORE 只留确定性步；代价 = CORE 的覆盖面会真的变小」） |
+| 为什么 | 它是**间歇红**（台账 `O132`）：同一份代码相邻两跑 PASS/FAIL 各一；失败签名与 `20260925`/`20260927`（**都早于刀 4**）**逐字相同**。⇒ 留在 CORE = `check-expected-reds` 随机红（间歇红**登记不进** `EXPECTED_REDS` —— 它一 PASS 就被判"陈旧行"） |
+| 落点 | `fixture/RegressionBatteryTask.CURATION`（唯一配置入口）**＋** `fixture/check/modules/LumberModule` 的 `CheckStep` 档位 —— ⚠️ **两处同源**，`check-capability-list` 的 `[A2]` 臂就是抓这个漂移（改一处不改另一处 ⇒ 当场红，实测命中） |
+| 同步物 | `docs/CAPABILITY_LIST.md`（生成物，`tools/capability-list.py --write`）· `docs/BATTERY_CURATION.md` 的 BASELINE 叙述段（`lumber_job` 从"最小闭环"例子里移出） |
+| ⛔ 不是"删掉" | `full` 仍全覆盖、`single:lumber_job` 仍可单跑 —— **一步没删**（同 `D-201` 附注一的瘦身口径） |
+| ⚠️ 根因**未查** | 本刀只把间歇红**移出构建**，⛔ **不是"已修"**；根因仍留在 `O132`（`partial_quota` ＋ `already_attempted` ＋ `trunk_too_tall(unreachable=…)` 三条混在一起） |
+
+**⭐ 验证（按 `D-201` 附注一 的纪律：撤步骤必须复跑 CORE 并逐步对比）**：
+`ALICE_HEADLESS=1 check-all` ⇒ **`PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`**（210 s，原 255 s）；
+⭐ **逐步 diff（脚本比对两份 SUMMARY 的 步→判决 表）**：**45 → 44 步**，消失的**只有** `lumber_job`，
+新增 0 步，**其余 44 步判决零变化** ⇒ ⛔ 没有"被撤的步在替别的步做前置/清场"那类连带（当年
+`craft_furnace`/`craft_cooking`/`transfer` 就是这么红的）。

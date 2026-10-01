@@ -5663,6 +5663,12 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 `single:task_zone` **94/0** · `single:write_policy` **PASS**。
 ⚠️ **CORE 首跑命中既有间歇红 `lumber_job`**（签名与 `20260925`/`20260927` **逐字相同**、同代码相邻两跑
 PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPECTED_REDS` 登记不了间歇红**。
+⭐ **用户当场裁定「把 `lumber_job` 移出 CORE」** ⇒ **已落地**：`CURATION`（`BASELINE` → `EXTRA`）
+＋ `LumberModule` 的 `CheckStep` 档位（⚠️ **两处同源**，`check-capability-list` 的 `[A2]` 臂抓到过一次漂移）
+＋ 生成物 `CAPABILITY_LIST.md` ＋ `BATTERY_CURATION.md` 叙述段。⛔ **一步没删**（`full` / `single:lumber_job` 仍在）。
+⭐ **验证（`D-201` 附注一 的纪律：撤步骤必须复跑 CORE 并逐步对比）**：`check-all` ⇒
+**`pass=41 warning=0 failed=0`**（210 s，原 255 s）＋ **逐步 diff：45 → 44 步，消失的只有 `lumber_job`，
+其余 44 步判决零变化** ⇒ 无连带。⚠️ **根因未查**（只把间歇红移出构建，⛔ 不是已修）。
 
 ### §C ⏳ 下一刀（active goal 的续行方向，⛔ 不需要用户输入即可开工）
 
