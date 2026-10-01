@@ -93,9 +93,13 @@ if ($gh -and $login -and $Codespace -ne "?") {
         Hint "让云端侧建：gh codespace ssh -c $Codespace -- 'mkdir -p ~/bus/to-win ~/bus/to-cloud ~/client-info ~/outbox'"
     }
     # ---------- ⑤ 读信箱 ----------
+    # ⭐ 空信箱 = **正常**（云端没待办），不是失败；用退出码区分"读成功但空"与"读失败"。
+    #    实测 2026-10-01：旧判据把空信箱判成 FAIL ⇒ 假红，会让人误以为通道坏了。
     $inbox = (& gh codespace ssh -c $Codespace -- 'ls -1 /home/vscode/bus/to-win 2>/dev/null' 2>$null) -join "`n"
-    if ($inbox -match "\S") { Pass ("读信箱 OK，里面有：" + (($inbox -split "`n" | Where-Object { $_ -match '\S' }) -join ", ")) }
-    else { Fail "读信箱失败或为空" }
+    $inboxRc = $LASTEXITCODE
+    if ($inboxRc -ne 0) { Fail "读信箱失败（gh 退出码 $inboxRc）—— 看上面是否有 ssh 报错；弱网下重试一次" }
+    elseif ($inbox -match "\S") { Pass ("读信箱 OK，里面有：" + (($inbox -split "`n" | Where-Object { $_ -match '\S' }) -join ", ")) }
+    else { Pass "读信箱 OK（信箱为空 = 没有待办请求，这是正常状态）" }
     # ---------- ⑥ 写信箱（关键）----------
     $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
     $probeName = "selftest-$($env:COMPUTERNAME)-$stamp.md"

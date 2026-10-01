@@ -209,6 +209,12 @@ run_gate             "check-far-goal-usage"   python3 tools/check-far-goal-usage
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
+# Windows 脚本**编码/行尾**（2026-10-01 两次实伤 ⇒ 变成能红的）：
+# `alice-doctor.ps1` 首版无 BOM ⇒ PS 5.1 按 GBK 读 ⇒ 中文把字符串解析搞坏（报错行号还指向别处）；
+# `codespace-tunnel.ps1` 早踩过同一个坑、**只写进了文档** ⇒ 文档拦不住第二次（`O113` 同族）。
+# 判据：.ps1 含非 ASCII ⇒ 必须 UTF-8 BOM；.cmd/.bat 必须 CRLF + 纯 ASCII；人口下限防空集静默通过。
+# ⚠️ 只查"读之前就坏了"的编码问题；**语法**问题要靠 Windows 上的解析器（CI 没有 powershell.exe）。
+run_gate             "check-win-script-encoding" python3 tools/check-win-script-encoding.py
 # 保护作用域安装点（`1.4r`，2026-09-26）：`TaskTargetProtection.begin*` 不许装在构造器里 ——
 # `BotManager:1998` 的 `beginTask` 会在构造器之后按 botId 清空它 ⇒ 生产侧护栏一直是空的，
 # 而电池**直驱子任务**（不过 `beginTask`）看不到 ⇒ 判据只能是静态门禁（`D-425`）。

@@ -68,6 +68,27 @@
         请求里给了命令/路径就**照原文执行**；**不许自行设计步骤、不许猜**。请求里缺关键信息（哪台机的哪个路径、传哪几个文件、放哪个目录）
         ⇒ **停下来，在回执里列出缺什么**，不要「先试试看」。只有云端的步骤在你机器上**明确行不通**（路径不存在、命令直接报错）时，
         才提出替代方案并说明理由。
+      ## ⭐ 云端出问题时的处置（2026-10-01 加；用户要求：「管家要理解云端和客户端的情况，就能尝试修复恢复」）
+      **先拿事实，再决定动手** —— 你有三个**幂等、零 LLM 花费**的排查入口，别靠猜：
+      1. `client-agent.cmd -Doctor`（**只诊断**）：分层报 `[ OK ]/[FAIL]`：本机 → 代理 → gh 认证 → codespace 状态 → 远端 sshd/信箱/dsh web → 远端仓库 HEAD。
+         读这些事实自己判断断在哪一层。加 `-Repair` 才会做**幂等修复**（刷代理变量 / 重写 gh 凭据 / 唤醒 codespace / 补信箱目录 / 起远端 dsh web）。
+      2. **远端体检**（进去了才用得到）：把仓库里 `tools/alice-cloudctl.sh` 的内容喂给远端跑，子命令
+         `status`（只报事实）· `fix`（幂等修复：建信箱 + 起 dsh web + 打印带令牌 URL）· `url`。
+         调用形态：`gh codespace ssh -c <名> -- "bash -lc '<base64(脚本)> | base64 -d | bash -l'"`（见下"引号"）。
+      3. `client-agent.cmd -SelfTest`：走一遍 gh↔云端的**实测往返**（读信箱、写信箱再读回、附件按字节对账）。
+      **对照表（症状 → 先查什么）**：
+      · `gh api /user` 超时/失败，但浏览器能上 GitHub ⇒ **代理**（gh 是 Go，只认 `HTTP(S)_PROXY`）⇒ `-Doctor -Repair`
+      · `ssh: DeadlineExceeded` / `context deadline exceeded` ⇒ ⭐ **弱网抖动**，实测约 1/5 次会这样 ⇒ **重试 2–3 次**再下结论，别报"云端挂了"
+      · codespace `Shutdown` ⇒ 空闲自动停（30 min）⇒ `-Repair` 会用 API 唤醒（⚠️ `gh 2.45` **没有** `codespace start`，那条会静默退 0）
+      · codespace **不在列表里**（被删）⇒ **停下来问用户**再重建；重建后用 `-Doctor -SetCodespace <新名>` 一键改所有引用
+      · sshd 进不去 ⇒ 常见是"刚唤醒还没就绪"（等 1 分钟）或自建 devcontainer 缺 sshd feature
+      · 云端 `dsh web` 没在跑 ⇒ 页面打不开 ⇒ 跑远端 `fix`（会打印**新的**带令牌 URL；**不影响**正在跑的会话文件）
+      · 远端缺 `~/.dsh/.credentials.yaml` ⇒ 调不了模型 ⇒ 需要 WSL 侧把凭据送上去**或让用户做**（⛔ 别把密钥贴进聊天/回执）
+      **红线（⛔ 不要做）**：别重建/删除 codespace、别改 Alice 源码、别动 `saves/新的世界`、别把凭据内容写进回执。
+      建机器 / 重建 / 删除 = **用户的事**；你只做**可逆、幂等**的修复，并把事实与建议写清。
+      **引号坑（实测）**：`gh codespace ssh -- <参数>` 会把 `--` 之后的参数**用空格拼接**、本地引号丢失 ⇒ 复杂脚本
+      一律 **base64 中转**：`echo <b64> | base64 -d | bash -l`；远端路径一律**绝对路径**。
+
       ## 纪律
       - 若裸 `gh` 在本会话内不可用（继承到旧 PATH 快照），直接用全路径 `C:\Program Files\GitHub CLI\gh.exe`；
         不要用 `gh auth login`，也不要为此安装任何东西。

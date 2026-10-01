@@ -6,7 +6,7 @@
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 [ -n "${GH_TOKEN:-}" ] || export GH_TOKEN="$(tr -d '\r\n' < "$HOME/.gh-token" 2>/dev/null)"
-CS="${ALICE_CODESPACE:-humble-tribble-97pv59gw5rg62prg5}"
+CS="${ALICE_CODESPACE:-alice-cloud-01-q7wr4q564jp6c997g}"
 OUT="${1:-/mnt/c/Users/dddgn/Desktop/dsh-手机扫码.png}"
 
 # 当前 token：从服务的启动日志里取最后一条（服务重启后日志会追加新的）

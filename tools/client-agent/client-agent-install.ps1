@@ -5,7 +5,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Codespace = "humble-tribble-97pv59gw5rg62prg5",
+    [string]$Codespace = "alice-cloud-01-q7wr4q564jp6c997g",
     [string]$ClientRoot = "",
     [string]$DshVersion = "0.1.5-rc.3",
     [string]$ProxyUrl = ""   # 本地代理，如 http://127.0.0.1:7897；空 = 自动从系统代理读

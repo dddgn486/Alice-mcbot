@@ -44,7 +44,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Codespace = "humble-tribble-97pv59gw5rg62prg5",
+    [string]$Codespace = "alice-cloud-01-q7wr4q564jp6c997g",
     [string]$ClientRoot = "D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10",
     [string]$RemoteDir  = "/home/vscode/client-info",
     [string]$Tag = "",

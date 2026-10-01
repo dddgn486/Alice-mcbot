@@ -28,7 +28,7 @@
 #   tools/cloud-rollback.sh <codespace 名>
 set -uo pipefail
 
-CS="${1:-humble-tribble-97pv59gw5rg62prg5}"
+CS="${1:-alice-cloud-01-q7wr4q564jp6c997g}"
 REPO_DIR="${ALICE_REPO:-/home/fb486/projects/alice}"
 BACKUP_DIR="${ALICE_CLOUD_BACKUP_DIR:-/mnt/d/JAVA_projects/alice-backups}"   # 放 Windows 可见处（本机重装也不丢）
 REMOTE_REPO=/workspaces/Alice-mcbot
