@@ -6147,3 +6147,15 @@ A6 **负臂**（已定家但未搬）**绿** · A7 搬包不是复制。还原�
 
 ⛔ **仍待你给**：`action/` 的**新子包名**（如 `action/craft/` —— 你的规矩「**新开专属包…必须我同意**」）
 ＋ R1 三轴都过但我**拿不准**的格（运动 3 · `ToolMaintenanceTask` · 4 个挖掘规划件 · 3 个只读件）。
+
+### §G ✅ 断点六十当轮第三批（用户又裁两格 ⇒ 已定 **16** / 待裁 **19**）
+
+| 裁定 | 落地 |
+|---|---|
+| **`action/craft/` 立** | 6 个合成动作类（`TableCraft`·`InventoryCraft`·`FurnaceStation`·`StationPlacement`·`StationProvision`·`MachineCycle`）⇒ ✅ **已立家**（`action/craft/package-info.java`，只立家零入住）。⚠️ `tools/check-layer-direction.py` 的 `ACTION_DOMAINS` 加 `"craft"` ＋ 人口下限**必须与搬迁同刀**（`R4`） |
+| **C 桶 3 个只读件 ⇒ `staging/`** | `GridDiscovery`·`RecipeQuery`·`MachineRecipeFacts`（`R1` 第一条"是动作"不合格） |
+
+⚠️ **`action/craft/` 的立家注释里逐字记了两个"没进来"的**（⛔ 防后人当漏了）：`CraftStation` 走 `D-568` #5 的 `compat/<mod>/`（⚠️ **切分与否仍待裁**）· 三个只读件走 `staging/`。
+
+⭐ **同刀实测（写进立家注释）**：这 6 个类**零**低层包引用 ⇒ 进 `action/craft/` 不撞「低层 ✗→ `action/<域>`」。
+（唯一那次命中是 `write/WritePolicyMatrix` 自己的**嵌套** `enum Task` —— 同名遮蔽，**假阳性**。）
