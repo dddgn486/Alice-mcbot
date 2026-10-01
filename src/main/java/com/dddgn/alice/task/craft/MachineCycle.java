@@ -1,7 +1,7 @@
 package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.MenuSession;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
@@ -43,7 +43,7 @@ import com.dddgn.alice.task.craft.TableCraft;
  *   <li><b>不传送、不复位</b>：起点与结束复位是**夹具纪律**（PLAYBOOK §5.0d），生产路径自己走。</li>
  * </ul>
  *
- * <p><b>写入口径（一处不新造）</b>：容器写入维度 {@link WriteBudget#consumeContainerWrite} + 理由
+ * <p><b>写入口径（一处不新造）</b>：容器写入维度 {@link Quota#consumeContainerWrite} + 理由
  * {@link WriteReason#CONTAINER_TRANSFER} + **requester 由调用方给**（夹具 `machine-cycle`、生产 `craft`，
  * 都必须在策略矩阵里登记过）；动作走 {@link StationProvision} 的菜单协议（**shift-click，让菜单决定落点**），
  * 成败**一律按结果验证**（机器里真的有了料 / 背包里真的多了产物），**不猜槽位语义**。
@@ -415,7 +415,7 @@ public final class MachineCycle {
                 "before=" + spec.outputBefore() + " after=" + inInventory + " 期望+" + spec.outputCount());
         sink.check("machine_emptied", inMachine == 0, "机器里还剩产物=" + inMachine);
         sink.record("input_consumed", String.valueOf(inputLeft == 0));
-        sink.record("budget_remaining_after", String.valueOf(WriteBudget.remainingContainerWrites(bot)));
+        sink.record("budget_remaining_after", String.valueOf(Quota.remainingContainerWrites(bot)));
         sink.record("container_writes", String.valueOf(containerWrites));
         advance(Phase.DONE);
     }
@@ -425,9 +425,9 @@ public final class MachineCycle {
     /** 容器写入授权；`false` ⇒ 已如实记 `container_write_refused` 并终态失败。 */
     private boolean allowContainerWrite(String what) {
         Attribution grant = Attribution.of(spec.requester(), WriteReason.CONTAINER_TRANSFER);
-        WriteBudget.Verdict verdict = WriteBudget.consumeContainerWrite(bot, machinePos, grant);
+        Quota.Verdict verdict = Quota.consumeContainerWrite(bot, machinePos, grant);
         sink.record(what + "_grant", verdict.name());
-        if (verdict == WriteBudget.Verdict.REFUSED) {
+        if (verdict == Quota.Verdict.REFUSED) {
             fail("container_write_refused");
             return false;
         }

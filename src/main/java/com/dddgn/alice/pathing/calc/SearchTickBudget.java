@@ -12,11 +12,11 @@ import com.dddgn.alice.log.BotLog;
  *   <li>真机实测：一次 `MiningPlanner.planTunnel` 对 13 个站位候选各跑一次全预算搜索
  *       ⇒ 单个 tick 花掉 ≈ 2.4 s；`[Job] step` 间隔被实测为 2.4 s（≈0.4 TPS，持续 57.6 s）；
  *       `[Search] 超 tick 预算` 共 **376 条**、最大一波 **336 条跨 57.6 s**；</li>
- *   <li>这与项目自己解决过的 {@code WriteBudget} 是**同一类问题**：每个消费者都"以为自己在预算内"，
- *       但预算不在同一个账上 ⇒ 累加爆掉。搜索花费此前处在"`WriteBudget` 出现之前"的那个状态。</li>
+ *   <li>这与项目自己解决过的 {@code Quota} 是**同一类问题**：每个消费者都"以为自己在预算内"，
+ *       但预算不在同一个账上 ⇒ 累加爆掉。搜索花费此前处在"`Quota` 出现之前"的那个状态。</li>
  * </ul>
  *
- * <p><b>本类的形状照 {@code WriteBudget}</b>（`action/WriteBudget.java`）：
+ * <p><b>本类的形状照 {@code Quota}</b>（`action/Quota.java`）：
  * 一个**共享账本** + 一条**超限即拒**的硬闸门 + **口径进日志**（不静默丢弃归因）。
  *
  * <p><b>语义（三条，必须一起看）</b>：

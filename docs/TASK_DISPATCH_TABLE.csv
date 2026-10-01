@@ -40,6 +40,7 @@ PermissionDemoTask,assignPermissionDemo,yes,no
 PickupGateCheckTask,assignPickupGateCheck,yes,no
 PillarDiagnosticTask,assignPillarDiagnostic,yes,no
 PlaceTask,assignPlace,yes,no
+QuotaCheckTask,assignQuotaCheck,yes,no
 RecoverabilityCheckTask,assignRecoverabilityCheck,yes,no
 RegressionBatteryTask,assignRegressionBattery,yes,no
 RestoreScopeTask,assignRestore,yes,no
@@ -59,4 +60,3 @@ TraverseDiagnosticTask,assignTraverseDiagnostic,yes,no
 VerticalDiagnosticTask,assignVerticalDiagnostic,yes,no
 WalkToDiagnosticTask,assignWalkToDiagnostic,yes,no
 WalkToTask,assignWalkTo,yes,no
-WriteBudgetCheckTask,assignWriteBudgetCheck,yes,no

@@ -438,10 +438,10 @@ public class CraftStationCraftCheckTask implements Task {
         // `Z1` 之后区外不记账 ⇒ 光看账本证明不了"外面也收干净了" ⇒ 把**覆盖度**印出来：
         // `writes` = 本步闸门计数的真实写入次数；`writes > ledgerInZone` 的差额落在区外，
         // 本判据**覆盖不到**（`D-398` R1/R2：那里没有义务、也没有账）。
-        int writes = com.dddgn.alice.write.WriteBudget.writeCount(bot);
+        int writes = com.dddgn.alice.region.authz.Quota.writeCount(bot);
         // 用 `check(...)`（它同时 record + 打日志 + 记账失败）⇒ 覆盖度进日志，判决不变
         check("no_block_writes", pending == 0, "writes=" + writes + " ledgerEntries=" + pending
-                + " " + com.dddgn.alice.write.WriteBudget.population(bot));
+                + " " + com.dddgn.alice.region.authz.Quota.population(bot));
         StringBuilder summary = new StringBuilder();
         for (Map.Entry<String, String> entry : facts.entrySet()) {
             if (!summary.isEmpty()) {

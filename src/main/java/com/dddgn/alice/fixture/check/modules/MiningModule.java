@@ -177,16 +177,16 @@ public final class MiningModule implements CheckModule {
                         .withDoneWhen(task -> task instanceof MineJob job
                                 && "stale_target".equals(job.terminalReason())),
                 // M3b ②（G3 归因）：`write_budget_exhausted` —— **本步作用域**的破坏预算压到 0
-                // （`WriteBudget.setCaps` 是既有夹具专用缝，不接玩家命令）⇒ 每次破坏都被拒 ⇒ 全预算码。
+                // （`Quota.setCaps` 是既有夹具专用缝，不接玩家命令）⇒ 每次破坏都被拒 ⇒ 全预算码。
                 // ⚠️ 这条**依赖"编排器在 provision 之前就把本步作用域开好"**（与电池 `setup` 同序 ✓）：
-                // 否则 `WriteBudget.scopeOf(bot)` 会指到孤儿作用域 ⇒ 预算没生效 ⇒ 本步以超时红 ✗（D-301）。
+                // 否则 `Quota.scopeOf(bot)` 会指到孤儿作用域 ⇒ 预算没生效 ⇒ 本步以超时红 ✗（D-301）。
                 CheckStep.of("mine_budget", CheckProfile.MAIN, ore, () -> {
                     staged.run();
-                    com.dddgn.alice.write.WriteBudget.setCaps(
-                            com.dddgn.alice.write.WriteBudget.scopeOf(bot),
-                            new com.dddgn.alice.write.WriteBudget.Caps(0, 0));
+                    com.dddgn.alice.region.authz.Quota.setCaps(
+                            com.dddgn.alice.region.authz.Quota.scopeOf(bot),
+                            new com.dddgn.alice.region.authz.Quota.Caps(0, 0));
                     BotLog.info("[Mining] mine_budget 夹具：本作用域写入预算压到 0 破坏 / 0 放置（scope={}）",
-                            com.dddgn.alice.write.WriteBudget.scopeOf(bot));
+                            com.dddgn.alice.region.authz.Quota.scopeOf(bot));
                 }, () -> new MineJob(bot,
                         JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT,
                                 MineCandidateSource.SCAN_RADIUS, 1, 600),
@@ -196,7 +196,7 @@ public final class MiningModule implements CheckModule {
                         new NearestPolicy()),
                         400)
                         .withDoneWhen(task -> task instanceof MineJob job
-                                && com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE
+                                && com.dddgn.alice.region.authz.Quota.EXHAUSTED_CODE
                                         .equals(job.terminalReason())),
                 // ⭐ `D-346`（2026-09-20）：**收集的追取上限必须覆盖本作业自己的作用域** —— 旧实现把
                 // `MAX_CHASE_DISTANCE` 写死 32，比 `MineJob` 自己的作用域直径（`2 × SCAN_RADIUS(24)` = 48）

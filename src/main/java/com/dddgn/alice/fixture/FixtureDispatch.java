@@ -158,8 +158,8 @@ public final class FixtureDispatch {
 
 
     /** 写入预算自检（D-106）：任务级破坏上限压到 1 格，断言"用满即停、如实失败"。 */
-    public static boolean assignWriteBudgetCheck(BotPlayer bot, ServerPlayer observer) {
-        return BotManager.beginIdleTask(bot, s -> new com.dddgn.alice.fixture.WriteBudgetCheckTask(bot, s.scope()), TaskTarget.block(com.dddgn.alice.fixture.WriteBudgetCheckTask.START_FOOT));
+    public static boolean assignQuotaCheck(BotPlayer bot, ServerPlayer observer) {
+        return BotManager.beginIdleTask(bot, s -> new com.dddgn.alice.fixture.QuotaCheckTask(bot, s.scope()), TaskTarget.block(com.dddgn.alice.fixture.QuotaCheckTask.START_FOOT));
     }
 
 

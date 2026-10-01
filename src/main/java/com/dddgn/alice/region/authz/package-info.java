@@ -29,10 +29,10 @@
  *       <td>{@code ledger/}</td><td>{@code write/ModifyAudit}</td></tr>
  *   <tr><td>{@code Quota}</td><td><b>额度</b>（还能动几次）</td>
  *       <td>`job/` 侧（按 `scopeId` 计，⛔ 不按区域计）</td>
- *       <td>{@code write/WriteBudget}（605 行 / 63 文件引用面）</td></tr>
+ *       <td>{@code write/Quota}（605 行 / 63 文件引用面）</td></tr>
  * </table>
  *
- * <p>⇒ ⭐ **刀 4 的顺序**：先把这三件外移（`ModifyAudit`→`ledger/` · `WriteBudget`→`Quota` ·
+ * <p>⇒ ⭐ **刀 4 的顺序**：先把这三件外移（`ModifyAudit`→`ledger/` · `Quota`→`Quota` ·
  * `Attribution`→`Attribution` 原语）＋ 拆 `ZoneAuthority` 成三个谓词，**然后**才谈本包的入住。
  *
  * <h2>三 · 本包要装的那一个判据（今天的形状，搬进来之前先记住）</h2>

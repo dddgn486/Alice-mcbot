@@ -540,12 +540,12 @@ public class MachineProbeTask implements Task {
 
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
         // ⭐ `Z4`：探针是只读的 ⇒ 判据要能看见**真实写入次数**（账本口径在野外是空集）
-        int writes = com.dddgn.alice.write.WriteBudget.writeCount(bot);
+        int writes = com.dddgn.alice.region.authz.Quota.writeCount(bot);
         if (pending != 0 || writes != 0) {
             failed = true;
         }
         BotLog.info("[MachineProbe] 只读自证 pendingTemporary={} {}", pending,
-                com.dddgn.alice.write.WriteBudget.population(bot));
+                com.dddgn.alice.region.authz.Quota.population(bot));
         StringBuilder summary = new StringBuilder();
         summary.append("namespaces=").append(namespaces)
                 .append(" types=").append(types)

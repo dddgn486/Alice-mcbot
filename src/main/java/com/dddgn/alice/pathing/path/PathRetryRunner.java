@@ -115,15 +115,15 @@ public final class PathRetryRunner {
             // D-106 Slice B：计划本身超出剩余写入额度 → **本次运行降级为纯通行**重规划一次。
             // 判据用下界（每条写边至少 1 次写入）：不会误剪合法路径，但足以拦住"注定执行不完"的计划。
             if (!degradedToPureTraversal
-                    && (plannedBreaks > com.dddgn.alice.write.WriteBudget.remainingBreaks(bot)
-                    || plannedPlaces > com.dddgn.alice.write.WriteBudget.remainingPlaces(bot))) {
+                    && (plannedBreaks > com.dddgn.alice.region.authz.Quota.remainingBreaks(bot)
+                    || plannedPlaces > com.dddgn.alice.region.authz.Quota.remainingPlaces(bot))) {
                 degradedToPureTraversal = true;
                 attempts++;
                 BotLog.warn("[PathRetry] plan_write_budget_insufficient attempt={} planWrites>={}/{}"
                                 + " remaining={}/{} → 本次运行降级为纯通行重规划",
                         attempts - 1, plannedBreaks, plannedPlaces,
-                        com.dddgn.alice.write.WriteBudget.remainingBreaks(bot),
-                        com.dddgn.alice.write.WriteBudget.remainingPlaces(bot));
+                        com.dddgn.alice.region.authz.Quota.remainingBreaks(bot),
+                        com.dddgn.alice.region.authz.Quota.remainingPlaces(bot));
                 return State.RUNNING;
             }
             session = new PathSession(bot, bot.serverLevel(), plan, request,

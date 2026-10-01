@@ -755,7 +755,7 @@ public final class JobAreaCheckTask implements Task {
         //    应该就是**任何 `hasBlockEntity()` 一律不可挖掘**，**不可动太广了**」）。
         //    ⚠️ 口径三条（⛔ 写错就是错）：① 拦的是**挖掘（`Act.BREAK`）**，⛔ 不是"不可动"；
         //    ② **容器写入理由不是例外** —— 它**本来就不走这条路**（容器写入过的是
-        //    `WriteBudget.consumeContainerWrite`，`WriteReason.CONTAINER_TRANSFER` 的 `Action.BOTH`
+        //    `Quota.consumeContainerWrite`，`WriteReason.CONTAINER_TRANSFER` 的 `Action.BOTH`
         //    是声明性字段、全仓只有策略表自检读它 ⇒ **无需豁免**）；③ ⛔ **不许把这件事叫"清障"**
         //    （该概念已被用户丢弃，`O128` 取 A：只丢讨论口径、⛔ 不动代码）。
         //    **判别式**：① 同一**位置**换方块（箱子 vs 石头）② 同一**方块**换位置（区内 vs 野外）

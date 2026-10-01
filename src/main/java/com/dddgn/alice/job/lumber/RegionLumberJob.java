@@ -941,8 +941,8 @@ com.dddgn.alice.pathing.MovementHelper
         }
         var grant = com.dddgn.alice.write.Attribution.of(jobName(),
                 com.dddgn.alice.write.WriteReason.REGION_REPLANT);
-        var verdict = com.dddgn.alice.write.WriteBudget.consumePlace(bot, level, spot, grant);
-        if (verdict == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
+        var verdict = com.dddgn.alice.region.authz.Quota.consumePlace(bot, level, spot, grant);
+        if (verdict == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED) {
             BotLog.warn("[Job] maintain 补种被写入预算拒绝 {}（D-106：超限即硬停，不越界改世界）",
                     spot.toShortString());
             return null;

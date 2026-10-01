@@ -105,6 +105,6 @@ public class CleanupWrappedTask implements Task {
         // 后者的证据是闸门计数的写入次数（与区无关）⇒ 一起印出来。
         BotLog.info("[Cleanup] 诊断收尾：拆我方临时方块={} 库存已复位（wrapped={}）｜{}"
                         + "（账本只认保护区内条目 ⇒ 区外写入拆不到，`Z4`）",
-                removed, inner.taskName(), com.dddgn.alice.write.WriteBudget.population(bot));
+                removed, inner.taskName(), com.dddgn.alice.region.authz.Quota.population(bot));
     }
 }

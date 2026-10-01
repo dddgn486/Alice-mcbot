@@ -857,9 +857,9 @@ public class SurvivalExitCheckTask implements Task {
             if (shaftEscapeTask == null) {
                 shaftEscapeTask = new com.dddgn.alice.task.SurvivalExitTask(bot, escapePick, true);
             }
-            int shaftPlacesBefore = com.dddgn.alice.write.WriteBudget.places(bot);
+            int shaftPlacesBefore = com.dddgn.alice.region.authz.Quota.places(bot);
             var status = shaftEscapeTask.tick();
-            shaftPlaces += Math.max(0, com.dddgn.alice.write.WriteBudget.places(bot) - shaftPlacesBefore);
+            shaftPlaces += Math.max(0, com.dddgn.alice.region.authz.Quota.places(bot) - shaftPlacesBefore);
             if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < SHAFT_BUDGET) {
                 return;
             }
@@ -1015,9 +1015,9 @@ com.dddgn.alice.pathing.movement.SelfWriteConsistency
             // 日志只有"放了"这一行，判据要的是"水里那几格到底放没放"）。
             boolean waterBefore = com.dddgn.alice.pathing.MovementHelper.isWater(
                     bot.serverLevel(), SurvivalSystem.footCell(bot));
-            int placesBefore = com.dddgn.alice.write.WriteBudget.places(bot);
+            int placesBefore = com.dddgn.alice.region.authz.Quota.places(bot);
             var status = floodedTask.tick();
-            int placedNow = Math.max(0, com.dddgn.alice.write.WriteBudget.places(bot) - placesBefore);
+            int placedNow = Math.max(0, com.dddgn.alice.region.authz.Quota.places(bot) - placesBefore);
             if (placedNow > 0) {
                 floodedPlaces += placedNow;
                 if (waterBefore) {
@@ -1054,8 +1054,8 @@ com.dddgn.alice.pathing.movement.SelfWriteConsistency
             bot.controller().stopMovement();
             teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
             // 收尾：把被逃生压过的预算恢复成默认（电池里整台是一个作用域，不恢复会限制后续步骤）
-            com.dddgn.alice.write.WriteBudget.setCaps(com.dddgn.alice.write.WriteBudget.scopeOf(bot),
-                    com.dddgn.alice.write.WriteBudget.Caps.DEFAULT);
+            com.dddgn.alice.region.authz.Quota.setCaps(com.dddgn.alice.region.authz.Quota.scopeOf(bot),
+                    com.dddgn.alice.region.authz.Quota.Caps.DEFAULT);
             bot.setAirSupply(300);
             fillBlocks(FLOOD_CENTER.offset(-5, -5, -4), FLOOD_CENTER.offset(5, 4, 4),
                     "minecraft:air", 863, "灌水竖坑拆除");

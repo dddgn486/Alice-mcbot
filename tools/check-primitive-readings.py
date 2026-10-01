@@ -286,7 +286,7 @@ SELFTEST_CODE: list[tuple[str, str, str, object]] = [    ("注释里的额度词
     ("字符串字面量里的额度词**不计**", "budget", '    String s = "grant budget";\n', 0),
     # ⚠️ 2026-10-01 刀 4：这里原来用 `WriteGrant` 当第二个词；它**改名成 `Attribution`** 之后
     # **不再含** `grant` 子串 ⇒ 本臂当场红（`D-462` 那类"同步表"的又一次现场）。
-    # ⭐ 换成 `Quota`（`WriteBudget` 的**下一个名字**）—— 它含 `quota` ⇒ 口径命中，且更贴将来。
+    # ⭐ 换成 `Quota`（`Quota` 的**下一个名字**）—— 它含 `quota` ⇒ 口径命中，且更贴将来。
     ("代码里的 `MiningBudget` / `Quota` **计**（按子串）", "budget",
      "    MiningBudget b = null;\n    Quota q = null;\n", 2),
     ("成员位置的 `MineTask(` ⇒ 算构造器", "ctors", "    public MineTask(int a) {}\n", 1),

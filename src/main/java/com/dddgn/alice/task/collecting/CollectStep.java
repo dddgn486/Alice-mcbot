@@ -213,7 +213,7 @@ public final class CollectStep implements Step {
      * `PathSession.executedMovementTypes()` 是在**某一段成功之后**才追加的，而"为捡一件东西挖一格"
      * 常常正好是**最后一段** ⇒ 收集器在物品入包的那一 tick 就结束本簇（`members.isEmpty()`），
      * 之后再没机会读那个集合 ⇒ 破了 2 格石墙、`detour_events` 仍是 0 ✗。
-     * 而运行账是在**真的扣掉一次写入预算的那一刻**记的（`WriteBudget.consumeBreak ⇒ TaskMetrics.noteBreak`）
+     * 而运行账是在**真的扣掉一次写入预算的那一刻**记的（`Quota.consumeBreak ⇒ TaskMetrics.noteBreak`）
      * ⇒ 它是"已经改了世界"的**地面真值**，与走位内部簿记无关。
      *
      * <p>口径诚实说明：运行账是**进程级**计数 ⇒ 它衡量的是"本簇这段时间里世界改了几格"。

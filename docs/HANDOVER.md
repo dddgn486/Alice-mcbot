@@ -5647,10 +5647,13 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 |---|---|---|
 | `WriteGrant` → **`Attribution`** | ✅ 落地（**⛔ 不搬家**，就地改形 `write/Attribution.java`；组件名 `requester` **暂留**并登记理由） | `34326004` |
 | `WriteAudit` → **`ledger/ModifyAudit`** | ✅ 落地（**归因账**与物质账同族；零新包边） | 本断点 |
-| `WriteBudget` → **`Quota`** | ⛔ **暂停**：落 `job/` 会让 **12 个包 / 26 个非夹具文件**（含**内核 `pathing/` 6 处**）反向依赖最高层，且**门禁抓不到** ⇒ 台账 `O131` 待裁 | — |
+| `WriteBudget` → **`Quota`** | ✅ **落地**（用户第二次裁定）：落 **`region/authz/Quota`**（⛔ **不去 `job/`** —— 那会造 12 包反向依赖，见 `O131`）；顺带 `QuotaCheckTask`/`QuotaCheckItem`/`assignQuotaCheck` 改名（⭐ **物品 id 一字未变**） | 本断点 |
 
-⭐ **我荐第 3 件的替代（待裁）**：**`Quota` 留在 `write/` 只改名** —— 零新边；"额度值从哪来"已由
-`job/JobWriteDeclaration` 表达，"计数与消费"天然住在低处。
+⭐ **用户对第 3 件的两次裁定（⛔ 我荐的"留在 `write/`"被否）**：① 落点 = **`region/authz/Quota`**；
+② ⭐ **「理论上 `write` 包要全部拆解搬家，`modify` 不是包，是 `write` 的正确语义，用于改名的参考词」**
+⇒ ⛔ **不做"整包改名 `write/` → `modify/`"**；该包去留仍按 `D-563`/`O116`（**排在最后**）⇒ 本刀只搬走 `Quota`，
+其余 4 类**原地不动**。⚠️ **字面冲突已登记**：第六轮那句「`authz/` 只剩谓词＋初始权限表＋覆盖检查」
+（把额度排除）以本条**放宽**为准。
 
 **同步表 4 处**（`D-462` 那类）：`check-layer-direction`（`WRITE_GOVERNANCE` 6→5 ·
 `MIN_WRITE_FILES` 6→5 ＋ 新 `LEDGER_MOVED` 搬包判据）· `check-primitive-readings` 的合成臂

@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.write.Attribution;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
@@ -34,7 +34,7 @@ import com.dddgn.alice.task.FixtureClaim;
  * <p><b>为什么有这一步（真机发现，2026-09-18）</b>：用户第一次用 FTB 队伍联动实测时看到
  * "在队里能挖领地内的方块、退队就不行"——**观感是对的，而我们的日志是错的**：退队后 4 次破坏
  * （`31,63,217` / `30,63,218` / `30,63,219` / `28,63,220`，全在玩家的认领区块内）都打了
- * `block_break_done` + `MineTask terminal=COMPLETED` + `WriteBudget breaks=1/64`，
+ * `block_break_done` + `MineTask terminal=COMPLETED` + `Quota breaks=1/64`，
  * 而**存档里那 4 格仍是 `minecraft:dirt`**。根因 = `BlockBreakSession` 在 `gameMode.destroyBlock(...)`
  * 之后**不验证世界事实**就宣布 DONE（返回值也丢了）⇒ 任何"取消破坏"的来源（FTB 认领、别的保护模组、
  * 事件层取消）都会被记成成功，决策层连一个失败码都拿不到。
@@ -208,7 +208,7 @@ public final class BreakRefusedCheckTask implements Task {
         String budgetTop = com.dddgn.alice.job.mine.MineJob.attributeFailure("no_reachable_candidate",
                 java.util.List.of("WRITE_BUDGET_EXHAUSTED"));
         check("⑥ 既有家庭没被新家庭抢走：全预算耗尽 ⇒ 仍是 `write_budget_exhausted`（实测 " + budgetTop + "）",
-                com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE.equals(budgetTop));
+                com.dddgn.alice.region.authz.Quota.EXHAUSTED_CODE.equals(budgetTop));
         String otherBase = com.dddgn.alice.job.mine.MineJob.attributeFailure("search_incomplete", allRefused);
         check("⑥ 非总括基础码**逐字返回**（`search_incomplete` + 全被拒 ⇒ 仍是 " + otherBase
                         + "；S3 的『搜索受限』不许被拒绝归因盖掉）", "search_incomplete".equals(otherBase));        advance(Phase.CONTROL);
@@ -373,8 +373,8 @@ public final class BreakRefusedCheckTask implements Task {
             check("⑥ 前提：夹具摆出保护区 + 任务区封套（" + zone.describe() + "）", zone.ok());
             String refusal = BlockInteraction.breakRefusal(bot, lvl, target, budgetGrant);
             check("⑥ 前提：目标格在明文目标策略下**可写**（refusal=" + refusal + "）", refusal == null);
-            budgetBefore = WriteBudget.breaks(bot);
-            budgetRefundedBefore = WriteBudget.refundedBreaks(bot);
+            budgetBefore = Quota.breaks(bot);
+            budgetRefundedBefore = Quota.refundedBreaks(bot);
             session = BlockInteraction.beginBreak(bot, lvl, target, budgetGrant);
             check("⑥ 前提：`beginBreak` 必须真的开出会话（null = 被闸门拒绝）", session != null);
             return;
@@ -382,7 +382,7 @@ public final class BreakRefusedCheckTask implements Task {
         if (!tickCase()) {
             return;
         }
-        int after = WriteBudget.breaks(bot);
+        int after = Quota.breaks(bot);
         check("⑥ ⭐ 真的破掉 ⇒ 预算必须**计数**（实测 breaks " + budgetBefore + "→" + after
                         + "，status=" + statusOf(session) + " 失败码=" + codeOf(session) + "）",
                 session != null && session.status() == BlockBreakSession.Status.DONE
@@ -393,7 +393,7 @@ public final class BreakRefusedCheckTask implements Task {
     /**
      * ⭐⭐ `RC4` 的判据：**世界没变 ⇒ 预算不许留着这笔扣账**。
      *
-     * <p>`D-323` 的真机现场就是这条红的来源：FTB 认领内 4 次破坏全打了 `WriteBudget breaks=1/64`
+     * <p>`D-323` 的真机现场就是这条红的来源：FTB 认领内 4 次破坏全打了 `Quota breaks=1/64`
      * 而存档里那 4 格仍是 `minecraft:dirt`。`D-323` 修好了失败码，**扣账没修** ⇒ 同一个量
      * （"我方写了多少世界"）在预算账与世界/审计之间两份真相。放置那边本来是对的
      * （`placeAt` 落地之后才计数）⇒ 本臂就是把破坏补齐成同一条原则。
@@ -406,16 +406,16 @@ public final class BreakRefusedCheckTask implements Task {
             clearTarget();
             placeTarget();
             bot.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);   // 确定性拒绝（原版限制）
-            budgetBefore = WriteBudget.breaks(bot);
-            budgetRefundedBefore = WriteBudget.refundedBreaks(bot);
+            budgetBefore = Quota.breaks(bot);
+            budgetRefundedBefore = Quota.refundedBreaks(bot);
             session = BlockInteraction.beginBreak(bot, lvl, target, budgetGrant);
             return;
         }
         if (!tickCase()) {
             return;
         }
-        int after = WriteBudget.breaks(bot);
-        int refundedAfter = WriteBudget.refundedBreaks(bot);
+        int after = Quota.breaks(bot);
+        int refundedAfter = Quota.refundedBreaks(bot);
         check("⑦ ⭐⭐ 世界没变 ⇒ 预算**不许留着这笔扣账**（`D-323` 真机是 breaks=1/64 而方块仍是 dirt）："
                         + "实测 breaks " + budgetBefore + "→" + after + "，status=" + statusOf(session)
                         + " 失败码=" + codeOf(session) + "，方块="

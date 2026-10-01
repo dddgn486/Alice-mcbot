@@ -1822,7 +1822,7 @@ com.dddgn.alice.task.mining.MiningBudget
             // ⭐ `Z4`：`residue` 会进事件环给决策层看 ⇒ 必须是**义务**口径（区内）；
             // 另把"本任务到底写没写"的人口一并带上（区外写入不入账 ⇒ 光看 residue=0 会误读成"很干净"）。
             // ⭐ `RC4`（2026-09-24）：人口**只许有一个出处** = 账本闭合读数（`recorded/wildSkipped/lossy`）；
-            // 原来这里还拼了 `WriteBudget.population(bot)`（闸门计数）⇒ 同一个量（"本任务写了多少世界"）
+            // 原来这里还拼了 `Quota.population(bot)`（闸门计数）⇒ 同一个量（"本任务写了多少世界"）
             // 两个来源，而且 `RC4` 让预算在"世界没变"时**退回**扣账之后，两者必然分叉 ⇒ 去掉。
             int residue = com.dddgn.alice.ledger.WorldModLedger
                     .pendingTemporaryProtected(bot.serverLevel(), null).size();
@@ -2427,7 +2427,7 @@ com.dddgn.alice.task.mining.MiningBudget
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                         bot.getServer(), bot.getUUID());
                 // 执行期写入预算收尾（D-106）：一行可观测摘要（breaks/places 对上限、豁免、拒绝次数）
-                com.dddgn.alice.write.WriteBudget.closeScope(closedScope);
+                com.dddgn.alice.region.authz.Quota.closeScope(closedScope);
                 // **任务区随作用域解除**（`D-338` 附注二第 2 条"取消任务自动解除"）：显式打断
                 // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
                 // 否则会留下一个"没有任务对应的授权封套"。

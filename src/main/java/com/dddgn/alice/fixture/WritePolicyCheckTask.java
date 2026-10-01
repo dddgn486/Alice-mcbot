@@ -60,7 +60,7 @@ import com.dddgn.alice.task.TaskTarget;
  *   <li>B3/B4 <b>容器写入闸门</b>（R1 收口，2026-09-14）：{@code walk-to}+{@code CONTAINER_TRANSFER}
  *       ⇒ {@code UNDECLARED_REASON}（纯通行任务不许写容器）、{@code transfer}+同理由 ⇒ {@code DECLARED}、
  *       未登记 requester ⇒ {@code UNREGISTERED}（缺口不拒）；B4 再把武装开关**真开了**跑一次
- *       {@code WriteBudget.consumeContainerWrite}，要求**真的被拒**，并断言观察模式放行
+ *       {@code Quota.consumeContainerWrite}，要求**真的被拒**，并断言观察模式放行
  *       （开关不是死值）——探针前后**快照/还原**观察样本，绝不污染 G 段。</li>
  * </ol>
  */
@@ -134,7 +134,7 @@ public class WritePolicyCheckTask implements Task {
      * </ol>
      */
     private void runDefaultCapChecks() {
-        String scope = com.dddgn.alice.write.WriteBudget.scopeOf(bot);
+        String scope = com.dddgn.alice.region.authz.Quota.scopeOf(bot);
         net.minecraft.server.level.ServerLevel level = bot.serverLevel();
         net.minecraft.core.BlockPos pos = bot.blockPosition();
         try {
@@ -143,11 +143,11 @@ public class WritePolicyCheckTask implements Task {
             // ② 号用例（显式上限 ⇒ 只有 1 次 ALLOW）反证了强制路径是活的，这里再把前提显式钉住。
             check("前提：作用域存在", scope != null, "scopeOf(bot)=" + scope);
             // ① 默认：不限（连做 200 次破坏，一次都不许被拒）
-            com.dddgn.alice.write.WriteBudget.closeScope(scope);
+            com.dddgn.alice.region.authz.Quota.closeScope(scope);
             int allowed = 0;
             for (int index = 0; index < 200; index++) {
-                if (com.dddgn.alice.write.WriteBudget.consumeBreak(bot, level, pos, null)
-                        == com.dddgn.alice.write.WriteBudget.Verdict.ALLOW) {
+                if (com.dddgn.alice.region.authz.Quota.consumeBreak(bot, level, pos, null)
+                        == com.dddgn.alice.region.authz.Quota.Verdict.ALLOW) {
                     allowed++;
                 }
             }
@@ -160,26 +160,26 @@ public class WritePolicyCheckTask implements Task {
             // 这里仍回退 `Caps.DEFAULT`(64/32) ⇒ 每作用域**实际仍被 64 次破坏封顶**，且封顶后不是拒绝写入，
             // 而是把「需要多格破坏」的计划**静默降级成纯通行**（真机 `remaining=5/32` ×31、`mined 19/64`）。
             // ⇒ 补上**读数路径**这条轴。反向对照：把 `remainingBreaks` 的默认回退改回 `Caps.DEFAULT` ⇒ 下面必红。
-            com.dddgn.alice.write.WriteBudget.closeScope(scope);
+            com.dddgn.alice.region.authz.Quota.closeScope(scope);
             for (int index = 0; index < 200; index++) {
-                com.dddgn.alice.write.WriteBudget.consumeBreak(bot, level, pos, null);
+                com.dddgn.alice.region.authz.Quota.consumeBreak(bot, level, pos, null);
             }
             check("默认不限②（**判定器读的那个数**也必须不限）",
-                    com.dddgn.alice.write.WriteBudget.remainingBreaks(bot) > 200
-                            && com.dddgn.alice.write.WriteBudget.remainingPlaces(bot) > 200,
+                    com.dddgn.alice.region.authz.Quota.remainingBreaks(bot) > 200
+                            && com.dddgn.alice.region.authz.Quota.remainingPlaces(bot) > 200,
                     "连破坏 200 次后 remainingBreaks="
-                            + com.dddgn.alice.write.WriteBudget.remainingBreaks(bot)
-                            + " remainingPlaces=" + com.dddgn.alice.write.WriteBudget.remainingPlaces(bot)
+                            + com.dddgn.alice.region.authz.Quota.remainingBreaks(bot)
+                            + " remainingPlaces=" + com.dddgn.alice.region.authz.Quota.remainingPlaces(bot)
                             + "（旧行为 = 64−200 ⇒ 0 ⇒ `PathRetryRunner` 把计划**静默**降级成纯通行）");
 
             // ② 显式上限仍然强制
-            com.dddgn.alice.write.WriteBudget.closeScope(scope);
-            com.dddgn.alice.write.WriteBudget.setCaps(scope,
-                    new com.dddgn.alice.write.WriteBudget.Caps(1, 0));
+            com.dddgn.alice.region.authz.Quota.closeScope(scope);
+            com.dddgn.alice.region.authz.Quota.setCaps(scope,
+                    new com.dddgn.alice.region.authz.Quota.Caps(1, 0));
             int allowedExplicit = 0;
             for (int index = 0; index < 5; index++) {
-                if (com.dddgn.alice.write.WriteBudget.consumeBreak(bot, level, pos, null)
-                        == com.dddgn.alice.write.WriteBudget.Verdict.ALLOW) {
+                if (com.dddgn.alice.region.authz.Quota.consumeBreak(bot, level, pos, null)
+                        == com.dddgn.alice.region.authz.Quota.Verdict.ALLOW) {
                     allowedExplicit++;
                 }
             }
@@ -187,19 +187,19 @@ public class WritePolicyCheckTask implements Task {
                     "`setCaps` 装订的上限仍强制（实测 ALLOW=" + allowedExplicit + " == 1）");
 
             // ③ D-241 逃生准备金（capForEscape）在放开默认上限后仍强制
-            com.dddgn.alice.write.WriteBudget.closeScope(scope);
-            com.dddgn.alice.write.WriteBudget.capForEscape(scope, 1, 1);
+            com.dddgn.alice.region.authz.Quota.closeScope(scope);
+            com.dddgn.alice.region.authz.Quota.capForEscape(scope, 1, 1);
             int allowedEscape = 0;
             for (int index = 0; index < 5; index++) {
-                if (com.dddgn.alice.write.WriteBudget.consumeBreak(bot, level, pos, null)
-                        == com.dddgn.alice.write.WriteBudget.Verdict.ALLOW) {
+                if (com.dddgn.alice.region.authz.Quota.consumeBreak(bot, level, pos, null)
+                        == com.dddgn.alice.region.authz.Quota.Verdict.ALLOW) {
                     allowedEscape++;
                 }
             }
             check("显式上限③", allowedEscape == 1,
                     "`capForEscape`（`D-241` 逃生准备金）仍强制（实测 ALLOW=" + allowedEscape + " == 1）");
         } finally {
-            com.dddgn.alice.write.WriteBudget.closeScope(scope);
+            com.dddgn.alice.region.authz.Quota.closeScope(scope);
         }
     }
 
@@ -425,8 +425,8 @@ public class WritePolicyCheckTask implements Task {
             WritePolicyMatrix.setContainerRefusalArmed(false);
             observeAllows = !WritePolicyMatrix.refuses(WritePolicyMatrix.Decision.UNDECLARED_REASON);
             WritePolicyMatrix.setContainerRefusalArmed(true);
-            armedDenies = com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot, from, undeclaredGrant)
-                    == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED;
+            armedDenies = com.dddgn.alice.region.authz.Quota.consumeContainerWrite(bot, from, undeclaredGrant)
+                    == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED;
         } finally {
             WritePolicyMatrix.setContainerRefusalArmed(armedByDefault);
             WritePolicyMatrix.restoreObservations(sample);

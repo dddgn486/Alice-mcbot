@@ -53,7 +53,7 @@ public final class BlockBreakSafety {
      * 明确指定目标的硬拒绝原因（带**写入理由** ⇒ 保护区那一层可以按区域级授权面判定）。
      *
      * <p>⭐ `D-338` 附注七③：**保护区认领**这一条从"一律拒"变成"问区域授权面"
-     * —— 任务区覆盖 + 等级够 ⇒ 放行（其后仍受 `Attribution`/`WriteBudget`/账本约束）。
+     * —— 任务区覆盖 + 等级够 ⇒ 放行（其后仍受 `Attribution`/`Quota`/账本约束）。
      * ⚠️ **没有任务区时拒绝码逐字仍是 `protected_area`**（既有失败码/文档/夹具都按它写）。
      * ⚠️ 方块/标签黑名单（`protected_block`/`protected_tag`）**不参与**区域授权 ⇒ 原样拒。
      */

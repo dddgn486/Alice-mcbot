@@ -45,7 +45,7 @@ public final class CapabilityGate {
         int throwawayBlocks();
 
         /** 是否还有写入预算（`breaking=true` 问破坏额度，否则问放置额度）。 */
-        boolean hasWriteBudget(boolean breaking);
+        boolean hasQuota(boolean breaking);
 
         /** 是否具备该 Movement 需要的工具（没有正确工具时破坏会白挖）。 */
         boolean hasRequiredTool(MovementType type);
@@ -89,10 +89,10 @@ public final class CapabilityGate {
             return Optional.of("NO_REQUIRED_TOOL");
         }
         // ⑤ 写入预算
-        if (caps.canBreakBlocks() && !facts.hasWriteBudget(true)) {
+        if (caps.canBreakBlocks() && !facts.hasQuota(true)) {
             return Optional.of("BREAK_BUDGET_EXHAUSTED");
         }
-        if (caps.canPlaceBlocks() && !facts.hasWriteBudget(false)) {
+        if (caps.canPlaceBlocks() && !facts.hasQuota(false)) {
             return Optional.of("PLACE_BUDGET_EXHAUSTED");
         }
         return Optional.empty();

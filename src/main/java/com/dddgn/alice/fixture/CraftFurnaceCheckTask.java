@@ -249,7 +249,7 @@ public class CraftFurnaceCheckTask implements Task {
     }
 
     /**
-     * **容器写入授权**（R1 收口，2026-09-14）：往炉子里放料 / 取回，与 G5/A11 同源，走 `WriteBudget`
+     * **容器写入授权**（R1 收口，2026-09-14）：往炉子里放料 / 取回，与 G5/A11 同源，走 `Quota`
      * 的**容器写入维度**（+ 策略表 `P-06/P-10` 的声明判定）。
      *
      * <p>为什么按**相位**计而不是每次点击一次：预算单位是"这一次写入"，而本夹具的一个相位
@@ -266,9 +266,9 @@ public class CraftFurnaceCheckTask implements Task {
 
     private boolean allowContainerWrite(String what) {
         com.dddgn.alice.write.Attribution grant = containerGrant();
-        com.dddgn.alice.write.WriteBudget.Verdict verdict =
-                com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot, furnace, grant);
-        if (verdict == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
+        com.dddgn.alice.region.authz.Quota.Verdict verdict =
+                com.dddgn.alice.region.authz.Quota.consumeContainerWrite(bot, furnace, grant);
+        if (verdict == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED) {
             record("container_write_refused", what);
             check("container_write_allowed", false,
                     what + " 被策略/预算拒绝（grant=" + grant.describe() + "）");
@@ -529,10 +529,10 @@ public class CraftFurnaceCheckTask implements Task {
         // `Z1` 之后区外不记账 ⇒ 光看账本证明不了"外面也收干净了" ⇒ 把**覆盖度**印出来：
         // `writes` = 本步闸门计数的真实写入次数；`writes > ledgerInZone` 的差额落在区外，
         // 本判据**覆盖不到**（`D-398` R1/R2：那里没有义务、也没有账）。
-        int writes = com.dddgn.alice.write.WriteBudget.writeCount(bot);
+        int writes = com.dddgn.alice.region.authz.Quota.writeCount(bot);
         // 用 `check(...)`（它同时 record + 打日志 + 记账失败）⇒ 覆盖度进日志，判决不变
         check("no_block_writes", pending == 0, "writes=" + writes + " ledgerEntries=" + pending
-                + " " + com.dddgn.alice.write.WriteBudget.population(bot));
+                + " " + com.dddgn.alice.region.authz.Quota.population(bot));
         StringBuilder summary = new StringBuilder();
         for (Map.Entry<String, String> entry : facts.entrySet()) {
             if (!summary.isEmpty()) {

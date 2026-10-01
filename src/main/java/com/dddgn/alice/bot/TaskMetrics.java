@@ -14,7 +14,7 @@ import java.util.Set;
  * <p><b>为什么要有它</b>：勘测报告 §5 的问法是「目标已确定时，**几乎能保证到达目标并返回安全区吗**？」——
  * 报告给的验收口径是「连续 N 次任务：到达率 / 返回率 / 平均 tick / 世界改动数」。
  * 2026-09-20 复读时逐项 grep 的结论是：这四个数**没有任何一处被汇总过**（唯一接近的是
- * `[WriteBudget] SUMMARY` 与 `TaskExecutionRecord.durationTicks()`，两者都只散在单次运行里）。
+ * `[Quota] SUMMARY` 与 `TaskExecutionRecord.durationTicks()`，两者都只散在单次运行里）。
  *
  * <p><b>分工（每一格都由"真的发生"的那一刻写，夹具只读）</b>：
  * <table border="1">
@@ -26,7 +26,7 @@ import java.util.Set;
  *           {@code /alice stop-task}、{@code doneWhen} 步、延后到安全点）**不走它**（`D-338` 附注十五）</td></tr>
  *   <tr><td>{@code arrived}</td><td>**任务自己**（如 {@code MineJob} 挖掉第一格目标时）</td>
  *       <td>只有任务知道"到了"；框架层猜会把"路过"记成"到达"（那就是假判据）</td></tr>
- *   <tr><td>{@code breaks/places/containerWrites/refused*}</td><td>{@code WriteBudget}</td>
+ *   <tr><td>{@code breaks/places/containerWrites/refused*}</td><td>{@code Quota}</td>
  *       <td>那里才是"真的扣了预算 / 真的被拒"的一刻（搜索谓词不算，与既有口径一致）</td></tr>
  *   <tr><td>{@code returns/returnFails}</td><td>同上（终态时 {@code wasReturnTask}）</td>
  *       <td>返程兜底（{@code D-327} 机制 B）自己也是会话任务 ⇒ 复用同一收口</td></tr>
@@ -39,8 +39,8 @@ import java.util.Set;
  *
  * <p><b>⚠️ 已知边界（不假装完整）</b>：
  * <ul>
- *   <li>**只统计"走写入预算闸门"的世界改动**：没有作用域时 {@code WriteBudget} 直接放行且不计数
- *       （既有行为，日志里是 {@code [WriteBudget] no_scope}）⇒ 玩家手驱的无作用域写入**不在这里**。
+ *   <li>**只统计"走写入预算闸门"的世界改动**：没有作用域时 {@code Quota} 直接放行且不计数
+ *       （既有行为，日志里是 {@code [Quota] no_scope}）⇒ 玩家手驱的无作用域写入**不在这里**。
  *       任务运行一律有作用域（{@code beginTask} 开），所以"任务运行的世界改动数"是准的；</li>
  *   <li>进程内累计（不落盘）：跨重启不延续。这是**刻意**的 —— 落盘会引入"哪些旧数据算数"的新问题，
  *       而本项要回答的是"**这一轮/这一段**跑得怎么样"，夹具与电池用**增量**读（{@link Snapshot#delta}）；</li>
@@ -141,7 +141,7 @@ public final class TaskMetrics {
         }
     }
 
-    /** 一次**真的发生**的破坏（`WriteBudget.consumeBreak`；`exempt` = 回收我方临时方块）。 */
+    /** 一次**真的发生**的破坏（`Quota.consumeBreak`；`exempt` = 回收我方临时方块）。 */
     public static void noteBreak(boolean exempt) {
         if (exempt) {
             exemptBreaks++;
@@ -150,27 +150,27 @@ public final class TaskMetrics {
         }
     }
 
-    /** 一次**真的发生**的放置（`WriteBudget.consumePlace`）。 */
+    /** 一次**真的发生**的放置（`Quota.consumePlace`）。 */
     public static void notePlace() {
         places++;
     }
 
-    /** 一次**真的发生**的容器写入（`WriteBudget.consumeContainerWrite`）。 */
+    /** 一次**真的发生**的容器写入（`Quota.consumeContainerWrite`）。 */
     public static void noteContainerWrite() {
         containerWrites++;
     }
 
-    /** 一次被预算闸门**拒绝**的破坏（`WriteBudget.consumeBreak`）。 */
+    /** 一次被预算闸门**拒绝**的破坏（`Quota.consumeBreak`）。 */
     public static void noteRefusedBreak() {
         refusedBreaks++;
     }
 
-    /** 一次被预算闸门**拒绝**的放置（`WriteBudget.consumePlace` / `notePlaceRefusal`）。 */
+    /** 一次被预算闸门**拒绝**的放置（`Quota.consumePlace` / `notePlaceRefusal`）。 */
     public static void noteRefusedPlace() {
         refusedPlaces++;
     }
 
-    /** 一次被预算闸门**拒绝**的容器写入（`WriteBudget.consumeContainerWrite`）。 */
+    /** 一次被预算闸门**拒绝**的容器写入（`Quota.consumeContainerWrite`）。 */
     public static void noteRefusedContainerWrite() {
         refusedContainerWrites++;
     }

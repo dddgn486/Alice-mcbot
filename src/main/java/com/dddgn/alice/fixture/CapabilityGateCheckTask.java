@@ -96,7 +96,7 @@ public class CapabilityGateCheckTask implements Task {
         }
 
         @Override
-        public boolean hasWriteBudget(boolean breaking) {
+        public boolean hasQuota(boolean breaking) {
             return breaking ? breakBudget : placeBudget;
         }
 

@@ -115,9 +115,9 @@ public final class PlaceTask implements Task {
         BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, target, false,
                 Attribution.of(taskName(), WriteReason.STEP_PLACEMENT));
         if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
-            failure = com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE;
+            failure = com.dddgn.alice.region.authz.Quota.EXHAUSTED_CODE;
             BotLog.warn("[PlaceTask] place_refused_budget target={} {}", target.toShortString(),
-                    com.dddgn.alice.write.WriteBudget.describe(bot));
+                    com.dddgn.alice.region.authz.Quota.describe(bot));
             return Status.FAILED;
         }
         if (result != BlockInteraction.PlaceResult.PLACED) {

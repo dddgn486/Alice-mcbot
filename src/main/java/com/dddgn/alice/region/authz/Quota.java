@@ -1,7 +1,10 @@
-package com.dddgn.alice.write;
+package com.dddgn.alice.region.authz;
 
 import com.dddgn.alice.bot.TaskMetrics;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.write.Attribution;
+import com.dddgn.alice.write.WritePolicyMatrix;
+import com.dddgn.alice.write.WriteReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -39,7 +42,7 @@ import java.util.Map;
  * <p>超限语义（用户 2026-09-11 裁定）：任务级超限 = **硬停 + 如实报告**，
  * 不自动补恢复（恢复仍按 D-103 的"会话内、人还在脚手架上时做"）。
  */
-public final class WriteBudget {
+public final class Quota {
 
     /** 任务级破坏上限（用户 2026-09-11 裁定接受 64 起点；按观测再收紧）。 */
     public static final int DEFAULT_MAX_BREAKS = 64;
@@ -121,7 +124,7 @@ public final class WriteBudget {
     private static final Map<String, Counters> SCOPES = new HashMap<>();
     private static final Map<String, Caps> CAPS = new HashMap<>();
 
-    private WriteBudget() {
+    private Quota() {
     }
 
     // ==================== 作用域 ====================
@@ -148,7 +151,7 @@ public final class WriteBudget {
             return;
         }
         CAPS.put(scopeId, new Caps(maxBreaks, maxPlaces, 0));
-        BotLog.warn("[WriteBudget] 逃生准备金已装上：scope={} 上限 破坏={} 放置={}（逃生专用，作用域收尾即清）",
+        BotLog.warn("[Quota] 逃生准备金已装上：scope={} 上限 破坏={} 放置={}（逃生专用，作用域收尾即清）",
                 scopeId, maxBreaks, maxPlaces);
     }
 
@@ -191,7 +194,7 @@ public final class WriteBudget {
             return;
         }
         Caps effective = caps == null ? Caps.UNBOUNDED : caps;
-        BotLog.info("[WriteBudget] SUMMARY scope={} breaks={} places={} containers={}/{}"
+        BotLog.info("[Quota] SUMMARY scope={} breaks={} places={} containers={}/{}"
                         + " cap[breaks/places]={} exemptBreaks={} exemptPlaces={} refusedBreaks={}"
                         + " refusedPlaces={} refusedContainers={} exhausted={}"
                         + "（`D-372`：**默认不限**（世界修改放开，靠时间预算防空转）；"
@@ -234,7 +237,7 @@ public final class WriteBudget {
             TaskMetrics.noteRefusedBreak();
             if (!counters.breakExhausted) {
                 counters.breakExhausted = true;
-                BotLog.warn("[WriteBudget] exhausted scope={} action=break pos={} by={} breaks={}/{}"
+                BotLog.warn("[Quota] exhausted scope={} action=break pos={} by={} breaks={}/{}"
                                 + " → 本任务停止继续破坏",
                         scope, pos.toShortString(), grant == null ? "-" : grant.describe(),
                         counters.breaks, caps.maxBreaks());
@@ -260,7 +263,7 @@ public final class WriteBudget {
             TaskMetrics.noteRefusedPlace();
             if (!counters.placeExhausted) {
                 counters.placeExhausted = true;
-                BotLog.warn("[WriteBudget] exhausted scope={} action=place pos={} by={} places={}/{}"
+                BotLog.warn("[Quota] exhausted scope={} action=place pos={} by={} places={}/{}"
                                 + " → 本任务停止继续放置",
                         scope, pos.toShortString(), grant == null ? "-" : grant.describe(),
                         counters.places, caps.maxPlaces());
@@ -300,7 +303,7 @@ public final class WriteBudget {
         WritePolicyMatrix.Decision decision = WritePolicyMatrix.noteContainerWrite(
                 bot == null ? null : bot.serverLevel(), bot == null ? null : bot.getUUID(), pos, grant);
         if (WritePolicyMatrix.refuses(decision)) {
-            BotLog.warn("[WriteBudget] denied action=container pos={} by={} policy={}"
+            BotLog.warn("[Quota] denied action=container pos={} by={} policy={}"
                             + " ⇒ 该任务类别未声明这个理由（补 WritePolicyMatrix 行，或改调用点）",
                     pos == null ? "-" : pos.toShortString(), grant == null ? "-" : grant.describe(), decision);
             return Verdict.REFUSED;
@@ -317,7 +320,7 @@ public final class WriteBudget {
             TaskMetrics.noteRefusedContainerWrite();
             if (!counters.containerExhausted) {
                 counters.containerExhausted = true;
-                BotLog.warn("[WriteBudget] exhausted scope={} action=container pos={} by={} writes={}/{}"
+                BotLog.warn("[Quota] exhausted scope={} action=container pos={} by={} writes={}/{}"
                                 + " → 本任务停止继续写入容器",
                         scope, pos.toShortString(), grant == null ? "-" : grant.describe(),
                         counters.containerWrites, caps.maxContainerWrites());
@@ -359,7 +362,7 @@ public final class WriteBudget {
         TaskMetrics.noteRefusedPlace();
         if (!counters.placeExhausted) {
             counters.placeExhausted = true;
-            BotLog.warn("[WriteBudget] exhausted scope={} action=place pos={} by={} places={}/{}"
+            BotLog.warn("[Quota] exhausted scope={} action=place pos={} by={} places={}/{}"
                             + " → 本任务停止继续放置",
                     scope, pos.toShortString(), grant == null ? "-" : grant.describe(),
                     counters.places, caps.maxPlaces());
@@ -545,7 +548,7 @@ public final class WriteBudget {
      * <h3>为什么必须有（两份不同源的真事故）</h3>
      * `consumeBreak` 在**会话开始前**扣账（闸门必须在下手前拦住），而破坏可能在很多 tick 之后
      * 才被证明**根本没发生**：`D-323` 真机实测（`BreakRefusedCheckTask` 头部的原话）——FTB 认领内
-     * 4 次破坏全打了 `block_break_done` + `COMPLETED` + **`WriteBudget breaks=1/64`**，而存档里那
+     * 4 次破坏全打了 `block_break_done` + `COMPLETED` + **`Quota breaks=1/64`**，而存档里那
      * 4 格仍是 `minecraft:dirt`。`D-323` 修好了**报告**（世界没变 ⇒ 失败码 `REFUSED`），
      * 但**扣账留着** ⇒ 预算账说"写了 N 次"、世界与审计说"一次都没写" = 同一量两份真相。
      *
@@ -553,7 +556,7 @@ public final class WriteBudget {
      * 尝试失败不占额度）⇒ 本方法是把破坏补齐成同一条原则，而不是新增一套机制。
      *
      * <p>⚠️ 免额扣账（`grant.reason() == SCAFFOLD_RESTORE`，`D-347`）**没进** `breaks`
-     * ⇒ 这里直接返回（否则会退掉别人的账）。**不静默**：每次退回一条 `[WriteBudget] refund …`。
+     * ⇒ 这里直接返回（否则会退掉别人的账）。**不静默**：每次退回一条 `[Quota] refund …`。
      */
     public static void refundBreak(ServerPlayer bot, BlockPos pos, Attribution grant, String reason) {
         if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
@@ -566,7 +569,7 @@ public final class WriteBudget {
         }
         counters.breaks--;
         counters.refundedBreaks++;
-        BotLog.info("[WriteBudget] refund break scope={} pos={} reason={} breaks={}/{} refunded={}",
+        BotLog.info("[Quota] refund break scope={} pos={} reason={} breaks={}/{} refunded={}",
                 scope, pos.toShortString(), reason, counters.breaks, effectiveCaps(scope).maxBreaks(),
                 counters.refundedBreaks);
     }
@@ -599,7 +602,7 @@ public final class WriteBudget {
 
     private static void logNoScope(ServerPlayer bot, String action, BlockPos pos) {
         // 没有任务作用域时不做上限（作用域是记账单位），但要在日志里留痕——"缺口不静默"
-        BotLog.info("[WriteBudget] no_scope action={} pos={} bot={} （未计入任务预算）",
+        BotLog.info("[Quota] no_scope action={} pos={} bot={} （未计入任务预算）",
                 action, pos.toShortString(), bot == null ? "-" : bot.getName().getString());
     }
 }

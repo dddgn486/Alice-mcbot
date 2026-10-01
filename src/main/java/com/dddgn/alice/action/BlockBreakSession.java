@@ -1,7 +1,7 @@
 package com.dddgn.alice.action;
 
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -169,10 +169,10 @@ public final class BlockBreakSession {
         status = Status.FAILED;
         // ⭐ `RC4`（2026-09-24）：**走到 fail 就说明世界没变**（成功路径走的是 DONE）⇒
         // `consumeBreak` 在会话开始前扣的那笔账**不成立**，必须退回，否则预算账会说"写了 N 次"
-        // 而世界/审计说"一次都没写"（`D-323` 真机现场：`WriteBudget breaks=1/64` + 4 格仍是 dirt）。
+        // 而世界/审计说"一次都没写"（`D-323` 真机现场：`Quota breaks=1/64` + 4 格仍是 dirt）。
         if (!refunded) {
             refunded = true;
-            WriteBudget.refundBreak(bot, pos, grant, code);
+            Quota.refundBreak(bot, pos, grant, code);
         }
         level.destroyBlockProgress(bot.getId(), pos, -1);
         BotLog.warn("block_break_failed bot={} pos={} code={} ticks={} progress={}",

@@ -2,7 +2,7 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.bot.TaskMetrics;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.mine.MineCandidateSource;
@@ -42,8 +42,8 @@ import com.dddgn.alice.task.TaskTarget;
  * 同一个手法）。它断言的量是 {@link TaskMetrics} 里**生产代码自己写**的那几格：
  * <ul>
  *   <li>{@code arrived} —— 由 {@code MineJob} 在"第一格目标方块真的被挖掉"时自己声明；</li>
- *   <li>{@code breaks} —— 由 {@code WriteBudget.consumeBreak} 在**真的扣一次预算**时写；</li>
- *   <li>并**交叉校验**：{@code TaskMetrics.breaks} 与 {@code WriteBudget.breaks(bot)}（同一次破坏的
+ *   <li>{@code breaks} —— 由 {@code Quota.consumeBreak} 在**真的扣一次预算**时写；</li>
+ *   <li>并**交叉校验**：{@code TaskMetrics.breaks} 与 {@code Quota.breaks(bot)}（同一次破坏的
  *       两个独立读数）必须一致 —— 只对一边断言的话，另一边写错了也看不出来。</li>
  * </ul>
  *
@@ -73,7 +73,7 @@ import com.dddgn.alice.task.TaskTarget;
  * </ul>
  *
  * <h2>⚠️ 判据边界：本夹具判**运行账**，不判**收集闭环**</h2>
- * 判据 = 每次运行**到达增量恰好 1** + **世界改动数与 `WriteBudget` 独立读数逐位一致**（≥ 配额）+ 耗时 &gt; 0
+ * 判据 = 每次运行**到达增量恰好 1** + **世界改动数与 `Quota` 独立读数逐位一致**（≥ 配额）+ 耗时 &gt; 0
  * + 反向对照两次增量都为 0。**刻意不要求 `quota_met`**：收集闭环另有判据（`mine_job`(BASELINE) ·
  * `mine_far_drop` · `mine_inventory`），而本夹具的场景只为"到达 + 世界改动"服务。
  * 2026-09-20 实测到一次**与本夹具无关**的收集失败（`product_not_collected`：第一格矿的掉落物被作用域
@@ -85,7 +85,7 @@ import com.dddgn.alice.task.TaskTarget;
  * 首跑我按"挖掉 2 格 ⇒ 世界改动 2 格"写了判据，**实测不成立**：每次真实改动是 3~4 格 ——
  * 矿嵌在行走层里，挖掉就留一个 1 格深的坑，bot 下一步**站进坑里**，出来时清掉坑壁 1 格
  * （日志里 `block_break_done` 多打在两矿之间的行走层）。所以判据不是"等于配额"，而是
- * **账与 `WriteBudget` 独立读数逐位一致**（计数器诚实）+ **配额 ≤ 改动数 ≤ 配额 + 走位清障上界**
+ * **账与 `Quota` 独立读数逐位一致**（计数器诚实）+ **配额 ≤ 改动数 ≤ 配额 + 走位清障上界**
  * （场景形状声明，见 {@link #MAX_ACCESS_CLEARS_PER_RUN}）。⭐ 顺带这就是"世界改动数"这个量的
  * 现实大小：**挖 2 格配额 ≈ 改 3~4 格世界**。
  *
@@ -143,7 +143,7 @@ public final class MineRunMetricsCheckTask implements Task {
      * <p>一开始我以为"世界改动数 = 配额"，实测**不成立**：矿嵌在行走层里 ⇒ 挖掉一格就留下一个 1 格深的坑，
      * bot 下一步会**站进坑里**，出来时清掉坑壁 1 格（日志：`block_break_done` 多打在两矿之间的行走层）。
      * 实测每次配额 2 格的真实世界改动 = **3~4 格**（多 1~2）。所以判据改成：
-     * **账与 `WriteBudget` 独立读数逐位一致**（这才是"计数器诚实"）+ **≥ 配额**（真的改了世界）+ **≤ 配额 + 本上限**
+     * **账与 `Quota` 独立读数逐位一致**（这才是"计数器诚实"）+ **≥ 配额**（真的改了世界）+ **≤ 配额 + 本上限**
      * （挡住"把整层地板都清了"这种退化）。⚠️ 这个上限是**场景形状**的声明，不是产品保证。
      */
     private static final int MAX_ACCESS_CLEARS_PER_RUN = 2;
@@ -355,7 +355,7 @@ public final class MineRunMetricsCheckTask implements Task {
             FixtureToolKit.ensurePickaxe(bot);
             clearBoxItems(level);
             runBefore = TaskMetrics.snapshot();
-            scopeBreaksBefore = WriteBudget.breaks(bot);
+            scopeBreaksBefore = Quota.breaks(bot);
             runTicks = 0;
             return Task.Status.RUNNING;
         }
@@ -398,7 +398,7 @@ public final class MineRunMetricsCheckTask implements Task {
         RunResult result = new RunResult(
                 runIndex >= RUNS ? ("control(" + ABSENT_TARGET + ")") : ("run#" + (runIndex + 1)),
                 rawStatus, reason == null ? "" : reason, runTicks,
-                delta.arrived(), delta.breaks(), WriteBudget.breaks(bot) - scopeBreaksBefore,
+                delta.arrived(), delta.breaks(), Quota.breaks(bot) - scopeBreaksBefore,
                 delta.places(), delta.exemptBreaks());
         results.add(result);
         totalTicks += result.ticks();
@@ -406,7 +406,7 @@ public final class MineRunMetricsCheckTask implements Task {
         totalBreaks += result.breaksDelta();
         totalScopeBreaks += result.scopeBreakDelta();
         BotLog.info("[MineRunMetrics] RUN {} status={} reason={} ticks={} 到达增量={} 破坏增量(账)={}"
-                        + "（WriteBudget 同窗口读数={}）放置增量={} 豁免={}",
+                        + "（Quota 同窗口读数={}）放置增量={} 豁免={}",
                 result.label(), result.status(), result.reason(), result.ticks(), result.arrivedDelta(),
                 result.breaksDelta(), result.scopeBreakDelta(), result.placesDelta(), result.exemptDelta());
         job = null;
@@ -464,8 +464,8 @@ public final class MineRunMetricsCheckTask implements Task {
             check("⭐ " + result.label() + "：**任务自己声明的到达**恰好一次（到达增量="
                             + result.arrivedDelta() + "；0 说明没到、>1 说明去重坏了）",
                     result.arrivedDelta() == 1);
-            check("⭐ " + result.label() + "：**世界改动数**被真的记下来了，且**账与 `WriteBudget` 独立读数"
-                            + "逐位一致**（账=" + result.breaksDelta() + "，WriteBudget="
+            check("⭐ " + result.label() + "：**世界改动数**被真的记下来了，且**账与 `Quota` 独立读数"
+                            + "逐位一致**（账=" + result.breaksDelta() + "，Quota="
                             + result.scopeBreakDelta() + "；本次配额=" + QUOTA
                             + "，多出来的是走位清障）⇒ 判据 = 一致 ∧ ≥ 配额 " + QUOTA
                             + " ∧ ≤ " + (QUOTA + MAX_ACCESS_CLEARS_PER_RUN),
@@ -481,7 +481,7 @@ public final class MineRunMetricsCheckTask implements Task {
         check("⭐ 汇总：三次真作业**全部到达**（到达增量合计=" + totalArrived + " == " + RUNS + "）",
                 totalArrived == RUNS);
         int maxBreaks = RUNS * (QUOTA + MAX_ACCESS_CLEARS_PER_RUN);
-        check("⭐ 汇总：世界改动数**合计**被量出来（账上=" + totalBreaks + "，`WriteBudget` 独立读数="
+        check("⭐ 汇总：世界改动数**合计**被量出来（账上=" + totalBreaks + "，`Quota` 独立读数="
                         + totalScopeBreaks + "；配额合计=" + expectedBreaks + "，含走位清障的上界=" + maxBreaks
                         + "）⇒ 判据 = 两个读数一致 ∧ 落在 [配额, 上界] 内（退化到「把地板全清了」会红）",
                 totalBreaks == totalScopeBreaks && totalBreaks >= expectedBreaks && totalBreaks <= maxBreaks);
@@ -525,7 +525,7 @@ public final class MineRunMetricsCheckTask implements Task {
         // ⚠️ 到达率**必须是算出来的、不能写死**：反向对照①（把 `arrived` 调用删掉）时，
         // 写死的 "3/4" 会让 SUMMARY 看起来一切正常（实测踩到）⇒ 现在报 `到达={实测}/{运行数}`。
         BotLog.info("[MineRunMetrics] SUMMARY checks={} failures={} runs={} 到达={}/{} 平均tick={}"
-                        + " 世界改动(账)={} 世界改动(WriteBudget)={} 场景矿={} quota_met次数={}/{}"
+                        + " 世界改动(账)={} 世界改动(Quota)={} 场景矿={} quota_met次数={}/{}"
                         + "（事实字段，**不是判据**：收集闭环由 mine_job/mine_far_drop/mine_inventory 判）"
                         + " → {}｜失败项：{}",
                 checks, failures.size(), results.size(), totalArrived, RUNS + 1, avgTicks,

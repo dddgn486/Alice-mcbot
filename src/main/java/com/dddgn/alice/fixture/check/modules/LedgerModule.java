@@ -5,7 +5,7 @@ import com.dddgn.alice.fixture.ClearRetryCheckTask;
 import com.dddgn.alice.fixture.LedgerScopeCheckTask;
 import com.dddgn.alice.fixture.LossyWriteAccountedCheckTask;
 import com.dddgn.alice.task.ScaffoldLifecycleTask;
-import com.dddgn.alice.fixture.WriteBudgetCheckTask;
+import com.dddgn.alice.fixture.QuotaCheckTask;
 import com.dddgn.alice.fixture.check.CheckContext;
 import com.dddgn.alice.fixture.check.CheckModule;
 import com.dddgn.alice.fixture.check.CheckProfile;
@@ -38,7 +38,7 @@ public final class LedgerModule implements CheckModule {
                 CheckStep.of("clear_retry", CheckProfile.BASELINE, List.of(), null,
                         () -> new ClearRetryCheckTask(ctx.bot(), ctx.scope()), 900),
                 CheckStep.of("write_budget", CheckProfile.BASELINE, List.of(), null,
-                        () -> new WriteBudgetCheckTask(ctx.bot(), ctx.scope()), 900),
+                        () -> new QuotaCheckTask(ctx.bot(), ctx.scope()), 900),
                 CheckStep.of("scaffold", CheckProfile.BASELINE, List.of(), null,
                         () -> new ScaffoldLifecycleTask(ctx.bot(), ctx.scope()), 900),
                 CheckStep.of("clear_guard", CheckProfile.BASELINE, List.of(), null,

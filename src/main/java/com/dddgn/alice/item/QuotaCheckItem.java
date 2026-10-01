@@ -3,7 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.fixture.FixtureDispatch;
-import com.dddgn.alice.fixture.WriteBudgetCheckTask;
+import com.dddgn.alice.fixture.QuotaCheckTask;
 import com.dddgn.alice.task.TaskTarget;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -20,12 +20,12 @@ import net.minecraft.world.phys.Vec3;
  * 写入预算自检启动器（{@code alice:write_budget_check}，D-106）：普通右键，零参数。
  *
  * <p>跑一次真实带破坏的通行（`break_course`：两格高石墙挡住去路），但把**本次任务的破坏上限
- * 压到 1 格**（夹具专用 {@code WriteBudget.setCaps}，不接玩家命令），断言"只拆 1 格 → 用满即停
+ * 压到 1 格**（夹具专用 {@code Quota.setCaps}，不接玩家命令），断言"只拆 1 格 → 用满即停
  * → 如实失败 → 绝不继续拆"。
  */
-public class WriteBudgetCheckItem extends Item {
+public class QuotaCheckItem extends Item {
 
-    public WriteBudgetCheckItem(Properties properties) {
+    public QuotaCheckItem(Properties properties) {
         super(properties);
     }
 
@@ -55,14 +55,14 @@ public class WriteBudgetCheckItem extends Item {
             say(player, "[alice] 没有可用 bot");
             return;
         }
-        bot.teleportTo(level, WriteBudgetCheckTask.START_FOOT.getX() + 0.5D,
-                WriteBudgetCheckTask.START_FOOT.getY(), WriteBudgetCheckTask.START_FOOT.getZ() + 0.5D,
+        bot.teleportTo(level, QuotaCheckTask.START_FOOT.getX() + 0.5D,
+                QuotaCheckTask.START_FOOT.getY(), QuotaCheckTask.START_FOOT.getZ() + 0.5D,
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!FixtureDispatch.assignWriteBudgetCheck(bot, observer)) {
+        if (!FixtureDispatch.assignQuotaCheck(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

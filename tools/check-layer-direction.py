@@ -7,7 +7,7 @@
 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就在这里：
 
     action/MineBlockRunner → task/mining/{StandingPointSelector, LineOfSightChecker, ReachPlan}   ← 历史（`step 3a`/`D-460` 已搬到 `reach/`）
-    task/**                → action/{Attribution, WriteBudget, BlockInteraction, …}
+    task/**                → action/{Attribution, Quota, BlockInteraction, …}
 
 ⇒ 微操作**反过来**依赖比它高一层的原语 ⇒ `action/` 自己的边界「不许编排」**没有可执行判据**
 （谁都能往 `task/` 里伸手，而分层只在文档里）。
@@ -24,7 +24,7 @@
 
 `action/` 的 12 个文件本来就**干净地分成两半**：**6 个微操作**（`BlockBreakSession` ·
 `BlockInteraction` · `ContainerSemantics` · `MenuCodes` · `MenuSession` · `MineBlockRunner`）
-与 **6 个写入治理**（`TaskTargetProtection` · `ModifyAudit` · `WriteBudget` · `Attribution` ·
+与 **6 个写入治理**（`TaskTargetProtection` · `ModifyAudit` · `Quota` · `Attribution` ·
 `WritePolicyMatrix` · `WriteReason`）。拆包后方向变成**单向**：
 
     action/mining/MineBlockRunner → write/Attribution ✅ 允许（执行件调授权）
@@ -47,7 +47,7 @@
    `com.dddgn.alice.{task, action, job}` 的 import ⇒ 红。
    ⭐ 方向性断言：**`action/` → `write/` 是允许的**（微操作调授权），**反过来禁止**。
 4. **6 个写入治理类只许定义在 `write/`**（`step 4` 的**实现**判据）：`action/` 里再出现
-   `{TaskTargetProtection, ModifyAudit, WriteBudget, Attribution, WritePolicyMatrix, WriteReason}.java`
+   `{TaskTargetProtection, ModifyAudit, Quota, Attribution, WritePolicyMatrix, WriteReason}.java`
    ⇒ 红；且这 6 个文件必须**都**在 `write/` 里（否则"拆包"可以是"删掉"）。
 5. **人口下限**（防"把包搬空 ⇒ 门禁假绿"）：扫描 `.java` ≥ `MIN_SCANNED_FILES` ·
    `reach/` ≥ `MIN_REACH_FILES` · `action/` ≥ `MIN_ACTION_FILES` · `write/` ≥ `MIN_WRITE_FILES`。
@@ -103,13 +103,16 @@ WRITE_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddg
 #: `step 4`（`D-462`）搬出 `action/` 的 6 个写入治理类 —— 它们**只许**定义在 `write/` 下。
 #: ⚠️ 2026-10-01 刀 4（`D-566`）：`WriteAudit` **已搬去 `ledger/ModifyAudit`** ⇒ 从此不在本表
 #: （本表是"**只许定义在 `write/` 下**"的名单 —— 它搬走了就该走，⛔ 不是"忘了"）。
-WRITE_GOVERNANCE = ("TaskTargetProtection", "WriteBudget",
-                    "Attribution", "WritePolicyMatrix", "WriteReason")
+WRITE_GOVERNANCE = ("TaskTargetProtection", "Attribution",
+                    "WritePolicyMatrix", "WriteReason")
 
 #: ⭐ 刀 4（`D-566`）：`write/WriteAudit` → **`ledger/ModifyAudit`**（用户 2026-10-01 裁定
 #: 「`WriteAudit` → `ledger/`（带上前缀 ⇒ 类名 `ModifyAudit`）」）。判据 = **搬包不是复制**：
 #: `ledger/` 里必须有、`write/` 里必须没有。
 LEDGER_MOVED = ("ModifyAudit",)
+
+#: ⭐ **刀 4**（`D-566`，2026-10-01 用户裁定）：`write/WriteBudget` → **`region/authz/Quota`**
+#: （`§1` 原方案：authz = "允不允许动 ＋ 还能动几次"）。判据同"搬包不是复制"。
 
 #: ⭐ **刀 3**（`D-566`，2026-10-01）：`§8` 步 2 从 `protection/` **原样搬进** `region/` 的 3 个类
 #: （`JobAreaRegistry` · `ProtectionClaimService`→`ClaimService` · `ProtectionMapGeometry`→`MapGeometry`）。
@@ -272,7 +275,7 @@ MIN_ACTION_FILES = 6
 #: `step 4` 实测 6 个（`WRITE_GOVERNANCE` 全体）。
 #: ⚠️ 2026-10-01 刀 4（`D-566`）：`WriteAudit` 搬去 `ledger/ModifyAudit` ⇒ **6 → 5**
 #: （`WRITE_GOVERNANCE` 同步收窄；⛔ 这个数**跟着名单走**，别两处各改一半）。
-MIN_WRITE_FILES = 5
+MIN_WRITE_FILES = 4
 #: 刀 3（`D-566`）：`region/` 的**原样类**人口（实测 3 个 `.java` ＋ 1 个 `package-info.java`）。
 MIN_REGION_FILES = 3
 
@@ -378,7 +381,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      "import com.dddgn.alice.action.Attribution;", False),
     # ---- `step 4`（`D-462`）新增 ----
     ("`write/` import `action`（调用它的微操作）⇒ 红（方向只许单向）",
-     f"{PKG}/write/WriteBudget.java",
+     f"{PKG}/write/Attribution.java",   # ⚠️ 臂的路径**必须留在 `write/` 下**（它测的就是 write/ 的方向）
      "import com.dddgn.alice.action.BlockInteraction;", True),
     # ---- `D-551`（用户 2026-09-30 裁「乙」）新增：`R3` 生产 ✗→ debug/fixture ----
     ("⭐ `job/`（生产包）import `debug/` **并在代码里用简单名** ⇒ 红",
@@ -639,7 +642,12 @@ def main() -> int:
     if missing:
         problems.append(f"`write/` 里缺 {missing} ⇒ 「拆包」不成立（拆包不是删除；`step 4`/`D-462`）")
 
-    # ⭐ 刀 4（`D-566`）：`write/` → `ledger/` 的**搬包**判据（同刀 3 的 `region/` 那条同一个形状）。
+    # ⭐ 刀 4（`D-566`）：`write/` → `ledger/` 与 `write/` → `region/authz/` 的**搬包**判据。
+    authz_quota = SRC / PKG / "region" / "authz" / "Quota.java"
+    if not authz_quota.exists():
+        problems.append("`region/authz/` 里缺 `Quota.java` ⇒ 刀 4 第 3 件没落地（`D-566`）")
+    if (SRC / PKG / "write" / "Quota.java").exists():
+        problems.append(f"`{PKG}/write/Quota.java` 还在 ⇒ 刀 4 第 3 件的搬包没做完（`D-566`）")
     for name in LEDGER_MOVED:
         if not (SRC / PKG / "ledger" / f"{name}.java").exists():
             problems.append(f"`ledger/` 里缺 `{name}.java` ⇒ 「搬包」不成立（搬包不是删除；`D-566` 刀 4）")

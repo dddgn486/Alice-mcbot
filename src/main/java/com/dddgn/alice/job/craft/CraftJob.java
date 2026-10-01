@@ -4,7 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.action.MenuSession;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.log.BotLog;
@@ -451,7 +451,7 @@ public final class CraftJob implements Job {
 
     /**
      * **容器写入授权**（R1 收口，2026-09-14）：烧炼这条路真的在改容器内容（输入格/燃料格/输出格），
-     * 因此过 `WriteBudget` 的**容器维度** + 策略表的声明判定。
+     * 因此过 `Quota` 的**容器维度** + 策略表的声明判定。
      *
      * <p>为什么以前没有：容器写入 2026-09-14 才纳入策略表；本 Job 的装配阶段借用了
      * `StationProvision.allowContainerWrite`（那次计数归 `station-provision`），而**放料/取产物这几下
@@ -467,7 +467,7 @@ public final class CraftJob implements Job {
     private boolean allowContainerWrite(String what) {
         Attribution grant = containerGrant();
         BlockPos pos = opened == null ? null : opened.pos();
-        if (WriteBudget.consumeContainerWrite(bot, pos, grant) == WriteBudget.Verdict.REFUSED) {
+        if (Quota.consumeContainerWrite(bot, pos, grant) == Quota.Verdict.REFUSED) {
             BotLog.warn("[CraftJob] 容器写入被拒 what={} grant={} ⇒ 停止写入并如实失败", what, grant.describe());
             return false;
         }

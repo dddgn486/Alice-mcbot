@@ -172,7 +172,7 @@ public final class CheckHarness {
                         steps.size(), step.scenes(), step.budgetTicks());
                 // **账本作用域先开**（与电池 `setup` 同序：**openScope → 场景 → provision → 起任务** ✓）。
                 // 为什么顺序要紧：`provision` 里可能有"把**本步作用域**的预算/权限压到 0"这类测试前提
-                //（`mine_budget`：`WriteBudget.setCaps(WriteBudget.scopeOf(bot), Caps(0,0))`）——
+                //（`mine_budget`：`Quota.setCaps(Quota.scopeOf(bot), Caps(0,0))`）——
                 // 作用域还没开时它会挂到**孤儿/implicit** 作用域上 ⇒ 前提静默失效 ✗（步骤会以超时红）。
                 stepScope = WorldModLedger.openScope(server, bot.getUUID(),
                         "Harness:" + moduleId + ":" + step.name());
@@ -353,7 +353,7 @@ public final class CheckHarness {
         // —— 作用域由编排器开，不收就变成**残留作用域**（`BotManager` 有残留检查 ⇒ 后续判据会红 ✗）。
         // ⚠️ 任务仍在跑时**不能收**（`stopTask` 有 K-3 安全点，可能延后）⇒ 只在空闲时收 ✓。
         if (stepScope != null && !BotManager.isBusy(bot)) {
-            com.dddgn.alice.write.WriteBudget.closeScope(
+            com.dddgn.alice.region.authz.Quota.closeScope(
                     WorldModLedger.closeScope(server, bot.getUUID()));
             stepScope = null;
         }

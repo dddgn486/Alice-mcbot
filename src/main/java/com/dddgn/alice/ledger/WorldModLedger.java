@@ -132,7 +132,7 @@ public final class WorldModLedger extends SavedData {
     /**
      * 该 owner 当前打开的作用域 id；没有打开时返回 {@code null}。
      *
-     * <p>供 {@code action/WriteBudget}（D-106）按"一次任务 = 一个作用域"记账；
+     * <p>供 {@code action/Quota}（D-106）按"一次任务 = 一个作用域"记账；
      * 与 {@link #scopeOf} 不同，这里**不回退**到 {@code implicit}——
      * 没有任务作用域时写入不设上限（作用域是记账单位），由调用方决定如何留痕。
      */

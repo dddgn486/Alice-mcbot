@@ -905,7 +905,7 @@ public final class RegressionBatteryTask implements Task {
     }
 
     private Status startStep(Step step) {
-        // **每步一个独立作用域**（镜像 BotSession.beginTask 的那一半）：WriteBudget 的
+        // **每步一个独立作用域**（镜像 BotSession.beginTask 的那一半）：Quota 的
         // 破坏/放置上限与账本 TEMP 都是"一次任务一个作用域" ⇒ 九项共用一个作用域会串味
         // （后面的项会撞上前面的 64/32 上限、恢复阶段也会互相看见对方的临时方块）。
         // ⚠️ **`startStep` 会被重复进入**（等落地时本方法每 tick 再进一次，见 `awaitGrounding`）
@@ -1149,7 +1149,7 @@ public final class RegressionBatteryTask implements Task {
         // → 销掉现场已非我方方块的条目 → 关作用域缓冲（下一步的子任务会自己 begin）
         String closed = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                 bot.getServer(), bot.getUUID());
-        com.dddgn.alice.write.WriteBudget.closeScope(closed);
+        com.dddgn.alice.region.authz.Quota.closeScope(closed);
         // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
         // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
         com.dddgn.alice.region.JobAreaRegistry.release(closed);

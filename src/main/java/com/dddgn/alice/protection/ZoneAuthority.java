@@ -21,7 +21,7 @@ import java.util.UUID;
  *   <li>{@link Verdict#NOT_GATED}：**该区块未认领** ⇒ 这里**不管**（野外由成本模型 + 维生 + 只读审计治理，
  *       `D-327` 场所化）；</li>
  *   <li>{@link Verdict#ALLOW}：**任务区**覆盖了这一格，且等级够 ⇒ **放行**；
- *       ⚠️ 放行**不等于**免检：调用方仍要走既有的 `Attribution`（谁/为什么）+ `WriteBudget`（几次）+ 账本（`TEMP`/`KEEP`）；</li>
+ *       ⚠️ 放行**不等于**免检：调用方仍要走既有的 `Attribution`（谁/为什么）+ `Quota`（几次）+ 账本（`TEMP`/`KEEP`）；</li>
  *   <li>{@link Verdict#DENY}：拒绝 + **可归因的码**。</li>
  * </ul>
  *
@@ -185,7 +185,7 @@ public final class ZoneAuthority {
             //   · **"容器写入理由"不是例外** —— 它**本来就不走这条路**：
             //     `WriteReason.CONTAINER_TRANSFER` 的 `Action.BOTH` 是**声明性**字段
             //     （`WriteReason#action()` 全仓只有一处读者，且那是策略表自检），
-            //     容器写入真正过的是 `WriteBudget.consumeContainerWrite` ⇒ **从不经过本判据**。
+            //     容器写入真正过的是 `Quota.consumeContainerWrite` ⇒ **从不经过本判据**。
             //   · ⛔ **不许把这件事叫"清障"** —— 那个概念已被用户丢弃（台账 `O128` 取 A：只丢讨论口径）。
             //
             // 为什么放在**动作维度**而不是"清障策略"里：`BlockBreakSafety.clearingRefusal`
@@ -228,7 +228,7 @@ public final class ZoneAuthority {
         }
         // ⚠️ `L2` **故意没有**"每 scopeId 区内放置上限"（2026-09-19 用户裁定，见 `D-343`）——
         // 别以为是漏了。两条理由（都查过代码）：
-        // ① **没有洞**：`WriteBudget` 的上限**同样按 `scopeId` 计**（`SCOPES`，`maxPlaces` 默认 32），
+        // ① **没有洞**：`Quota` 的上限**同样按 `scopeId` 计**（`SCOPES`，`maxPlaces` 默认 32），
         //    而 `scopeId` = `WorldModLedger.currentScope` = **当前任务作用域、随任务生灭** ⇒
         //    一个 `L2` 任务**全部**放置（区内 ⊆ 全部）已经 ≤32 ⇒ 不存在"无限往玩家区里铺"的路径。
         // ② **加了会伤正当工作**：`L2` = 工作面，补种树苗 / 插火把 / 垫脚 pillar **天然**需要多于 8 次

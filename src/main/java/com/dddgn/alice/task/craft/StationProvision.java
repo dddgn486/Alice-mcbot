@@ -1,7 +1,7 @@
 package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.MenuSession;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
@@ -32,7 +32,7 @@ import java.util.List;
  *       （**不猜槽位语义，只看结果**）；失败就**把物品取回来**（失败也要清场）。</li>
  * </ol>
  *
- * <p>**写入授权**：容器写入维度（`WriteBudget.consumeContainerWrite`，与 A11 `CONTAINER_TRANSFER` 同源）+
+ * <p>**写入授权**：容器写入维度（`Quota.consumeContainerWrite`，与 A11 `CONTAINER_TRANSFER` 同源）+
  * 理由 {@link WriteReason#STATION_PROVISION}；并遵循**建拆同权**：装进去必须能原样取回
  * （{@link Mode#REMOVE} 就是它的对称操作）。
  */
@@ -244,8 +244,8 @@ public final class StationProvision {
      */
     public static boolean allowContainerWrite(BotPlayer bot, BlockPos pos) {
         Attribution grant = Attribution.of("station-provision", WriteReason.STATION_PROVISION);
-        WriteBudget.Verdict verdict = WriteBudget.consumeContainerWrite(bot, pos, grant);
-        return verdict != WriteBudget.Verdict.REFUSED;
+        Quota.Verdict verdict = Quota.consumeContainerWrite(bot, pos, grant);
+        return verdict != Quota.Verdict.REFUSED;
     }
 
     /** 便于日志/校验：容器里到底有没有那颗升级（不点任何东西，只读）。 */

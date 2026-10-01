@@ -773,8 +773,8 @@ public final class PathSession {
             }
 
             @Override
-            public boolean hasWriteBudget(boolean breaking) {
-                return com.dddgn.alice.write.WriteBudget.plannedWritesAllowed(bot,
+            public boolean hasQuota(boolean breaking) {
+                return com.dddgn.alice.region.authz.Quota.plannedWritesAllowed(bot,
                         breaking ? 1 : 0, breaking ? 0 : 1);
             }
 

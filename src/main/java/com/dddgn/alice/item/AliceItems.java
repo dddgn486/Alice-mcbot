@@ -147,7 +147,7 @@ public final class AliceItems {
 
     /** D-106 写入预算自检（零参数）：预算用满后不再改世界、如实失败。 */
     public static final RegistryObject<Item> WRITE_BUDGET_CHECK =
-            ITEMS.register("write_budget_check", () -> new WriteBudgetCheckItem(new Item.Properties()));
+            ITEMS.register("write_budget_check", () -> new QuotaCheckItem(new Item.Properties()));
 
     /** J8 可持续伐木区（零参数右键）：设定测试区域并起区域型 Job（巡查 → 砍 → 继续巡查）。 */
     public static final RegistryObject<Item> REGION_LUMBER =

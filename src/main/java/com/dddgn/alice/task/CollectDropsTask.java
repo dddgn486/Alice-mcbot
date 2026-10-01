@@ -33,7 +33,7 @@ import java.util.UUID;
  *       false → 纯通行（`PathRequest.of`，HARD_PATH，夹具反证用）。
  *       **"有界"的含义（`D-372`）**：① **时间预算** —— 本任务的 `totalBudgetTicks`
  *       （**构造参数，无默认口**，`D-493` 拍点 3 `3甲`；防空转的唯一闸门）；
- *       ② **格数上限默认不限**（`WriteBudget` 回退 `Caps.UNBOUNDED`，显式装订的上限照旧强制）；
+ *       ② **格数上限默认不限**（`Quota` 回退 `Caps.UNBOUNDED`，显式装订的上限照旧强制）；
  *       **③ 保护区不在这里管** —— 它是独立权限层（`CapabilityGate` → `protectionReason`
  *       ⇒ `protected_area`/`protected_block`），用户口径「保持权限管理就行」；</li>
  *   <li>**自然拾取**：站进拾取范围后等待原版拾取，**不反射、不调 `playerTouch`**；</li>

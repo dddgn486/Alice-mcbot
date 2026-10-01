@@ -54,7 +54,7 @@ import java.util.Set;
  *   <li>负例：未授权组合（纯通行任务 + 会写世界的移动集）**必须抛异常**；</li>
  *   <li>EXTERNAL ≡ WORKSPACE（今天）；</li>
  *   <li>未登记 requester 的写入**必须留痕**（{@code UNREGISTERED} 计数 + 一次 WARN），不静默；</li>
- *   <li>（R1 收口，2026-09-14）**容器写入也过表**：判定挂点 = {@code WriteBudget.consumeContainerWrite}
+ *   <li>（R1 收口，2026-09-14）**容器写入也过表**：判定挂点 = {@code Quota.consumeContainerWrite}
  *       （容器写入没有账本条目，这是它的唯一必经之处）；已登记任务写了未声明的理由 ⇒ **硬拒**
  *       （{@link #refuses}），登记缺口仍只留痕。覆盖面的活体证据 = {@code containerChecks}：
  *       装了闸门却恒为 0 ⇒ 挂点没接上。</li>
@@ -98,7 +98,7 @@ public final class WritePolicyMatrix {
      * ③ 本枚举管"**任务在这个封套里被授予了哪一档**"。
      *
      * <p>⚠️ **等级不是新制度**：它**不放宽**任何既有红线 —— 每一次写入仍然要过
-     * `Attribution`（谁/为什么）+ `WriteBudget`（改了世界几次）+ 账本（`TEMP`/`KEEP`）。
+     * `Attribution`（谁/为什么）+ `Quota`（改了世界几次）+ 账本（`TEMP`/`KEEP`）。
      * 本枚举只是把"保护区内的写入"从**一律拒绝**变成**按档授予**（`D-338` ① 的落地）。
      *
      * <p>⚠️ 野外（未认领区块）**不看这一档**（`D-327` 场所化：野外由成本模型 + 维生 + 只读审计治理）。
@@ -357,7 +357,7 @@ public final class WritePolicyMatrix {
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CONTAINER_TRANSFER, WriteReason.STATION_PROVISION),
                     "task/TransferTask.java:197、task/craft/StationProvision.java:242",
-                    "容器写入走 WriteBudget 的容器维度（不产生放置账本条目）"),
+                    "容器写入走 Quota 的容器维度（不产生放置账本条目）"),
             new Row("P-07", Tenure.EXTERNAL, Task.BUILD, Obligation.KEEP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.BULK_EDIT, WriteReason.EXPECTED_TARGET),
@@ -742,7 +742,7 @@ public final class WritePolicyMatrix {
      * （{@link #ledgerPolicy}，由 {@code WorldModLedger.record} 调用）；而**容器写入不产生账本条目**
      * （它改的是容器内容，不是方块）⇒ 到今天为止 {@code P-06/P-17} 行登记的
      * {@code CONTAINER_TRANSFER}/{@code STATION_PROVISION} **没有任何读者**：表在，强制力不在。
-     * 本方法的挂点是 {@link WriteBudget#consumeContainerWrite} —— **所有**已接线的容器写入的必经之处
+     * 本方法的挂点是 {@link Quota#consumeContainerWrite} —— **所有**已接线的容器写入的必经之处
      * （与"移动授权挂在 {@code CorePathPlanner.plan}"同一个理由：一处管住全部）。
      *
      * <p><b>判定口径与移动授权**对齐**（不是新口径）</b>：
@@ -790,7 +790,7 @@ public final class WritePolicyMatrix {
                 ? Decision.DECLARED : Decision.UNDECLARED_REASON;
     }
 
-    /** 判定 + 留痕 + 计数（**执行期入口**；由 {@link WriteBudget#consumeContainerWrite} 调用）。 */
+    /** 判定 + 留痕 + 计数（**执行期入口**；由 {@link Quota#consumeContainerWrite} 调用）。 */
     public static Decision noteContainerWrite(ServerLevel level, java.util.UUID owner,
                                               BlockPos pos, Attribution grant) {
         Decision decision = decideContainerWrite(level, owner, pos, grant);

@@ -33,7 +33,7 @@ FONT = "Microsoft YaHei, Noto Sans CJK SC, PingFang SC, sans-serif"
 
 QUICK = [
     ("这一步改世界吗？", "不改 ⇒ 只走 L2（Movement 集合 + 物理前提 + 可逆性）。"),
-    ("改世界呢？", "L1 谁授权/为什么（Attribution）→ L3 还有预算吗（WriteBudget）+ 执行期复验（CapabilityGate）→ L4 记哪种账（TEMP 必拆 / KEEP 不拆）。"),
+    ("改世界呢？", "L1 谁授权/为什么（Attribution）→ L3 还有预算吗（Quota）+ 执行期复验（CapabilityGate）→ L4 记哪种账（TEMP 必拆 / KEEP 不拆）。"),
     ("要拆吗？", "只拆自己放的、自上而下、材料回收（RestoreScopeTask；悬空桥面走侧拆兜底）。"),
     ("LLM 能自己决定吗？", "不能：只能提目标；拒绝走 Refused；未知模组能力**问用户**（权限契约）。"),
 ]

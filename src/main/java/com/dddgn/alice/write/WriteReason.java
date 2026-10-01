@@ -75,7 +75,7 @@ public enum WriteReason {
      * **放置合成工作站**（工作台/熔炉这类"用一下就走"的机器）。
      *
      * <p>为什么单列：它是**没有上层任务显式请求**的写世界动作（bot 只是想合成），
-     * 因此必须 ① 有专门的 reason（进 A 表、可审计）② 走 `WriteBudget` 的放置预算
+     * 因此必须 ① 有专门的 reason（进 A 表、可审计）② 走 `Quota` 的放置预算
      * ③ 属 {@code TEMP}：**用完即拆**（建拆同权），账本 `remaining` 必须回到 0。
      */
     CRAFT_STATION_PLACE(Policy.EXPLICIT_TARGET, Action.PLACE, "放置合成工作站（用完即拆）"),
@@ -87,7 +87,7 @@ public enum WriteReason {
      * **工作站装配**（L2 / D-194）：把"升级物品"放进容器的**升级槽**、以及用完再取出来。
      *
      * <p>语义 = 用户裁定："**装上升级本身算一种配置行为**" ⇒ 它不属于合成任务，
-     * 而是独立的一层（`StationProvisionTask`）；走**容器写入**维度（`WriteBudget.consumeContainerWrite`，
+     * 而是独立的一层（`StationProvisionTask`）；走**容器写入**维度（`Quota.consumeContainerWrite`，
      * 与 A11 的 `CONTAINER_TRANSFER` 同源），并且**建拆同权**：装进去的东西必须能原样取回。
      */
     STATION_PROVISION(Policy.EXPLICIT_TARGET, Action.BOTH, "装配/拆除工作站升级（用完即拆）"),
@@ -147,7 +147,7 @@ public enum WriteReason {
      * **本理由是否属于"容器写入"**（T1 / R-5，2026-09-14）—— 唯一真源。
      *
      * <p>容器写入是写入的**第三个维度**（G5）：它不进保护区/地形破坏那套判据，但必须过
-     * `WriteBudget.consumeContainerWrite` + 在策略表里声明。原先没有任何"哪些理由是容器写入"的
+     * `Quota.consumeContainerWrite` + 在策略表里声明。原先没有任何"哪些理由是容器写入"的
      * 程序化判据 ⇒ 写入原语**无法自查**自己的调用方有没有记账（三路审计 §3.1 R-5：
      * 4 处散抄、3 个原语自身无闸门）⇒ 新增模组适配默认无记账。
      * 给出这条唯一真源后，原语可以做**编译期/运行期强制**（见 `FurnaceStation.click`）。

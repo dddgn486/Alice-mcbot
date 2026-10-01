@@ -2,7 +2,7 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.write.TaskTargetProtection;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
@@ -195,7 +195,7 @@ public final class ChannelPlaceGuardCheckTask implements Task {
                     ZoneAuthority.regionRefusal(level, bot.getUUID(), blocked,
                             AreaData.get(level.getServer()).protectionReason(level, blocked),
                             WriteReason.STEP_PLACEMENT, ZoneAuthority.Act.PLACE) == null);
-            check("前提④：放置预算可用（否则执行层会被预算先拦下）", WriteBudget.placeAllowed(bot));
+            check("前提④：放置预算可用（否则执行层会被预算先拦下）", Quota.placeAllowed(bot));
             step++;
             return Task.Status.RUNNING;
         }

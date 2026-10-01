@@ -1,6 +1,6 @@
 package com.dddgn.alice.fixture;
 
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.calc.PathRequest;
@@ -16,7 +16,7 @@ import com.dddgn.alice.task.TaskTarget;
  * 执行期写入预算自检（D-106）：**预算用满后绝不再改世界，并如实失败**。
  *
  * <p>场景复用 `break_course`（x=3 两格高石墙挡住 (0,64,66) → (7,64,66)），
- * 但把本次任务的破坏上限压到 **1 格**（夹具专用 {@link WriteBudget#setCaps}，不接玩家命令）。
+ * 但把本次任务的破坏上限压到 **1 格**（夹具专用 {@link Quota#setCaps}，不接玩家命令）。
  *
  * <p>断言（不变式，与"计划先破坏还是先放置"无关）：
  * <ol>
@@ -28,7 +28,7 @@ import com.dddgn.alice.task.TaskTarget;
  *       曾经的行为是"换个写入方式继续试"（破坏被拒后改规划放置绕行），日志里就是 `[WRITE-REFUSED] place`。</li>
  * </ol>
  *
- * <p>输出：`[WriteBudget] CHECK breaks=?/1 exhausted=? wall_broken=? passed_wall=? status=? → PASS|FAIL`。
+ * <p>输出：`[Quota] CHECK breaks=?/1 exhausted=? wall_broken=? passed_wall=? status=? → PASS|FAIL`。
  *
  * <p>⭐ `Z3`（2026-09-23）追加**"区"那一臂**（{@link #assertZoneArms}）：`write_budget` 原先只判
  * "额度用满就不再改世界"；现在还要判「**区外无格数额度**」（无装订时连做 70 次破坏/放置都不许被拒 ——
@@ -36,7 +36,7 @@ import com.dddgn.alice.task.TaskTarget;
  * （`capForEscape(1,1)` ⇒ 第 2 次必被拒）。⚠️ 判据的静态那一半（"默认回退 = 不限"）在门禁
  * `rule_write_budget_zone_and_container_exception` 里 —— **两个半张一起才叫判据**。
  */
-public final class WriteBudgetCheckTask implements Task {
+public final class QuotaCheckTask implements Task {
 
     /** 与 `break_course_terrain` 对齐：起点 / 目标 / 墙位置。 */
     public static final BlockPos START_FOOT = new BlockPos(0, 64, 66);
@@ -65,14 +65,14 @@ public final class WriteBudgetCheckTask implements Task {
     /** `Z3` 的"区"那一臂的读数（进 SUMMARY，便于读日志的人核对）。 */
     private String zoneDetail = "-";
 
-    public WriteBudgetCheckTask(BotPlayer bot, com.dddgn.alice.perception.ScopeBuffer scope) {
+    public QuotaCheckTask(BotPlayer bot, com.dddgn.alice.perception.ScopeBuffer scope) {
         this.bot = bot;
         this.scope = scope;
     }
 
     @Override
     public String taskName() {
-        return "WriteBudgetCheck";
+        return "QuotaCheck";
     }
 
     @Override
@@ -111,10 +111,10 @@ public final class WriteBudgetCheckTask implements Task {
                 () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
                 stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "pickaxe");
         // 夹具职责：把本次任务的破坏上限压到 1 格（不暴露为玩家命令）
-        WriteBudget.setCaps(WriteBudget.scopeOf(bot), new WriteBudget.Caps(CAP_BREAKS, 0));
-        BotLog.info("[WriteBudget] CHECK setup start={} goal={} caps={} {}",
+        Quota.setCaps(Quota.scopeOf(bot), new Quota.Caps(CAP_BREAKS, 0));
+        BotLog.info("[Quota] CHECK setup start={} goal={} caps={} {}",
                 START_FOOT.toShortString(), GOAL_FOOT.toShortString(), CAP_BREAKS,
-                WriteBudget.describe(bot));
+                Quota.describe(bot));
         runner = new com.dddgn.alice.pathing.path.PathRetryRunner(bot,
                 PathRequest.withWorldModification(bot.getUUID().toString(), START_FOOT, GOAL_FOOT,
                         "write-budget-check"),
@@ -126,7 +126,7 @@ public final class WriteBudgetCheckTask implements Task {
     private Task.Status run() {
         if (++ticks > RUN_BUDGET_TICKS) {
             resultStatus = "TASK_TIMEOUT";
-            BotLog.warn("[WriteBudget] CHECK 运行超时（{} tick）→ 断言", ticks);
+            BotLog.warn("[Quota] CHECK 运行超时（{} tick）→ 断言", ticks);
             runner = null;
             phase = Phase.ASSERT;
             return Task.Status.RUNNING;
@@ -137,7 +137,7 @@ public final class WriteBudgetCheckTask implements Task {
         }
         var result = runner.result();
         resultStatus = result == null ? state.name() : result.status().name();
-        BotLog.info("[WriteBudget] CHECK run_end state={} status={} replans={} feet={}",
+        BotLog.info("[Quota] CHECK run_end state={} status={} replans={} feet={}",
                 state, resultStatus, runner.replans(),
                 com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot).toShortString());
         runner = null;
@@ -147,11 +147,11 @@ public final class WriteBudgetCheckTask implements Task {
 
     private Task.Status assertResult() {
         ServerLevel level = bot.serverLevel();
-        int breaks = WriteBudget.breaks(bot);
-        int places = WriteBudget.places(bot);
-        int refusedBreaks = WriteBudget.refusedBreaks(bot);
-        int refusedPlaces = WriteBudget.refusedPlaces(bot);
-        boolean triggered = WriteBudget.breakExhausted(bot) || WriteBudget.placeExhausted(bot);
+        int breaks = Quota.breaks(bot);
+        int places = Quota.places(bot);
+        int refusedBreaks = Quota.refusedBreaks(bot);
+        int refusedPlaces = Quota.refusedPlaces(bot);
+        boolean triggered = Quota.breakExhausted(bot) || Quota.placeExhausted(bot);
         // 世界事实复核：墙区里变成空气的格子数（只信世界，不只信计数器）
         int wallBroken = 0;
         for (int y = WALL_Y_MIN; y <= WALL_Y_MAX; y++) {
@@ -172,7 +172,7 @@ public final class WriteBudgetCheckTask implements Task {
         // 曾经的行为是"换个写入方式继续试"（改规划放置绕行），证据就是 refusedPlaces>0
         boolean noDoomedWrites = refusedPlaces == 0;
         boolean pass = noOverrun && stopped && triggered && noDoomedWrites;
-        BotLog.info("[WriteBudget] CHECK breaks={}/{} places={}/0 refusedBreaks={} refusedPlaces={}"
+        BotLog.info("[Quota] CHECK breaks={}/{} places={}/0 refusedBreaks={} refusedPlaces={}"
                         + " exhausted={} wall_broken={} passed_wall={} status={} → {}",
                 breaks, CAP_BREAKS, places, refusedBreaks, refusedPlaces, triggered, wallBroken,
                 passedWall, resultStatus, pass ? "PASS" : "FAIL");
@@ -194,69 +194,69 @@ public final class WriteBudgetCheckTask implements Task {
      * <p><b>前提自证</b>：本臂要在**区外**（无主区域）成立 —— 样本格必须 `LedgerScope.isWild`；
      * 不是区外就**如实判红**（不许默默换个说法继续，`Z2` 的教训：夹具得自己声明前提）。
      *
-     * <p><b>臂①「无装订 ⇒ 不设格数额度」</b>：把生效上限装成 {@link WriteBudget.Caps#UNBOUNDED}
+     * <p><b>臂①「无装订 ⇒ 不设格数额度」</b>：把生效上限装成 {@link Quota.Caps#UNBOUNDED}
      * （= 默认派生的那个值，见门禁 `rule_write_budget_zone_and_container_exception`）
      * ⇒ 连做 {@link #ZONE_PROBES} 次破坏 + 放置**一次都不许被拒**（`D-398` R4：区外无限制修改，
      * 闸门改为时间预算防空转）。
      *
-     * <p><b>臂②「显式装订照旧强制」</b>：{@link WriteBudget#capForEscape}（`D-241` 逃生准备金）
+     * <p><b>臂②「显式装订照旧强制」</b>：{@link Quota#capForEscape}（`D-241` 逃生准备金）
      * ⇒ 第 1 次放行、第 2 次**必须被拒**（`Z3`：保留显式装订）。
      * ⚠️ 额度按**作用域累计**读 ⇒ 这里装的是"**再给 1 次**"（`当前计数 + 1`），
      * 不是绝对值 1（那会在本阶段第一次调用就被拒 —— 判据看着对、前提是假的）。
-     * ⚠️ 这条拒必须是**瞬时**语义 —— 它跨边界时用 {@link WriteBudget#EXHAUSTED_CODE}，
+     * ⚠️ 这条拒必须是**瞬时**语义 —— 它跨边界时用 {@link Quota#EXHAUSTED_CODE}，
      * 由门禁钉"只有一个拼法"；本臂负责"真的会拒"。
      */
     private Task.Status assertZoneArms() {
         ServerLevel level = bot.serverLevel();
-        String scope = WriteBudget.scopeOf(bot);
+        String scope = Quota.scopeOf(bot);
         boolean wild = com.dddgn.alice.protection.LedgerScope.isWild(level, START_FOOT);
         if (!wild) {
             failure = "ZONE_PREMISE_NOT_WILD start=" + START_FOOT.toShortString()
                     + "（本臂只在区外成立；场景/认领变了就要先修前提）";
-            BotLog.warn("[WriteBudget] ZONE premise=FAIL {} ⇒ 本臂不作数", failure);
+            BotLog.warn("[Quota] ZONE premise=FAIL {} ⇒ 本臂不作数", failure);
             zoneDetail = "premise=FAIL";
             phase = Phase.DONE;
             return Task.Status.FAILED;
         }
         // ---- 臂①：无装订（生效上限 = UNBOUNDED）⇒ 一次都不被拒 ----
-        WriteBudget.setCaps(scope, WriteBudget.Caps.UNBOUNDED);
-        int b0 = WriteBudget.breaks(bot);
-        int p0 = WriteBudget.places(bot);
-        int rb0 = WriteBudget.refusedBreaks(bot);
-        int rp0 = WriteBudget.refusedPlaces(bot);
+        Quota.setCaps(scope, Quota.Caps.UNBOUNDED);
+        int b0 = Quota.breaks(bot);
+        int p0 = Quota.places(bot);
+        int rb0 = Quota.refusedBreaks(bot);
+        int rp0 = Quota.refusedPlaces(bot);
         for (int i = 0; i < ZONE_PROBES; i++) {
             BlockPos probe = START_FOOT.offset(i - ZONE_PROBES / 2, 0, 0);
-            WriteBudget.consumeBreak(bot, level, probe, null);
-            WriteBudget.consumePlace(bot, level, probe, null);
+            Quota.consumeBreak(bot, level, probe, null);
+            Quota.consumePlace(bot, level, probe, null);
         }
-        int dBreaks = WriteBudget.breaks(bot) - b0;
-        int dPlaces = WriteBudget.places(bot) - p0;
-        int dRefusedBreaks = WriteBudget.refusedBreaks(bot) - rb0;
-        int dRefusedPlaces = WriteBudget.refusedPlaces(bot) - rp0;
+        int dBreaks = Quota.breaks(bot) - b0;
+        int dPlaces = Quota.places(bot) - p0;
+        int dRefusedBreaks = Quota.refusedBreaks(bot) - rb0;
+        int dRefusedPlaces = Quota.refusedPlaces(bot) - rp0;
         // 读数也必须同源：剩余额度不能因为 counters 涨了就说"没额度了"（P1-a 的那类副本）
-        int remainBreaks = WriteBudget.remainingBreaks(bot);
+        int remainBreaks = Quota.remainingBreaks(bot);
         boolean armA = dBreaks == ZONE_PROBES && dPlaces == ZONE_PROBES
                 && dRefusedBreaks == 0 && dRefusedPlaces == 0 && remainBreaks > ZONE_PROBES;
         // ---- 臂②：显式装订 ⇒ 第 2 次必被拒 ----
         // ⚠️ 额度是**本作用域累计**的（RUN 阶段已经用掉过若干次）⇒ 这里要的是"**再给 1 次**"，
         // 写成绝对值 1 会让**第一次**就被拒（本夹具第一版就这么错过：判据看着对、前提是假的）。
-        WriteBudget.capForEscape(scope, WriteBudget.breaks(bot) + 1, WriteBudget.places(bot) + 1);
-        int rb1 = WriteBudget.refusedBreaks(bot);
-        int rp1 = WriteBudget.refusedPlaces(bot);
-        var firstBreak = WriteBudget.consumeBreak(bot, level, START_FOOT, null);
-        var secondBreak = WriteBudget.consumeBreak(bot, level, START_FOOT, null);
-        var firstPlace = WriteBudget.consumePlace(bot, level, START_FOOT, null);
-        var secondPlace = WriteBudget.consumePlace(bot, level, START_FOOT, null);
-        boolean armB = firstBreak != WriteBudget.Verdict.REFUSED
-                && secondBreak == WriteBudget.Verdict.REFUSED
-                && firstPlace != WriteBudget.Verdict.REFUSED
-                && secondPlace == WriteBudget.Verdict.REFUSED
-                && WriteBudget.refusedBreaks(bot) - rb1 == 1
-                && WriteBudget.refusedPlaces(bot) - rp1 == 1;
+        Quota.capForEscape(scope, Quota.breaks(bot) + 1, Quota.places(bot) + 1);
+        int rb1 = Quota.refusedBreaks(bot);
+        int rp1 = Quota.refusedPlaces(bot);
+        var firstBreak = Quota.consumeBreak(bot, level, START_FOOT, null);
+        var secondBreak = Quota.consumeBreak(bot, level, START_FOOT, null);
+        var firstPlace = Quota.consumePlace(bot, level, START_FOOT, null);
+        var secondPlace = Quota.consumePlace(bot, level, START_FOOT, null);
+        boolean armB = firstBreak != Quota.Verdict.REFUSED
+                && secondBreak == Quota.Verdict.REFUSED
+                && firstPlace != Quota.Verdict.REFUSED
+                && secondPlace == Quota.Verdict.REFUSED
+                && Quota.refusedBreaks(bot) - rb1 == 1
+                && Quota.refusedPlaces(bot) - rp1 == 1;
         zoneDetail = "wild=" + wild + " unbound[breaks=+" + dBreaks + " places=+" + dPlaces
                 + " refused=+" + dRefusedBreaks + "/+" + dRefusedPlaces + " remainBreaks=" + remainBreaks
                 + "] capForEscape[2ndBreak=" + secondBreak + " 2ndPlace=" + secondPlace + "]";
-        BotLog.info("[WriteBudget] ZONE 野外={} 臂①无装订不设额度={} 臂②显式装订照旧强制={}｜{}",
+        BotLog.info("[Quota] ZONE 野外={} 臂①无装订不设额度={} 臂②显式装订照旧强制={}｜{}",
                 wild, armA ? "PASS" : "FAIL", armB ? "PASS" : "FAIL", zoneDetail);
         phase = Phase.DONE;
         if (!(armA && armB)) {

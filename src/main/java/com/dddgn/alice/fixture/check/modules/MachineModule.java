@@ -61,7 +61,7 @@ public final class MachineModule implements CheckModule {
                         () -> new MachineStationProbeTask(bot, observer), 400,
                         task -> task.failureReason().contains("_absent")),
                 // 阶段 3-B / S4（D-213）：**单机最小闭环** —— 真的把一台机器跑起来一次（放料 → 等 → 取产物）。
-                // 第一次**容器写入**：`WriteBudget.consumeContainerWrite` + 理由 CONTAINER_TRANSFER +
+                // 第一次**容器写入**：`Quota.consumeContainerWrite` + 理由 CONTAINER_TRANSFER +
                 // requester `machine-cycle`（矩阵登记为 CONTAINER）；写入一律**按结果验证**，不猜槽位语义。
                 // 预算 1600 > 任务自身 MAX_TICKS 1400（让任务的守卫先报**具体**失败原因）。
                 CheckStep.skippable("machine_cycle", CheckProfile.EXTRA, course,

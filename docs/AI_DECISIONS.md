@@ -27651,3 +27651,23 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 ⭐ **逐步 diff（脚本比对两份 SUMMARY 的 步→判决 表）**：**45 → 44 步**，消失的**只有** `lumber_job`，
 新增 0 步，**其余 44 步判决零变化** ⇒ ⛔ 没有"被撤的步在替别的步做前置/清场"那类连带（当年
 `craft_furnace`/`craft_cooking`/`transfer` 就是这么红的）。
+
+**刀 4 第 ③ 件已落地（2026-10-01，用户第二次裁定 —— ⭐ 推翻了我荐的"留在 `write/`"）**
+
+用户逐字：**「没有 write 包，write 语义已经更改为 modify，而且没有专属包，不去 job/ 也应该去 region/ 的子包」**
+＋ 我追问后逐字：**「理论上 write 包要全部拆解搬家，`modify` 不是包，是 `write` 的正确语义，用于改名的参考词」**
+＋ 落点选择：**`region/authz/Quota`**（`§1` 原方案）。
+
+| 项 | 内容 |
+|---|---|
+| 落点 | `write/WriteBudget` → **`region/authz/Quota`**（`git mv` ＋ 改名；⭐ **⛔ 不去 `job/`** —— 那会让 12 包 / 26 文件反向依赖最高层，见 `O131`） |
+| ⭐ 为什么 `region/authz/` 不造新边 | `pathing → region/authz` 这条边**今天已经存在**（`pathing → protection.ZoneAuthority`）⇒ 26 处 `X → write` 变成 `X → region/authz` 是**同一个方向**（两者都是"谁都要问"的被咨询层）；⚠️ 且 `write/` 对 `Quota` **无代码引用**（实测）⇒ 不会造出 `write → region/authz` 的环 |
+| ⚠️ 与第六轮口径的字面冲突（如实登记） | 第六轮的前提写的是「`authz/` 只剩**谓词 ＋ 初始权限表 ＋ 覆盖检查**」（把"额度"排除在外），而 `§1` 原本就把**额度**列在 `authz` 里 ⇒ 用户本次选 `region/authz/` = **把"额度"重新算进 authz** ⇒ 第六轮那句以本条为准**放宽** |
+| ⛔ `write/` 的结局（用户的准确口径） | **`write/` 理论上要全部拆解搬家**；`modify` **⛔ 不是包名**，它是 `write` 的**正确语义**、**改名的参考词**（`WriteAudit → ModifyAudit` 就是这么来的）⇒ ⛔ **不做"整包改名 `write/` → `modify/`"**；该包的去留仍按 `D-563`/`O116`（**排在最后**）⇒ 本刀只搬走 `Quota`，其余 4 类（`TaskTargetProtection`/`Attribution`/`WritePolicyMatrix`/`WriteReason`）**原地不动** |
+| 顺带改名 | `fixture/WriteBudgetCheckTask` → **`QuotaCheckTask`**（`taskName()` = `"QuotaCheck"`）· `item/WriteBudgetCheckItem` → **`QuotaCheckItem`** · `FixtureDispatch.assignWriteBudgetCheck` → `assignQuotaCheck`。⭐ **游戏内物品 id 一字未变**（`alice:write_budget_check` 是小写字面量注册名）⇒ 测试入口不变 |
+| 同步表 | `check-layer-direction`（`WRITE_GOVERNANCE` 收窄到 **4** · `MIN_WRITE_FILES` 5 → **4** · 新增 `region/authz/Quota` 搬包判据 · 红臂路径回到 `write/` 下）· ⭐ `check-kernel-predicates` **3 处硬写路径** ＋ `Z3` 的**扫描单元**（原文自述"`Quota` 一搬家，它原先所属的扫描单元就被抽空了" ⇒ `region/authz` 必须进扫描面，否则覆盖面被静默缩小）· `docs/TASK_DISPATCH_TABLE.csv`（`--write`）· `docs/authz/POLICY_MATRIX.csv`（重生成） |
+
+**验证等级**：`compileJava --offline` 成功 · `ALICE_HEADLESS=1 check-all` ⇒
+`PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`（CORE 44 步，逐步 diff 见 `lumber_job` 那条记录）·
+⭐ `check-kernel-predicates`/`check-layer-direction`/`check-task-dispatch-table`/`check-policy-matrix`
+四个门禁**当场抓到 7 处硬写路径/名单**（`D-462` 那类已知代价，全部按门禁自己的规矩修）。

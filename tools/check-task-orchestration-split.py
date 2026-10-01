@@ -22,7 +22,7 @@
 | **B** | 原语只有**一个成功出口** | `Conclusion.success()` 产出点**恰好 1**，且 4 个结论工厂**各有且仅有 1 个定义**（正向人口：改名/删工厂必须红，不许静默变成 0） |
 | **C** | **原语不造子任务，编排器真在委托** | ① `MineStep` 里 `new MineTask(` **0** 处；② `MineTask` 里对原语的调用 `step.` **≥ `MIN_DELEGATIONS`** |
 | **D1** | 原语的额度**只来自构造参数** | `MineStep` 里 `MiningBudget.forTarget|collecting(` / `new MiningBudget(` **0** 处；且类内**额度词命名**的 `static final` 常量 **0** 条 |
-| **D2** | 原语消费额度的点**恰好 1 个、且是具名的那个** | 全部被识别的"额度消费"形态合计**恰好 1** 处，且它必须是 `NAMED_BUDGET_SITES` 里那一处（今天 = `miningPlanner.plan(`）；`WriteBudget.` **0** 处 |
+| **D2** | 原语消费额度的点**恰好 1 个、且是具名的那个** | 全部被识别的"额度消费"形态合计**恰好 1** 处，且它必须是 `NAMED_BUDGET_SITES` 里那一处（今天 = `miningPlanner.plan(`）；`Quota.` **0** 处 |
 
 ⚠️ **D1 比 `check-primitive-budget-injection.py` 更严**：那条门禁只红"构造器/字段初始化/静态块里造额度"
 （"调用方不说也能用"的入口），并把"方法体里为子任务派生额度"**显式列为绿**；本条的靶子是**原语自己**，
@@ -56,7 +56,7 @@
 | **C①** | 原语**不造**编排器 | `CollectStep` 里 `new CollectDropsTask(` **0** 处 |
 | **C②** | 编排器**真在委托** | `CollectDropsTask` 里对原语的调用 `step.` **≥ `MIN_DELEGATIONS_5B`** |
 | **D1** | 原语的额度**只来自构造参数** | `CollectStep` 里额度制造 **0** 处；类内**额度词命名**的 `static final` **0** 条 |
-| **D2** | 原语消费额度的点**恰好 1 个、且是具名的那个** | `sweepTicks > sweepBudgetTicks` 这类比较**恰好 1** 处，且它必须**在具名方法** `sweepBudgetExhausted()` 体内；`WriteBudget.` **0** 处 |
+| **D2** | 原语消费额度的点**恰好 1 个、且是具名的那个** | `sweepTicks > sweepBudgetTicks` 这类比较**恰好 1** 处，且它必须**在具名方法** `sweepBudgetExhausted()` 体内；`Quota.` **0** 处 |
 
 ⚠️ **为什么 `5b` 只有四条**（不套 5a 的 A/B）：`A`（无相位机）与 `B`（单一成功出口）的落点是
 `MineStep` 的 `Conclusion` 工厂 —— `CollectStep` 的对应物是 `Outcome` + `Reading`，形状不同，
@@ -102,11 +102,11 @@ QUOTA_WORD = re.compile(r"(?i)(budget|quota|grant|额度)")
 #: 判据 D2 的"额度消费"识别面（**全部**形态都要数，不只数具名那一处）。
 BUDGET_CONSUMPTION = (
     r"miningPlanner\s*\.\s*plan\s*\(",
-    r"WriteBudget\s*\.\s*consume\w*\s*\(",
+    r"Quota\s*\.\s*consume\w*\s*\(",
     r"\.\s*consumeBreak\s*\(",
     r"\.\s*consumePlace\s*\(",
 )
-WRITE_BUDGET = re.compile(r"WriteBudget\s*\.")
+WRITE_BUDGET = re.compile(r"Quota\s*\.")
 
 # ==================== `step 5b`（`D-493`）：收集侧的第二个原语 ====================
 
@@ -397,7 +397,7 @@ def check_d2_named_consumption_sites(code: str) -> list[str]:
                         f"（`{NAMED_BUDGET_SITES[0]}`）⇒ 清单与代码对不上了")
     write_hits = len(WRITE_BUDGET.findall(code))
     if write_hits:
-        problems.append(f"`MineStep` 里出现 {write_hits} 处 `WriteBudget.` ⇒ 写入额度的消费点"
+        problems.append(f"`MineStep` 里出现 {write_hits} 处 `Quota.` ⇒ 写入额度的消费点"
                         f"属于执行机制（`MineBlockRunner`），不该长在原语里")
     return problems
 
@@ -476,7 +476,7 @@ def check_5b_d2_named_consumption_sites(code: str) -> list[str]:
                         f"⇒ 清单与代码对不上（消费点必须有名字，否则「恰好一处」不可读）")
     write_hits = len(WRITE_BUDGET.findall(code))
     if write_hits:
-        problems.append(f"`CollectStep` 里出现 {write_hits} 处 `WriteBudget.` ⇒ 写入额度的消费点"
+        problems.append(f"`CollectStep` 里出现 {write_hits} 处 `Quota.` ⇒ 写入额度的消费点"
                         f"属于执行机制，不该长在原语里")
     return problems
 
@@ -560,7 +560,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
     ("D2 红：额度消费点 2 处", "d2",
      "    void f() { miningPlanner.plan(bot, target, budget); miningPlanner.plan(bot, target, budget); }\n", True),
     ("D2 红：原语里直接烧写入额度", "d2",
-     "    void f() { miningPlanner.plan(bot, target, budget); WriteBudget.consumeBreak(bot, l, t, g); }\n", True),
+     "    void f() { miningPlanner.plan(bot, target, budget); Quota.consumeBreak(bot, l, t, g); }\n", True),
     ("D2 绿：恰好一处、就是具名那一处", "d2",
      "    void f() { var r = miningPlanner.plan(bot, target, budget, p, a); }\n", False),
 ]

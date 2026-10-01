@@ -218,9 +218,9 @@ public final class TransferTask implements Task {
         }
         if (menuStage == MenuStage.NONE) {
             activeGrant = containerGrant();
-            if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
+            if (com.dddgn.alice.region.authz.Quota.consumeContainerWrite(bot,
                     request.source().position(), activeGrant)
-                    == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
+                    == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED) {
                 return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.NOT_MOVED);
             }
             transition(TransferLedgerData.State.SOURCE_LEG_PRE, TransferLedgerData.Location.NOT_MOVED, "", false);
@@ -288,9 +288,9 @@ public final class TransferTask implements Task {
         }
         if (menuStage == MenuStage.NONE) {
             activeGrant = containerGrant();
-            if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
+            if (com.dddgn.alice.region.authz.Quota.consumeContainerWrite(bot,
                     request.destination().position(), activeGrant)
-                    == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
+                    == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED) {
                 return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.BOT_INVENTORY);
             }
             transition(TransferLedgerData.State.DESTINATION_LEG_PRE, TransferLedgerData.Location.BOT_INVENTORY, "", false);
@@ -425,8 +425,8 @@ public final class TransferTask implements Task {
         }
         // 授权 + 预算（容器写入纳入"世界改动"体系；超限即拒绝）
         com.dddgn.alice.write.Attribution grant = containerGrant();
-        if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
-                request.source().position(), grant) == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
+        if (com.dddgn.alice.region.authz.Quota.consumeContainerWrite(bot,
+                request.source().position(), grant) == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED) {
             return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.NOT_MOVED);
         }
         transition(TransferLedgerData.State.SOURCE_LEG_PRE, TransferLedgerData.Location.NOT_MOVED, "", false);
@@ -447,8 +447,8 @@ public final class TransferTask implements Task {
             return destinationWriteViaMenu();
         }
         com.dddgn.alice.write.Attribution grant = containerGrant();
-        if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
-                request.destination().position(), grant) == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
+        if (com.dddgn.alice.region.authz.Quota.consumeContainerWrite(bot,
+                request.destination().position(), grant) == com.dddgn.alice.region.authz.Quota.Verdict.REFUSED) {
             return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.BOT_INVENTORY);
         }
         transition(TransferLedgerData.State.DESTINATION_LEG_PRE, TransferLedgerData.Location.BOT_INVENTORY, "", false);

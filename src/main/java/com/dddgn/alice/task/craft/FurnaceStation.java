@@ -572,7 +572,7 @@ public final class FurnaceStation {
         if (menu == null || address < 0) {
             return false;
         }
-        // ⚠️ T1 / R-5（2026-09-14）：**本原语原先整个文件都没有 WriteBudget/Attribution 引用**
+        // ⚠️ T1 / R-5（2026-09-14）：**本原语原先整个文件都没有 Quota/Attribution 引用**
         // （三路审计 §3.1 R-5 实证）⇒ "记账靠调用方自觉" ⇒ 任何新增模组适配默认无记账。
         // 现在做**编译期强制**：调本原语必须显式交出 `Attribution`，且理由必须属于"容器写入"家族
         // （`WriteReason.container()`，唯一真源）；**不在这里计数**（计数归调用方，登记在

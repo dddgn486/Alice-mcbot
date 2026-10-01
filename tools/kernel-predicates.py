@@ -1749,7 +1749,7 @@ def rule_cluster_is_pure_geometry():
     "哪些真能挖"永远由调用方用**当前**的授权/可破性去算（`MineJob` 的 `revalidate` 就是那个位置）。
 
     断言（加任一符号 ⇒ 红）：
-    ① `TargetClusters` 里**不出现** `ZoneAuthority` / `breakable` / `WriteBudget` / `MineScanMemoryData`
+    ① `TargetClusters` 里**不出现** `ZoneAuthority` / `breakable` / `Quota` / `MineScanMemoryData`
        / `getBlockState`（几何就是几何：不读世界、不问授权、不查记忆）；
     ② 相邻判定只有**一处出处**（`isNeighbour`），且两种口径都在（`FACE` / `DIAGONAL_26` 逐条有判据）；
     ③ 超预算的宽容度是**常量**（`DEFAULT_EXTRA_SEARCH_BUDGET`），不许散落在调用方。
@@ -1760,7 +1760,7 @@ def rule_cluster_is_pure_geometry():
     if not path.exists():
         return ["`TargetClusters` 不在了（本规则要跟着改）"]
     text = path.read_text(encoding="utf-8")
-    for banned in ["ZoneAuthority", "breakable", "WriteBudget", "MineScanMemoryData",
+    for banned in ["ZoneAuthority", "breakable", "Quota", "MineScanMemoryData",
                    "getBlockState", "AreaData"]:
         if banned in text:
             problems.append("`TargetClusters` 里出现了 `%s` ⇒ 簇判定**不再纯粹是几何**"
@@ -2609,8 +2609,9 @@ def rule_write_caps_default_open_protection_kept():
     —— 否则"额度"就只剩一句口号（`D-466` 判 3 · D2 同族）。
     """
     problems = []
-    budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
-              / "WriteBudget.java").read_text(encoding="utf-8")
+    # ⚠️ 2026-10-01 刀 4：`write/WriteBudget` → **`region/authz/Quota`**（用户裁定）⇒ 路径跟着走
+    budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "region" / "authz"
+              / "Quota.java").read_text(encoding="utf-8")
     gate = (cpath("CapabilityGate.java")).read_text(encoding="utf-8")
     collector = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
                  / "CollectDropsTask.java").read_text(encoding="utf-8")
@@ -2662,7 +2663,7 @@ def rule_tick_search_account_enforced():
     `[Search] 超 tick 预算` **376 条**、最大一波 **336 条跨 57.6 s**；`[Job] step` 间隔 **2.4 s**
     （= 一个 tick ⇒ ≈0.4 TPS）；根因不是"单次搜索慢"（`D-369` 已框 200 ms），而是
     **"一个 tick 里连发 13 次全预算搜索"**（`MiningPlanner` 模式 B 对 13 个站位候选逐一精算）。
-    定性同 `survey/24 §1.1`：**共享资源的记账缺失** —— 与项目自己解决过的 `WriteBudget` 同一类问题。
+    定性同 `survey/24 §1.1`：**共享资源的记账缺失** —— 与项目自己解决过的 `Quota` 同一类问题。
 
     断言（改任一处 ⇒ 红）：
     ① 规划入口（`CorePathPlanner.plan`）必须过 tick 边界 + 过闸门（**钉有效调用**，不是钉类名）；
@@ -4957,28 +4958,29 @@ def rule_write_truth_single_source():
     <h3>为什么（两份不同源的真事故，不是推测）</h3>
     三本账各司其职，但**同一个量**只能有一个出处：
     · `WorldModLedger` = **义务与残留**的真相（"还欠多少"，含 `RC3` 的不可逆事实）；
-    · `WriteBudget` = **闸门 + 人口**（"还让不让写" / "这次窗口写了多少次，含区外"）；
+    · `Quota` = **闸门 + 人口**（"还让不让写" / "这次窗口写了多少次，含区外"）；
     · `ModifyAudit` = **逐条审计明细**（谁授权、写了哪一格）。
     而 `consumeBreak` 在**会话开始前**扣账，破坏却可能在很多 tick 之后才被证明**根本没发生**
     ⇒ `D-323` 真机现场（`BreakRefusedCheckTask` 头部原话）：FTB 认领内 4 次破坏全打了
-    `WriteBudget breaks=1/64`，而存档里那 4 格仍是 `minecraft:dirt`。`D-323` 只修好了**报告**，
+    `Quota breaks=1/64`，而存档里那 4 格仍是 `minecraft:dirt`。`D-323` 只修好了**报告**，
     **扣账留着** ⇒ 预算账说"写了 N 次"、世界与审计说"一次都没写" = 同一量两份真相。
 
     <h3>四条臂（各有一条注入）</h3>
-    ① **世界没变 ⇒ 退回扣账**：`WriteBudget.refundBreak` 存在，且 `BlockBreakSession.fail(...)`
+    ① **世界没变 ⇒ 退回扣账**：`Quota.refundBreak` 存在，且 `BlockBreakSession.fail(...)`
        （所有"没成功"的终态都走它）与 `BlockInteraction.breakForBulkEdit` 的 `world_unchanged` 分支都调用；
     ② **放置侧的既有正确形状**（回归锁）：`placeAt` 里 `consumePlace(` 必须在"方块真的落地"判据之后
        （"失败不占额度"）—— 破坏那一侧要补齐的就是这条原则；
-    ③ **义务口径唯一**：`WriteBudget` **不得**提供"待收/残留"类 API（待收只许问账本）；
-    ④ **计数读数只许在夹具/探针**：`WriteBudget.breaks|places|writeCount|population` 不得出现在
+    ③ **义务口径唯一**：`Quota` **不得**提供"待收/残留"类 API（待收只许问账本）；
+    ④ **计数读数只许在夹具/探针**：`Quota.breaks|places|writeCount|population` 不得出现在
        生产决策目录（`action/`/`write/`/`pathing/`/`job/`/`bot/`）——
-       ⚠️ `WriteBudget` 自身除外；它随 `J-★` 第 6 段 **step 4**（`D-462`，2026-09-27）搬进 `write/`，
+       ⚠️ `Quota` 自身除外；它随 `J-★` 第 6 段 **step 4**（`D-462`，2026-09-27）搬进 `write/`，
        本臂的扫描目录**同步加宽**（`write/` 由"不在名单"变成"在名单"）—— 否则搬包会让本臂
-       **静默缩小**覆盖面（`WriteBudget` 一搬家，它原先所属的扫描单元 `action/` 就被抽空了）。
+       **静默缩小**覆盖面（`Quota` 一搬家，它原先所属的扫描单元 `action/` 就被抽空了）。
        `describe(` 是允许的（它是"上限 + 计数"的证据行，`Z3` 已把它钉成同源）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    budget = base / "write/WriteBudget.java"
+    # ⚠️ 2026-10-01 刀 4：`Quota` 已由 `write/` 搬到 `region/authz/`（用户裁定）⇒ 路径跟着走
+    budget = base / "region/authz/Quota.java"
     session = base / "action/BlockBreakSession.java"
     interact = base / "action/BlockInteraction.java"
 
@@ -4999,7 +5001,7 @@ def rule_write_truth_single_source():
 
     # ---- 臂① 世界没变 ⇒ 退回扣账 ----
     if "public static void refundBreak(" not in bud:
-        problems.append("`WriteBudget` 没有 `refundBreak(...)` ⇒ 没有任何地方能退回"
+        problems.append("`Quota` 没有 `refundBreak(...)` ⇒ 没有任何地方能退回"
                         "「世界没变却已扣掉」的那笔账（`D-323` 的尾巴）")
     fail_body = method_body(ses, "private Status fail(")
     if "refundBreak(" not in fail_body:
@@ -5035,15 +5037,17 @@ def rule_write_truth_single_source():
            #（`breakAllowed`/`placeAllowed`/`plannedWritesAllowed`），规则自己假红了一次。
            if re.search(r"pending|unreclaim|residue|leftover", n, re.I)]
     if bad:
-        problems.append(f"`WriteBudget` 出现了「待收/残留」类 API {bad} ⇒ 同一个量出现第二个真相"
+        problems.append(f"`Quota` 出现了「待收/残留」类 API {bad} ⇒ 同一个量出现第二个真相"
                         "（「还欠多少」只许问账本 `WorldModLedger`/`closure(...)`）")
 
     # ---- 臂④ 计数读数只许在夹具/探针 ----
-    counted = ("WriteBudget.breaks(", "WriteBudget.places(", "WriteBudget.writeCount(",
-               "WriteBudget.population(")
-    for sub in ("action", "write", "pathing", "job", "bot"):
+    counted = ("Quota.breaks(", "Quota.places(", "Quota.writeCount(",
+               "Quota.population(")
+    # ⚠️ 2026-10-01 刀 4：`region/authz` 必须**进扫描面** —— `Quota` 现在住那儿，
+    # 漏掉它就把这条检查的覆盖面**静默缩小**（正是本函数 docstring 自己警告的那件事）。
+    for sub in ("action", "write", "pathing", "job", "bot", "region/authz"):
         for path in sorted((base / sub).rglob("*.java")):
-            if path.name == "WriteBudget.java":
+            if path.name == "Quota.java":
                 continue
             text = code(path)
             if text is None:
@@ -5141,7 +5145,7 @@ def rule_write_budget_zone_and_container_exception():
     """`Z3`（2026-09-23）：**额度只有一处出处；容器轴是唯一例外；瞬时码只有一个拼法**。
 
     <h3>为什么（审计挖出来的真缺陷，不是推测）</h3>
-    `D-372` 把闸门改成"默认不限"之后，**同一个量在 `WriteBudget` 里出现了 6 个读者**
+    `D-372` 把闸门改成"默认不限"之后，**同一个量在 `Quota` 里出现了 6 个读者**
     （`consumeBreak` / `consumePlace` / `plannedWritesAllowed` / `breakAllowed` / `placeAllowed` /
     `describe`），而 `P1-a`（2026-09-22 真机根因）只修好了 `remaining*` 两个 ⇒ 其余**全都有生产调用者**却
     仍回退 `Caps.DEFAULT`(64/32)：`MovementContext:175 → plannedWritesAllowed`（**A* 的写边谓词**）、
@@ -5155,18 +5159,18 @@ def rule_write_budget_zone_and_container_exception():
     ② **容器轴是唯一例外**（`consumeContainerWrite` / `remainingContainerWrites` 回退 `Caps.DEFAULT`），
        且 `Caps.UNBOUNDED` **不许**顺手把它放开（用户 2026-09-23 裁定：保留容器上限 ——
        容器是别人的存储 `D-076`，与地皮归属正交）；
-    ③ **瞬时码 `write_budget_exhausted` 只许有一个出处**（`WriteBudget.EXHAUSTED_CODE`）——
+    ③ **瞬时码 `write_budget_exhausted` 只许有一个出处**（`Quota.EXHAUSTED_CODE`）——
        它跨内核→作业→归因→日志传递，拼错一个字母就静默丢归因。
 
-    <p>另断言判据还在：`WriteBudgetCheckTask` 必须保留**野外前提自证**与 `capForEscape` 对比臂
+    <p>另断言判据还在：`QuotaCheckTask` 必须保留**野外前提自证**与 `capForEscape` 对比臂
     （否则"区外无额度"这条判据会退化成一句注释）。
     """
-    budget_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
-                   / "WriteBudget.java")
+    budget_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "region" / "authz"
+                   / "Quota.java")
     fixture_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
-                    / "WriteBudgetCheckTask.java")
+                    / "QuotaCheckTask.java")
     if not budget_path.exists() or not fixture_path.exists():
-        return ["`WriteBudget.java` 或 `WriteBudgetCheckTask.java` 不存在（改名？同步本规则）"]
+        return ["`Quota.java` 或 `QuotaCheckTask.java` 不存在（改名？同步本规则）"]
 
     def strip_block_comments(text: str) -> str:
         return re.sub(r"/\*.*?\*/", "", text, flags=re.S)
@@ -5210,7 +5214,7 @@ def rule_write_budget_zone_and_container_exception():
     for body in (container, container_left, close_body):
         rest = rest.replace(body, "", 1)
     if "Caps.DEFAULT" in rest:
-        problems.append("`WriteBudget` 里除容器轴外还出现了 `Caps.DEFAULT` ⇒ 破坏/放置轴上又有了一处 "
+        problems.append("`Quota` 里除容器轴外还出现了 `Caps.DEFAULT` ⇒ 破坏/放置轴上又有了一处 "
                         "`64/32` 兜底（`Z3`：唯一出处是 `effectiveCaps`）")
     if "return CAPS.getOrDefault(scopeId, Caps.UNBOUNDED);" not in code_only(
             method_body(budget, "private static Caps effectiveCaps(")):
@@ -5224,21 +5228,21 @@ def rule_write_budget_zone_and_container_exception():
     literal = '"write_budget_exhausted"'
     offenders = []
     for path in (ROOT / "src" / "main" / "java").rglob("*.java"):
-        if path.name == "WriteBudget.java":
+        if path.name == "Quota.java":
             continue
         if literal in strip_block_comments(path.read_text(encoding="utf-8")):
             offenders.append(path.name)
     if offenders:
-        problems.append(f"瞬时码字面量 {literal} 出现在 WriteBudget 之外：{sorted(offenders)} ⇒ "
-                        f"改用 `WriteBudget.EXHAUSTED_CODE`（拼错一个字母 = 静默丢归因）")
+        problems.append(f"瞬时码字面量 {literal} 出现在 Quota 之外：{sorted(offenders)} ⇒ "
+                        f"改用 `Quota.EXHAUSTED_CODE`（拼错一个字母 = 静默丢归因）")
     if 'public static final String EXHAUSTED_CODE = "write_budget_exhausted";' not in budget:
-        problems.append("`WriteBudget.EXHAUSTED_CODE` 不在了（瞬时码失去唯一出处）")
+        problems.append("`Quota.EXHAUSTED_CODE` 不在了（瞬时码失去唯一出处）")
 
     # ---- 判据本身还在（不是退化成注释）----
     if "LedgerScope.isWild" not in fixture:
-        problems.append("`WriteBudgetCheckTask` 没有**野外前提自证** ⇒ 「区外无额度」这条判据会退化成一句注释")
+        problems.append("`QuotaCheckTask` 没有**野外前提自证** ⇒ 「区外无额度」这条判据会退化成一句注释")
     if "capForEscape(" not in fixture:
-        problems.append("`WriteBudgetCheckTask` 没有 `capForEscape` 对比臂 ⇒ 「显式装订照旧强制」这半没判据")
+        problems.append("`QuotaCheckTask` 没有 `capForEscape` 对比臂 ⇒ 「显式装订照旧强制」这半没判据")
     return problems
 
 
@@ -5252,7 +5256,7 @@ def rule_vacuous_assertions_carry_population():
 
     <h3>两条口径（各一条注入臂）</h3>
     ① **「零写入」类**断言（探针 / 只用现成的步）必须判**闸门计数的真实写入次数 = 0**
-       （`WriteBudget.writeCount(...)`，**与区无关** ⇒ 不会空集；且比「账本空」更强）；
+       （`Quota.writeCount(...)`，**与区无关** ⇒ 不会空集；且比「账本空」更强）；
     ② **「无残留」类**断言与**义务读数**必须报出人口，且义务读数只认区内
        （`pendingTemporaryProtected`）—— 用跨 scope 的 owner 口径会把区外 / 旧存档遗留算成「欠着」。
     """
@@ -5285,14 +5289,14 @@ def rule_vacuous_assertions_carry_population():
             problems.append(f"{rel} 不存在（{label}）—— 改名？同步本规则")
         elif "writeCount(" not in body:
             problems.append(f"{label}（`{rel}`）的「零写入」判据没有人口读数 "
-                            f"`WriteBudget.writeCount(...)` ⇒ `Z1` 之后它在野外是**空集**（恒真、不报错）")
+                            f"`Quota.writeCount(...)` ⇒ `Z1` 之后它在野外是**空集**（恒真、不报错）")
     for rel, label in leftovers.items():
         body = stripped(rel)
         if not body:
             problems.append(f"{rel} 不存在（{label}）—— 改名？同步本规则")
         elif "population(" not in body:
             problems.append(f"{label}（`{rel}`）的「无残留」判据没报**覆盖度 / 人口**"
-                            f"（`WriteBudget.population(...)`）⇒ 读数会被误读成「很干净」")
+                            f"（`Quota.population(...)`）⇒ 读数会被误读成「很干净」")
 
     manager = stripped("bot/BotManager.java")
     if not manager:
@@ -5312,8 +5316,9 @@ def rule_vacuous_assertions_carry_population():
         problems.append("喂给 LLM 的世界事实（`DecisionSnapshot.worldMod`）既没把义务口径收成区内，"
                         "也没真的发出 `writesThisScope` 属性 ⇒ 那个零会被读成「没改过世界」")
 
-    if "public static String population(" not in stripped("write/WriteBudget.java"):
-        problems.append("`WriteBudget.population(...)` 不在了 ⇒ `Z4` 的人口读数工具没了")
+    # ⚠️ 2026-10-01 刀 4：`Quota` 已搬到 `region/authz/` ⇒ 路径同步（漏改会报"工具没了"的假红）
+    if "public static String population(" not in stripped("region/authz/Quota.java"):
+        problems.append("`Quota.population(...)` 不在了 ⇒ `Z4` 的人口读数工具没了")
     return problems
 
 

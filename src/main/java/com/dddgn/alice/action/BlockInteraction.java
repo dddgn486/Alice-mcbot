@@ -3,7 +3,7 @@ package com.dddgn.alice.action;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.write.TaskTargetProtection;
 import com.dddgn.alice.ledger.ModifyAudit;
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import java.util.List;
@@ -319,10 +319,10 @@ public final class BlockInteraction {
         // 账本要在放置**之前**拿到原状态（J6-a：精确恢复原状的前提）
         BlockState previousState = level.getBlockState(placeAt);
         // 执行期写入预算（D-106）：任务级放置预算用满 → 提前拒绝（不消耗物品、不试面）
-        if (!WriteBudget.placeAllowed(bot)) {
-            WriteBudget.notePlaceRefusal(bot, placeAt, grant);
+        if (!Quota.placeAllowed(bot)) {
+            Quota.notePlaceRefusal(bot, placeAt, grant);
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason=write_budget_exhausted {}",
-                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), Quota.describe(bot));
             return PlaceResult.BUDGET_EXHAUSTED;
         }
         // ⭐ 区域级授权面（`D-338` 附注七③）：**保护区内放置**这条闸门**今天本来不存在**
@@ -384,10 +384,10 @@ public final class BlockInteraction {
             bot.swing(InteractionHand.MAIN_HAND);
             // 预算计数放在**真正落地之后**：放置尝试会轮换支撑面，失败不占额度。
             // 顶部已用 placeAllowed 判过，这里只计数（若仍被拒说明有并发/错位，如实记日志不掩盖）
-            if (WriteBudget.consumePlace(bot, level, placeAt, grant) == WriteBudget.Verdict.REFUSED) {
-                BotLog.warn("[WriteBudget] place_after_check_refused pos={} by={} {}",
+            if (Quota.consumePlace(bot, level, placeAt, grant) == Quota.Verdict.REFUSED) {
+                BotLog.warn("[Quota] place_after_check_refused pos={} by={} {}",
                         placeAt.toShortString(), grant == null ? "-" : grant.describe(),
-                        WriteBudget.describe(bot));
+                        Quota.describe(bot));
             }
             ModifyAudit.placeWrite(level, placeAt, level.getBlockState(placeAt), grant);
             // 账本记录（J6-a）：动作层是唯一看得见"每一次修改"的地方（含内核 PILLAR 放的方块）
@@ -457,7 +457,7 @@ public final class BlockInteraction {
     public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos, Attribution grant) {
         // 执行期写入预算（D-106）：任务级破坏预算用满后，**搜索与执行同时**不再把破坏当选项
         // （规划期与执行期同一个判据，避免"计划说能过、执行到一半才被拒"）
-        if (!WriteBudget.breakAllowed(bot, grant)) {
+        if (!Quota.breakAllowed(bot, grant)) {
             return false;
         }
         return breakRefusal(bot, level, pos, grant) == null;
@@ -637,11 +637,11 @@ public final class BlockInteraction {
                 return null;
             }
         }
-        if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
+        if (Quota.consumeBreak(bot, level, pos, grant) == Quota.Verdict.REFUSED) {
             BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason=write_budget_exhausted {}",
-                    pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), Quota.describe(bot));
             com.dddgn.alice.ledger.WorldModLedger.recordLossyRefusal(level, pos,
-                    level.getBlockState(pos), WriteBudget.EXHAUSTED_CODE,
+                    level.getBlockState(pos), Quota.EXHAUSTED_CODE,
                     grant == null ? "unknown" : grant.describe());
             return null;
         }
@@ -661,10 +661,10 @@ public final class BlockInteraction {
      */
     public static boolean placeBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, BlockState state,
                                         Attribution grant) {
-        if (!WriteBudget.placeAllowed(bot)) {
-            WriteBudget.notePlaceRefusal(bot, pos, grant);
+        if (!Quota.placeAllowed(bot)) {
+            Quota.notePlaceRefusal(bot, pos, grant);
             BotLog.warn("[WRITE-REFUSED] bulk_place pos={} by={} reason=write_budget_exhausted {}",
-                    pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), Quota.describe(bot));
             return false;
         }
         String protectedReason = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), pos,
@@ -702,9 +702,9 @@ public final class BlockInteraction {
      */
     public static boolean breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems,
                                            Attribution grant) {
-        if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
+        if (Quota.consumeBreak(bot, level, pos, grant) == Quota.Verdict.REFUSED) {
             BotLog.warn("[WRITE-REFUSED] bulk_break pos={} by={} reason=write_budget_exhausted {}",
-                    pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), Quota.describe(bot));
             return false;
         }
         // 闸门收进本方法（R2b，闭合 G9）：2026-09-10 勘测发现道路施工两套实现里
@@ -737,7 +737,7 @@ public final class BlockInteraction {
                     before.getBlock().getName().getString());
             // ⭐ `RC4`：这条路上预算也是**事前**扣的（`consumeBreak` 在 617 行）⇒ 世界没变就退回，
             // 与 `BlockBreakSession.fail(...)` 同一条原则（"没发生的写入不许留在账上"）。
-            WriteBudget.refundBreak(bot, pos, grant, "world_unchanged");
+            Quota.refundBreak(bot, pos, grant, "world_unchanged");
             return false;
         }
         ModifyAudit.breakWrite(level, pos, before, grant);

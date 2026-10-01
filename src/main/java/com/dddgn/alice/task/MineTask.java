@@ -1,6 +1,6 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.region.authz.Quota;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.action.mining.MineBlockRunner;
 import com.dddgn.alice.action.mining.ChainMining;
@@ -498,7 +498,7 @@ public final class MineTask implements Task {
             // 挖矿用的脚手架在野外会留在原地。把人口印出来，读日志的人不必去猜是哪一种。
             BotLog.info("[MineTask] restore_skip pending=0（{}）⇒ 无回收义务"
                             + "（区外写入不入账 = `D-398` R2 的设计；`Z4`）",
-                    com.dddgn.alice.write.WriteBudget.population(bot));
+                    com.dddgn.alice.region.authz.Quota.population(bot));
             return Status.DONE;
         }
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
@@ -607,18 +607,18 @@ public final class MineTask implements Task {
                 // ⚠️ T1 / R-1（2026-09-14）：**模组连锁的破坏必须进 Alice 的破坏预算**。
                 // 为什么必须在这里补：`useChain=true` 时 `MineBlockRunner` 是以 `walkOnly=true` 构造的
                 // （见 `startExecution()`）⇒ Alice 自己的破坏原语 `BlockInteraction.beginBreak`（唯一闸门
-                // `WriteBudget.consumeBreak` 的挂点）**一次都不执行**，破坏由模组自己的调度器
+                // `Quota.consumeBreak` 的挂点）**一次都不执行**，破坏由模组自己的调度器
                 // （`player.gameMode.destroyBlock`）完成 ⇒ **唯一的模组兼容破坏路径完全无计数上限**
                 // （3×3 连锁发生在 `DEFAULT_MAX_BREAKS=64` 之外；三路审计 §3.1 R-1 实证）。
                 // 这里按 `minedCount` 的**增量**逐次计账；pos 传连锁起点 `target`（`consumeBreak`
                 // 只用它写日志，不做区域判定）—— 预算耗尽就**停止连锁**，把"无界写入"变回"有界写入"。
                 for (int i = 0; i < delta; i++) {
-                    if (WriteBudget.consumeBreak(bot, bot.serverLevel(), target, grant)
-                            == WriteBudget.Verdict.REFUSED) {
+                    if (Quota.consumeBreak(bot, bot.serverLevel(), target, grant)
+                            == Quota.Verdict.REFUSED) {
                         chainRefusedByBudget = true;
                         BotLog.warn("[ChainMine] prod_budget_exhausted target={} mined={} delta={} {}"
                                         + " → **立即停止连锁**（破坏预算已满，不许继续无界破坏）",
-                                target.toShortString(), mined, delta, WriteBudget.describe(bot));
+                                target.toShortString(), mined, delta, Quota.describe(bot));
                         ChainMining.stop(bot);
                         break;
                     }
