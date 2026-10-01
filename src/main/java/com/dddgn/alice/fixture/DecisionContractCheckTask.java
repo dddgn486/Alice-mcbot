@@ -113,7 +113,7 @@ public class DecisionContractCheckTask implements Task {
         }
 
         if (com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
-                .region(bot.getUUID()) == null) {
+                .area(bot.getUUID()) == null) {
             checkRefused("无区域时 region_lumber", "{\"action\":\"start_job\",\"kind\":\"region_lumber\"}");
         }
 

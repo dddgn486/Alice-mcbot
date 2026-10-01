@@ -99,7 +99,7 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
     private final List<String> failures = new ArrayList<>();
 
     private RegionLumberJob job;
-    private LumberRegionState.Region region;
+    private LumberRegionState.Area area;
 
     // ---- 前提 ----
     private BlockPos entryFoot;
@@ -184,7 +184,7 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
         built = level.getBlockState(ORIGIN).is(Blocks.GRASS_BLOCK)
                 && level.getBlockState(ORIGIN.offset(LANE_LENGTH, 0, LANE_HALF_WIDTH)).is(Blocks.GRASS_BLOCK);
 
-        region = new LumberRegionState.Region(
+        area = new LumberRegionState.Area(
                 ORIGIN.getX(), ORIGIN.getZ() - LANE_HALF_WIDTH,
                 ORIGIN.getX() + LANE_LENGTH, ORIGIN.getZ() + LANE_HALF_WIDTH,
                 ORIGIN.getY() + FOOT_DY, HEADROOM + 2);
@@ -216,11 +216,11 @@ public final class RegionMaintainUnmaintainableCheckTask implements Task {
         FixtureToolKit.ensurePickaxe(bot);
         toolReady = !bot.getMainHandItem().isEmpty();
 
-        job = new RegionLumberJob(bot, region, scope, new LumberCandidateSource(),
+        job = new RegionLumberJob(bot, area, scope, new LumberCandidateSource(),
                 new NearestPolicy(), PATROL_INTERVAL_TICKS, BUDGET_TICKS);
-        BotLog.info("[RegionUnmaint] CHECK setup origin={} region={} built={} 无树={} 无苗={} idleStop关={}"
+        BotLog.info("[RegionUnmaint] CHECK setup origin={} area={} built={} 无树={} 无苗={} idleStop关={}"
                         + " baseline={}(derived={})",
-                ORIGIN.toShortString(), region.describe(), built, emptyNoTrees, noSaplingsInInventory,
+                ORIGIN.toShortString(), area.describe(), built, emptyNoTrees, noSaplingsInInventory,
                 idleStopOff, 0, true);
         phase = Phase.TRIGGER;
         return Task.Status.RUNNING;

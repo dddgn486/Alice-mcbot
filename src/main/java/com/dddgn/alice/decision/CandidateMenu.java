@@ -211,10 +211,10 @@ public final class CandidateMenu {
 
         // ④ 已保存的可持续伐木区 —— 区域型候选（**只能用已存在的区域**，LLM 不能发明）
         LumberRegionState regionState = LumberRegionState.get(bot.getServer());
-        var region = regionState.region(bot.getUUID());
-        if (region != null) {
-            entries.add(new Entry("region:saved", "region_lumber",
-                    "已保存区域 " + region.describe(), region.center(), 0,
+        var area = regionState.area(bot.getUUID());
+        if (area != null) {
+            entries.add(new Entry("area:saved", "region_lumber",
+                    "已保存区域 " + area.describe(), area.center(), 0,
                     "baseline=" + regionState.baselineTrees(bot.getUUID())
                             + " mySaplings=" + regionState.mySaplingCount(bot.getUUID())));
         }

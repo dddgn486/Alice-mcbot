@@ -695,7 +695,7 @@ def rule_no_permitted_candidate():
         # ⇒ 反向对照把条件注入成 `if (inRegion.isEmpty() && false)` 时**规则照样 PASS**（调用文本还在，
         # 只是永远不执行）⇒ 门禁形同虚设。改成断言"那个分支是**无条件**的、且调用是它第一条语句"。
         expected = ("if (inRegion.isEmpty()) {\n"
-                    "            String blocked = permissionBlock(region, raw.rejected(), effectiveTop);")
+                    "            String blocked = permissionBlock(area, raw.rejected(), effectiveTop);")
         if expected not in body:
             problems.append("`patrol()` 的『区域内没有可用树』分支没有**无条件**走 `permissionBlock(...)`"
                             "（被删掉 / 挪走 / 加了条件都会命中这里）⇒ 永久拒绝又会被当成"

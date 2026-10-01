@@ -719,7 +719,7 @@ public final class JobAreaCheckTask implements Task {
         // 水平半径 **4 格**、`baseY = FOOT_Y`（树的基座层）、竖直上界取 `FOOT_Y + 8`
         // ⇒ 判据里的竖直过滤窗口是 `[FOOT_Y-2, FOOT_Y+8]`，锚点在 `FOOT_Y` 的那棵树**落在盒内** ✓。
         // 反面用例的坐标也用 `treeId`（同一棵树）构造 ⇒ "盒内/盒外"是同一条事实的两个方向。
-        var treeRegion = new LumberRegionState.Region(
+        var treeRegion = new LumberRegionState.Area(
                 AUTH_TREE_BASE.getX() - 4, AUTH_TREE_BASE.getZ() - 4,
                 AUTH_TREE_BASE.getX() + 4, AUTH_TREE_BASE.getZ() + 4, FOOT_Y, 8);
         String blockedMain = RegionLumberJob.permissionBlock(treeRegion, cappedRejected, FOOT_Y + 8);
@@ -811,11 +811,11 @@ public final class JobAreaCheckTask implements Task {
         UUID owner = bot.getUUID();
         if (job == null) {
             snapshotRegionState();
-            job = new RegionLumberJob(bot, new LumberRegionState.Region(
+            job = new RegionLumberJob(bot, new LumberRegionState.Area(
                     AREA2_MIN_X, AREA2_MIN_Z, AREA2_MAX_X, AREA2_MAX_Z, FOOT_Y, 8),
                     scope, new LumberCandidateSource(), new NearestPolicy(), 20, 4);
             jobStartTick = ticks;
-            BotLog.info("[TaskZoneDiag] JOB_OK 起跑：region=[{},{},{},{}] 起点={}",
+            BotLog.info("[TaskZoneDiag] JOB_OK 起跑：area=[{},{},{},{}] 起点={}",
                     AREA2_MIN_X, AREA2_MIN_Z, AREA2_MAX_X, AREA2_MAX_Z, bot.blockPosition().toShortString());
             return;
         }
@@ -864,7 +864,7 @@ public final class JobAreaCheckTask implements Task {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         if (job == null) {
-            job = new RegionLumberJob(bot, new LumberRegionState.Region(
+            job = new RegionLumberJob(bot, new LumberRegionState.Area(
                     AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z, FOOT_Y, 8),
                     scope, new LumberCandidateSource(), new NearestPolicy(), 20, 4);
         }

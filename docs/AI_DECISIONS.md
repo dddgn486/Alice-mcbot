@@ -27671,3 +27671,53 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`（CORE 44 步，逐步 diff 见 `lumber_job` 那条记录）·
 ⭐ `check-kernel-predicates`/`check-layer-direction`/`check-task-dispatch-table`/`check-policy-matrix`
 四个门禁**当场抓到 7 处硬写路径/名单**（`D-462` 那类已知代价，全部按门禁自己的规矩修）。
+
+### D-567：⭐ `region` / `Area` 两词口径定案（＋ `LumberRegionState.Region` → `Area`）（2026-10-01）
+
+**裁定原文（逐字，用户 2026-10-01）**：
+> 「`LumberRegionState.Region` 实际该把 `Region` 替换为 `area`，**先这样定义**，
+> **`region` 是项目里的确定概念，也就是保护区、任务区等**，
+> **`area` 是一个统称的抽象概念，上层下层都能用**，**但是注释要写清楚**，然后来清理 `zone`」
+
+**口径（两词分工 —— 起名/读码都按这条）**：
+
+| 词 | 是什么 | 用在哪 |
+|---|---|---|
+| **`region`** | ⭐ 项目里的**确定概念**：**保护区** · **任务区（job 区）** · **安全区** —— 有名字、有声明入口、有生命周期的**区域类型** | 包名 `region/` · 区域类型本身（`AreaData` 的认领集 / `JobAreaRegistry.JobArea`）· 区域型作业与目标招牌（`region_lumber`） |
+| **`Area`** | ⭐ **统称的抽象概念**（泛称）—— ⛔ **不是一种区域类型**，不携带权限/生命周期语义 | **上层下层都能用**：数据载体（`AreaData`）· 声明出来的实例（`JobArea`）· 作业内几何（`WorkingArea`）· 对"这一格"的裁决（`AreaPermission`／`AreaPermissionLevel`）· **玩家划的那块作业范围**（`LumberRegionState.Area`） |
+| ⛔ **`zone`** | **已废词** —— 刀 5 只清了**类名**（用户当时裁的是「一个一个清理带 `Zone` 的**类**」），字段/方法/日志/存档键级残留仍在 | ⛔ 新代码不许再用；残留清单与分批 = 台账 **`O135`** |
+
+**⚠️ 用 `Area` 的硬要求（用户逐字「注释要写清楚」）**：它**不携带具体语义** ⇒ **每一处都要让读者就地
+看懂它指什么**（是玩家的那块地？作业范围？认领集？声明出来的实例？），⛔ 不许只留一个 `area` 让后人猜。
+
+**本刀落地（只做用户点名的那一件）**：`LumberRegionState.Region` → **`LumberRegionState.Area`**
+＋ **同一概念的成员名一并改**（否则代码里会一个概念两个词）：`region(UUID)` → `area(UUID)` ·
+`setRegion`/`clearRegion` → `setArea`/`clearArea` · `dropOutside(…, Region)` → `(…, Area)` ·
+`JobRequest` 的**组件与工厂** `region` → `area`（`JobRequest.area(…)`）· `RegionLumberJob.region` 字段/形参 → `area` ·
+夹具 `LumberCourseAnchor.region()` → `area()`；**19 文件 / 177 行**。
+⭐ 顺带解掉两处**真撞名**（编译期抓到，不是猜的）：`RegionLumberJob` 与 `DebugCommands` 里**本来就有一个
+叫 `area` 的局部**（类型是 `JobAreaRegistry.WorkingArea`）⇒ 把**内层**改叫 `workingArea`（语义上也更准：
+它就是 `WorkingArea`），`area` 留给玩家那块地。
+
+**⛔ 本刀刻意不动的两类（`D-567` 的边界，理由是"它们是数据/接口，不是类型名"）**：
+① **存档键**：`"alice_lumber_regions"` · `"regions"`/`"region"` · `alice_safe_zones`/`"safe_chunks"`
+（改名 = 破既有存档）② **玩家命令与 kind 字面量**：`/alice region set|pickup|idle-stop|start` ·
+`region_lumber` · 类名（`LumberRegionState`/`RegionLumberJob`/`RegionLumberItem`/`RegionSweep*`）·
+`DecisionSnapshot` 的 `"region"` 字段（`BotStateReport` 在读）—— ⚠️ **这些仍在用 `region` 词，是否合规待裁**
+（已随 `O135` 一并列出）。
+
+**定义落在哪（三处，⛔ 不是只写在对话里）**：
+`region/package-info.java` **§零**（包级契约，含"⛔ 不随之改的两类"）· `docs/GLOSSARY.md` 一行（讨论解码表）·
+`LumberRegionState.Area` 的 javadoc（逐字写"**具体指玩家用 `/alice region set` 划的那块矩形**，
+⛔ 不是区域类型"= 用户要的"注释写清楚"的正例）。
+
+**同步表**：`tools/kernel-predicates.py` 的**结构断言** —— `D-341` 那条规则断言的是 `patrol()` 分支的
+**逐字文本**（`permissionBlock(region, raw.rejected(), effectiveTop)`）⇒ 形参改名后**同刀改它**
+（⛔ 不改就是门禁假红/假绿）。
+
+**验证等级**：`compileJava --offline` 成功（⚠️ 盲替换当场暴露**两处**：包名 `alice.region.` 被误改成
+`alice.area.` 24 处 ＋ `package` 行 1 处 ⇒ 全数改回；两处局部撞名 ⇒ 见上）·
+`check-all`（静态）⇒ **`pass=40 warning=1 failed=0`**（与开工前同一个数）·
+⭐ **电池 6/6 全 PASS**（`single:lumber_job,region_sweep,region_sweep_e2e,region_maintain,region_maintain_unmaintainable,lumber_failure`
+⇒ `passed=6/6 ticks=1644`，日志 `run/headless-logs/20261001-190914-single_lumber_*.log`）
+⇒ ⭐ **行为零变化**（改名刀的主判据；本刀**不需要客户端轮次**）。

@@ -656,7 +656,7 @@ public final class BotManager {
      * （跨会话记得"这片区域该长什么样"），以及入口发料（D-119 起生产任务不发工具）。
      */
     public static boolean assignRegionLumber(BotPlayer bot, ServerPlayer observer,
-                                             com.dddgn.alice.job.lumber.LumberRegionState.Region region,
+                                             com.dddgn.alice.job.lumber.LumberRegionState.Area area,
                                              com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
@@ -665,7 +665,7 @@ public final class BotManager {
         provisioning.cobblestone(bot, 12);
         com.dddgn.alice.job.lumber.LumberRegionState state =
                 com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
-        state.setRegion(bot.getUUID(), region);
+        state.setArea(bot.getUUID(), area);
         // 树苗选择接口的**默认值**（用户裁定：补种树苗不必与被砍的树一一对应）：
         // 未配置时用橡树苗；想换就用 `/alice region sapling <item>`（写进持久化的区域状态）
         if (state.saplingItem(bot.getUUID()) == null) {
@@ -682,7 +682,7 @@ public final class BotManager {
                     stack -> stack.is(saplingItem), 8, "sapling(" + state.saplingItem(bot.getUUID()) + ")");
         }
         BotLog.info("[Job] region_lumber 区域={} saplingItem={}（补种树苗由用户选择，见 /alice region）",
-                region.describe(), state.saplingItem(bot.getUUID()) == null
+                area.describe(), state.saplingItem(bot.getUUID()) == null
                         ? "-" : state.saplingItem(bot.getUUID()));
         // ⭐ `O96` ⓐ / `D-349`：legacy 入口**也必须过受理闸**（`JobKindContract`）——
         // 此前 inline `new` 绕过它 ⇒ 「kind 缺契约 ⇒ 拒绝」对本入口**永远不生效**。
@@ -690,10 +690,10 @@ public final class BotManager {
             BotLog.warn("[Job] 不起 Job：kind 缺世界事实对账契约（assignRegionLumber）");
             return false;
         }
-        session.beginTask(new com.dddgn.alice.job.lumber.RegionLumberJob(bot, region,
+        session.beginTask(new com.dddgn.alice.job.lumber.RegionLumberJob(bot, area,
                         session.scope(), new com.dddgn.alice.job.lumber.LumberCandidateSource(),
                         new com.dddgn.alice.job.policy.NearestPolicy(), 40, 24000, observer),
-                TaskTarget.block(region.center()));
+                TaskTarget.block(area.center()));
         broadcastTarget(session.target);
         return true;
     }

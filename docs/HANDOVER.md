@@ -5722,7 +5722,43 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 = ⭐ **`docs/EXPECTED_REDS.md` 里那两行，签名逐字命中**（清单外零红）⇒ 与刀 4 无关。
 ⛔ `O133`（`L1` 配额值两处 ＋ 死取值器）· `O134`（留痕只记放行不记被拦）**已登记为指针行**，本刀刻意不做（保持纯提取）。
 
-### §C ✅ **三刀全部走完** —— ⏳ 下一刀**要用户裁**（⛔ 这条线已不需要我自行开工）
+### §B⁶ ✅ 两词口径定案 ＋ `Region` → `Area`（`D-567`，2026-10-01）
+
+> ⭐ 用户逐字：「「`LumberRegionState.Region` 实际该把 `Region` 替换为 `area`，**先这样定义**，
+> **`region` 是项目里的确定概念，也就是保护区、任务区等**，**`area` 是一个统称的抽象概念，
+> 上层下层都能用**，**但是注释要写清楚**，然后来清理 `zone`」」。
+
+**口径（已落三处，⛔ 不是只写在对话里）**：
+
+| 词 | 是什么 |
+|---|---|
+| **`region`** | ⭐ **确定概念**：保护区 · 任务区（job 区）· 安全区 —— 有名字/声明入口/生命周期的**区域类型** |
+| **`Area`** | ⭐ **统称的抽象概念**（泛称），上层下层都能用；⛔ 不是区域类型、不带权限/生命周期；**用在哪就必须注释写清具体指什么** |
+| ⛔ **`zone`** | **已废词**（刀 5 只清了**类名**）⇒ 残留清单 ＋ 分批 = 台账 **`O135`**（下一刀） |
+
+**落点**：`region/package-info.java` **§零**（包级契约 ＋「⛔ 不随之改的两类：存档键 / 命令与 kind 字面量」）·
+`docs/GLOSSARY.md` 一行 · `LumberRegionState.Area` 的 javadoc（逐字写"**具体指玩家用 `/alice region set`
+划的那块矩形**，⛔ 不是区域类型"= 用户要的"注释写清楚"的**正例**）· `docs/AI_DECISIONS.md` `D-567`。
+
+**本刀落地**：`LumberRegionState.Region` → **`.Area`** ＋ **同一概念的成员名一并改**（`region(UUID)`→`area(UUID)` ·
+`setRegion`/`clearRegion`→`setArea`/`clearArea` · `JobRequest` 组件/工厂 →`area` · `RegionLumberJob.region`→`area` ·
+夹具 `LumberCourseAnchor.region()`→`area()`）= **19 文件 / 177 行**。
+⛔ **不动**：存档键（`alice_lumber_regions`/`"region"`/`"regions"`）· 玩家命令与 kind 字面量
+（`/alice region …`/`region_lumber`）· 类名（`LumberRegionState`/`RegionLumberJob`/`RegionSweep*`）·
+`DecisionSnapshot` 的 `"region"` 字段（`BotStateReport` 在读）—— ⚠️ **这些仍用 `region` 词，是否合规待裁**。
+
+**证据**：`compileJava --offline` 成功 —— ⚠️ **盲替换当场暴露两处**：① **包名被误改**（`alice.region.` → `alice.area.`
+24 处 ＋ `package` 行 1 处，全数改回）② **两处真撞名**（`RegionLumberJob`/`DebugCommands` 里**本来就有一个
+叫 `area` 的局部**，类型是 `JobAreaRegistry.WorkingArea` ⇒ 内层改叫 `workingArea`，`area` 留给玩家那块地）。
+`check-all`（静态）⇒ **`pass=40 warning=1 failed=0`**（与开工前同一个数）· ⭐ **电池 `6/6` 全 PASS**
+（`lumber_job`/`region_sweep`/`region_sweep_e2e`/`region_maintain`/`region_maintain_unmaintainable`/`lumber_failure`
+⇒ `passed=6/6 ticks=1644`）⇒ **行为零变化**。同步表：`tools/kernel-predicates.py` 的结构断言
+`permissionBlock(region,…)` → `permissionBlock(area,…)`（它断言 `patrol()` 分支的**逐字文本**）。
+⚠️ 本线**不需要客户端轮次**。
+
+### §C ⏳ 下一刀 = **清理 `zone`**（用户 2026-10-01 已定方向「然后来清理 `zone`」；⛔ 具体名字/批次待裁，台账 `O135`）
+
+⭐ **上一轮那条主线（刀 2/3/4）已全部走完**（见 `§B″`/`§B‴`/`§B⁗`/`§B⁵`）：
 
 | 优先 | 刀 | 依据 |
 |---|---|---|---|
@@ -5730,7 +5766,7 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 | ✅ **刀 2** | **已完成**（见 `§B″`）：**区内**任何 `hasBlockEntity()` 的方块**一律不可挖掘**（新码 `protected_block_entity`；⛔ 不是「不可动」；容器写入**无需**例外） | `D-565` ⑤ ＋ 刀 2 节 |
 | ✅ **刀 3** | **已完成**（见 `§B‴`）：建 `region/` ＋ `region/authz/` 骨架 ＋ 搬 3 个原样类（`JobAreaRegistry` · `ClaimService` · `MapGeometry`）—— **3 个字面名用户当场确认** | `D-566` · 结构提案 `§8` 步 2 |
 | ✅ **刀 4（4/4）** | ① `WriteGrant`→`Attribution` ② `WriteAudit`→`ledger/ModifyAudit` ③ `WriteBudget`→`region/authz/Quota` ④ ⭐ **拆三个谓词后定名**（`ZoneAuthority` 整体消失 ⇒ 见 `§B⁵`） | `§B⁗` ＋ `§B⁵` · `D-566` · 结构提案 `§8` 步 4/5 |
-| ⏳ **下一刀（待裁）** | 候选（⭐ 我的推荐顺序）：**① `§8` 步 5 收尾** —— `WritePolicyMatrix` → `region/authz/`（今天 `region/authz/` → `write/` 是**反向**的：裁决面依赖一个叫"写入"的包要策略表；且它同时是 `O133` 的解法）· **② `§8` 步 3** —— 拆 `AreaData`（认领集 → `region/`；**方块黑名单 → `action/`**，它是方块规则、与"哪块地"正交）· **③ `O130`** —— `region/` 的 import 方向断言（⛔ 别给正在移动的目标画线，建议与 ① 同批）· **④ `§8` 步 7** —— `WriteReason` 拆三份（引用面 44/38 文件，单列） | 结构提案 `§8` · `O116`/`O130`/`O131` |
+| ⏳ **其后（待裁）** | 候选（⭐ 我的推荐顺序）：**① `§8` 步 5 收尾** —— `WritePolicyMatrix` → `region/authz/`（今天 `region/authz/` → `write/` 是**反向**的：裁决面依赖一个叫"写入"的包要策略表；且它同时是 `O133` 的解法）· **② `§8` 步 3** —— 拆 `AreaData`（认领集 → `region/`；**方块黑名单 → `action/`**，它是方块规则、与"哪块地"正交）· **③ `O130`** —— `region/` 的 import 方向断言（⛔ 别给正在移动的目标画线，建议与 ① 同批）· **④ `§8` 步 7** —— `WriteReason` 拆三份（引用面 44/38 文件，单列） | 结构提案 `§8` · `O116`/`O130`/`O131` |
 | ⚠️ **`§9.3` #8/#9 仍未裁** | #8 = `D-338` 那条链（`SafeReturnTask` ＋ `ReturnPointData`）落哪 · #9 = 安全区降为标记位的落法细节 | 结构提案 `§9.3` |
 | ⚠️ **步骤 0 的残留** | 「立 5 条不变量」里 **#5（授权入口唯一）本刀已落**（挂进 `check-layer-direction`，⛔ 没新建第 41 道门禁）；**#2/#4（区内放置被拒的正/反例提到 CORE）⛔ 仍未做**（`task_zone` 仍是 `Profile.EXTRA`） | 方案草案 `§7` |
 

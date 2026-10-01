@@ -49,7 +49,7 @@ import com.dddgn.alice.task.TaskTarget;
  * 只是由本夹具驱动）；结束（含失败路径）**清理**：清掉预置掉落物、撤销扫描授权、还原区域状态。
  *
  * <p><b>几何前提</b>（§6.9.1 ①，盒以谁为中心/多大必须写下来）：
- * 作业区域 = {@link LumberCourseAnchor#region()}（夹具与 `region_maintain` **共用同一个区域**）；
+ * 作业区域 = {@link LumberCourseAnchor#area()}（夹具与 `region_maintain` **共用同一个区域**）；
  * 补种点/掉苗点 = 在该区域内**扫描**出来的"y=64 空气 + y=63 泥土"的格子（取离起点最近的一个）
  * —— 不写死坐标，也不假设地形，扫不到 ⇒ 报 `NO_PLANT_SPOT`（几何前提**自断言**）。
  *
@@ -160,7 +160,7 @@ public final class RegionSweepE2ECheckTask implements Task {
         // ② 几何前提自断言：在区域内扫出"可补种点"（y 空气 + y-1 泥土）
         plantSpot = findPlantSpot();
         if (plantSpot == null && setupFailure.isEmpty()) {
-            setupFailure = "NO_PLANT_SPOT(区域=" + LumberCourseAnchor.region().describe() + ")";
+            setupFailure = "NO_PLANT_SPOT(区域=" + LumberCourseAnchor.area().describe() + ")";
         }
 
         // ③ 背包清空 ⇒ **零树苗**（这是"苗只能从地面来"的前提）
@@ -188,7 +188,7 @@ public final class RegionSweepE2ECheckTask implements Task {
         groundBefore = countGroundSaplingItems();
 
         // ⑤ 区域状态：**不砍树**直接把欠树造出来 + 预置一个待补种点
-        state.setRegion(owner, LumberCourseAnchor.region());   // 必须在 addPendingReplant **之前**（setRegion 会剔除区外的待补种项）
+        state.setArea(owner, LumberCourseAnchor.area());   // 必须在 addPendingReplant **之前**（setArea 会剔除区外的待补种项）
         state.setSaplingItem(owner, SAPLING);
         // ⚠️ **不能写死 baseline**（2026-09-19 `module:lumber` 实测踩到）：整台电池是**同一个存档**，
         // 前面的步（`region_maintain`）已经种下苗（`mySaplings` 持久化）并砍掉部分树
@@ -211,7 +211,7 @@ public final class RegionSweepE2ECheckTask implements Task {
                 standing, state.baselineTrees(owner), forcedDeficit,
                 state.pendingReplantCount(owner), terrain);
 
-        job = new RegionLumberJob(bot, LumberCourseAnchor.region(), scope,
+        job = new RegionLumberJob(bot, LumberCourseAnchor.area(), scope,
                 new LumberCandidateSource(), new NearestPolicy(), 20, BUDGET_TICKS);
         phase = Phase.RUN;
         return Task.Status.RUNNING;
@@ -226,13 +226,13 @@ public final class RegionSweepE2ECheckTask implements Task {
      */
     private BlockPos findPlantSpot() {
         var level = bot.serverLevel();
-        var region = LumberCourseAnchor.region();
+        var area = LumberCourseAnchor.area();
         BlockPos fallback = null;
         double fallbackDistance = Double.MAX_VALUE;
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (int x = region.minX(); x <= region.maxX(); x++) {
-            for (int z = region.minZ(); z <= region.maxZ(); z++) {
+        for (int x = area.minX(); x <= area.maxX(); x++) {
+            for (int z = area.minZ(); z <= area.maxZ(); z++) {
                 BlockPos pos = new BlockPos(x, LumberCourseAnchor.START_FOOT.getY(), z);
                 if (!level.getBlockState(pos).isAir()) {
                     continue;
@@ -438,14 +438,14 @@ public final class RegionSweepE2ECheckTask implements Task {
      * 它是**只读**的，不改世界、不派任务。
      */
     private int countViableTreesInRegion() {
-        var region = LumberCourseAnchor.region();
-        var spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(region.center(), region.coverRadius(),
+        var area = LumberCourseAnchor.area();
+        var spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(area.center(), area.coverRadius(),
                 1, BUDGET_TICKS);
         var raw = new LumberCandidateSource().candidates(bot, spec);
         int total = 0;
         for (var candidate : raw.viable()) {
-            if (region.containsHorizontal(candidate.anchor())
-                    && candidate.anchor().getY() >= region.baseY() - 2) {
+            if (area.containsHorizontal(candidate.anchor())
+                    && candidate.anchor().getY() >= area.baseY() - 2) {
                 total++;
             }
         }
@@ -453,9 +453,9 @@ public final class RegionSweepE2ECheckTask implements Task {
     }
 
     private AABB regionBox() {
-        var region = LumberCourseAnchor.region();
-        return new AABB(region.minX(), region.baseY() - 2, region.minZ(),
-                region.maxX() + 1, region.baseY() + region.maxHeight() + 2, region.maxZ() + 1);
+        var area = LumberCourseAnchor.area();
+        return new AABB(area.minX(), area.baseY() - 2, area.minZ(),
+                area.maxX() + 1, area.baseY() + area.maxHeight() + 2, area.maxZ() + 1);
     }
 
     private boolean hasRegionLumberGrant() {

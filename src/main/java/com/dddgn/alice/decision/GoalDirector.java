@@ -205,10 +205,10 @@ public final class GoalDirector {
 
     /** `JobRequest` ⇒ 稳定目标 id（**同一目标的两种写法必须落到同一个 id**，否则循环检测形同虚设）。 */
     private static String targetIdOf(com.dddgn.alice.job.JobRequest request) {
-        if (request.region() != null) {
-            var region = request.region();
-            return "region[" + region.minX() + ".." + region.maxX() + ","
-                    + region.minZ() + ".." + region.maxZ() + "]";
+        if (request.area() != null) {
+            var area = request.area();
+            return "area[" + area.minX() + ".." + area.maxX() + ","
+                    + area.minZ() + ".." + area.maxZ() + "]";
         }
         String base = request.center().getX() + "," + request.center().getY() + "," + request.center().getZ();
         return request.productTag() == null ? base : base + "#" + request.productTag();

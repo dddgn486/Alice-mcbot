@@ -118,10 +118,10 @@ public final class DecisionSnapshot {
         root.add("tools", tools);
 
         var regionState = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
-        var region = regionState.region(bot.getUUID());
-        if (region != null) {
+        var area = regionState.area(bot.getUUID());
+        if (area != null) {
             JsonObject regionNode = new JsonObject();
-            regionNode.addProperty("region", region.describe());
+            regionNode.addProperty("region", area.describe());
             regionNode.addProperty("baselineTrees", regionState.baselineTrees(bot.getUUID()));
             regionNode.addProperty("mySaplings", regionState.mySaplingCount(bot.getUUID()));
             regionNode.addProperty("pendingReplant", regionState.pendingReplantCount(bot.getUUID()));

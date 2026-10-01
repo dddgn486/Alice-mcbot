@@ -72,7 +72,7 @@ public final class JobAreaRegistry {
     /**
      * **实际工作区域**（方块级）：一个水平矩形 + 它所在的维度。
      *
-     * <p>为什么是矩形：今天唯一的真实工作区域是**玩家划的林场**（`LumberRegionState.Region` 就是
+     * <p>为什么是矩形：今天唯一的真实工作区域是**玩家划的林场**（`LumberRegionState.Area` 就是
      * `minX/minZ/maxX/maxZ`，只划水平范围、垂直自适应）。蓝图 footprint / 目标簇将来也用
      * {@link #chunkCoverOf(Collection)} 那条**方块集合**口径，两条派生路径都在本类里，
      * 且对矩形**结果必须相同**（夹具对这一点有判据）。

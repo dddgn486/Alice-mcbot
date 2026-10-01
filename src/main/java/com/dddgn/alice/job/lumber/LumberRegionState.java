@@ -36,23 +36,33 @@ public final class LumberRegionState extends SavedData {
     /**
      * 玩家用 {@code /alice region set} 划区时的**自适应高度上限**默认值（不是"固定高度"）。
      *
-     * <p>生效上界永远由巡查按**实测树高**收紧（见 {@link #Region}），这个值只做
+     * <p>生效上界永远由巡查按**实测树高**收紧（见 {@link #Area}），这个值只做
      * "别把整片天空算进来"的兜底。放在这里而不是放在夹具的 {@code LumberCourseAnchor}，
      * 是因为它属于**区域语义** —— 玩家接口不该回头依赖测试夹具的常量（2026-09-12 J8 收尾）。
      */
     public static final int DEFAULT_MAX_HEIGHT = 48;
 
     /**
-     * **可持续伐木区**：**只划水平范围**（玩家定义 x/z），**垂直自适应**。
+     * ⭐ **玩家划的那块伐木作业范围**（**可持续伐木区**）：**只划水平范围**（玩家定义 x/z），**垂直自适应**。
+     *
+     * <p>⚠️ **它是什么、不是什么**（2026-10-01 用户定的两词口径，见 {@code region/package-info.java}）：
+     * 名字里的 `Area` 是**统称的抽象概念**（泛称）—— 具体指**玩家用 {@code /alice region set} 划的那块矩形**；
+     * ⛔ **它不是一种「区域类型」**（保护区 / 任务区（job 区）/ 安全区 才是区域类型 = `region`）。
+     * ⇒ 它**没有**权限等级、**没有**生命周期、**不进** `JobAreaRegistry`；作业启动时由它**派生**出
+     * `JobAreaRegistry.WorkingArea`（方块级）→ 再派生 job 区（区块级封套，随 `scopeId` 生灭）。
      *
      * <p>用户 2026-09-12 裁定：区域由玩家划分，但玩家只圈水平范围；竖直方向不该让玩家操心 ——
      * 这里存一个 {@code baseY}（基准层，取玩家选区较低的那个 Y）与 {@code maxHeight}（自适应**上限**），
      * 实际生效的上界由巡查按**实测树高**收紧（见 {@code RegionLumberJob#effectiveTopY}）：
      * 既不会漏掉刚长高的树，也不会有个"柱子一样"的固定高度把整片天空算进来。
+     *
+     * <p>⛔ 2026-10-01：本记录原叫 `Region` ⇒ 用户裁定改名（「`LumberRegionState.Region` 实际该把
+     * `Region` 替换为 `area`」）。⚠️ **存档键与命令字面量未动**（`"region"`/`"regions"`/
+     * `/alice region …`）—— 那是**数据格式**，不是类型名。
      */
-    public record Region(int minX, int minZ, int maxX, int maxZ, int baseY, int maxHeight) {
+    public record Area(int minX, int minZ, int maxX, int maxZ, int baseY, int maxHeight) {
 
-        public Region {
+        public Area {
             minX = Math.min(minX, maxX);
             maxX = Math.max(minX, maxX);
             minZ = Math.min(minZ, maxZ);
@@ -96,7 +106,7 @@ public final class LumberRegionState extends SavedData {
 
     /** 单个 owner 的区域记录。 */
     public static final class Entry {
-        private Region region;
+        private Area area;
         /** **我种下的**树苗位置（只记我种的，§13.2）。 */
         private final Set<BlockPos> mySaplings = new LinkedHashSet<>();
         /** 用户选定的树苗物品 id（`alice:item/...` 形态的物品注册名）；null = 未配置。 */
@@ -119,7 +129,7 @@ public final class LumberRegionState extends SavedData {
          *
          * <p>为什么不能用 `baselineTrees == 0` 当"还没推导"：**空区域推导出来的结果就是 0**，
          * 于是每一轮巡查都会重推一次、重打一行 `区域目标棵数 baseline=0`（2026-09-12 实测：常驻空区域
-         * 每 600 tick 刷一行噪声，永久刷下去）。重划区域会让它作废（见 {@link #setRegion}）。
+         * 每 600 tick 刷一行噪声，永久刷下去）。重划区域会让它作废（见 {@link #setArea}）。
          */
         private boolean baselineDerived;
         /**
@@ -156,9 +166,9 @@ public final class LumberRegionState extends SavedData {
 
     // ==================== 区域定义 ====================
 
-    public Region region(UUID owner) {
+    public Area area(UUID owner) {
         Entry entry = entry(owner, false);
-        return entry == null ? null : entry.region;
+        return entry == null ? null : entry.area;
     }
 
     /**
@@ -175,28 +185,28 @@ public final class LumberRegionState extends SavedData {
      * 划**同一个**区域则是幂等重入（夹具反复右键、`/alice region start` 重启都一样），
      * 不重置任何记账 —— 否则砍完树后重启一次就会把"欠 5 棵"的目标丢掉。
      */
-    public void setRegion(UUID owner, Region region) {
+    public void setArea(UUID owner, Area area) {
         Entry entry = entry(owner, true);
-        Region previous = entry.region;
-        entry.region = region;
-        if (previous != null && !previous.equals(region)) {
+        Area previous = entry.area;
+        entry.area = area;
+        if (previous != null && !previous.equals(area)) {
             entry.baselineTrees = 0;
             entry.baselineDerived = false;
-            int droppedSaplings = dropOutside(entry.mySaplings, region);
-            int droppedReplant = dropOutside(entry.pendingReplant, region);
+            int droppedSaplings = dropOutside(entry.mySaplings, area);
+            int droppedReplant = dropOutside(entry.pendingReplant, area);
             com.dddgn.alice.log.BotLog.info("[Job] maintain 区域重划 ⇒ 派生记账重置 "
                             + "（旧 {} → 新 {}）：baseline=0，丢弃界外苗={} 待补种={}",
-                    previous.describe(), region.describe(), droppedSaplings, droppedReplant);
+                    previous.describe(), area.describe(), droppedSaplings, droppedReplant);
         }
         setDirty();
     }
 
     /** 丢掉落在水平范围外的记录，返回丢弃条数。 */
-    private static int dropOutside(Set<BlockPos> positions, Region region) {
+    private static int dropOutside(Set<BlockPos> positions, Area area) {
         int dropped = 0;
         var it = positions.iterator();
         while (it.hasNext()) {
-            if (!region.containsHorizontal(it.next())) {
+            if (!area.containsHorizontal(it.next())) {
                 it.remove();
                 dropped++;
             }
@@ -204,7 +214,7 @@ public final class LumberRegionState extends SavedData {
         return dropped;
     }
 
-    public void clearRegion(UUID owner) {
+    public void clearArea(UUID owner) {
         entries.remove(owner);
         setDirty();
     }
@@ -441,7 +451,7 @@ public final class LumberRegionState extends SavedData {
             Entry entry = new Entry();
             if (tag.contains("region")) {
                 CompoundTag r = tag.getCompound("region");
-                entry.region = new Region(r.getInt("min_x"), r.getInt("min_z"), r.getInt("max_x"),
+                entry.area = new Area(r.getInt("min_x"), r.getInt("min_z"), r.getInt("max_x"),
                         r.getInt("max_z"), r.getInt("base_y"), r.getInt("max_h"));
             }
             entry.saplingItem = tag.contains("sapling_item") ? tag.getString("sapling_item") : null;
@@ -479,14 +489,14 @@ public final class LumberRegionState extends SavedData {
             Entry entry = e.getValue();
             CompoundTag tag = new CompoundTag();
             tag.putString("owner", e.getKey().toString());
-            if (entry.region != null) {
+            if (entry.area != null) {
                 CompoundTag r = new CompoundTag();
-                r.putInt("min_x", entry.region.minX());
-                r.putInt("min_z", entry.region.minZ());
-                r.putInt("max_x", entry.region.maxX());
-                r.putInt("max_z", entry.region.maxZ());
-                r.putInt("base_y", entry.region.baseY());
-                r.putInt("max_h", entry.region.maxHeight());
+                r.putInt("min_x", entry.area.minX());
+                r.putInt("min_z", entry.area.minZ());
+                r.putInt("max_x", entry.area.maxX());
+                r.putInt("max_z", entry.area.maxZ());
+                r.putInt("base_y", entry.area.baseY());
+                r.putInt("max_h", entry.area.maxHeight());
                 tag.put("region", r);
             }
             if (entry.saplingItem != null) {
@@ -539,7 +549,7 @@ public final class LumberRegionState extends SavedData {
         for (var e : entries.entrySet()) {
             Entry entry = e.getValue();
             lines.add(e.getKey().toString().substring(0, 8)
-                    + " region=" + (entry.region == null ? "-" : entry.region.describe())
+                    + " area=" + (entry.area == null ? "-" : entry.area.describe())
                     + " mySaplings=" + entry.mySaplings.size()
                     + " saplingItem=" + (entry.saplingItem == null ? "-" : entry.saplingItem)
                     + " baseline=" + entry.baselineTrees

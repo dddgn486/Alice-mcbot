@@ -6,6 +6,38 @@
  * 而且 region 为顶层**，然后**首先要做的是整理这两个包的结构**，还要**一个一个清理带 Zone 的类**，
  * 把**这两个包原来的旧代码全部清理干净，一起重构**」。
  *
+ * <h2>零 ⭐⭐ 两个词的分工（2026-10-01 用户定案 —— ⛔ 起名与读码都按这条）</h2>
+ *
+ * <p>用户逐字：「**`region` 是项目里的确定概念，也就是保护区、任务区等，`area` 是一个统称的抽象概念，
+ * 上层下层都能用，但是注释要写清楚**」。
+ *
+ * <table border="1">
+ *   <tr><th>词</th><th>是什么</th><th>用在哪</th></tr>
+ *   <tr><td><b>{@code region}</b></td>
+ *       <td>⭐ 项目里的**确定概念**：**保护区** · **任务区（job 区）** · **安全区** ——
+ *           有名字、有声明入口、有生命周期的**区域类型**（＝本包回答的四问的那个对象）</td>
+ *       <td>本包名 · 区域类型本身（{@code AreaData} 的认领集 / {@code JobAreaRegistry.JobArea}）·
+ *           区域型作业与目标的招牌（`region_lumber`）</td></tr>
+ *   <tr><td><b>{@code Area}</b></td>
+ *       <td>⭐ **统称的抽象概念**（泛称）—— ⛔ **不是一种区域类型**，不携带权限/生命周期语义</td>
+ *       <td>**上层下层都能用**：数据载体（{@code AreaData}）· 声明出来的实例（{@code JobArea}）·
+ *           作业内几何（{@code WorkingArea}）· 对"这一格"的裁决（{@code AreaPermission}/
+ *           {@code AreaPermissionLevel}）· **玩家划的那块作业范围**（{@code LumberRegionState.Area}）</td></tr>
+ *   <tr><td>⛔ <b>{@code zone}</b></td>
+ *       <td>**已废词** —— 刀 5 只清了**类名**（你当时裁的是「一个一个清理带 `Zone` 的**类**」），
+ *           **字段/方法/日志/存档键级残留仍在**</td>
+ *       <td>⛔ 新代码不许再用；残留清单与分批见台账 `O135`</td></tr>
+ * </table>
+ *
+ * <p>⚠️ **用 {@code Area} 的硬要求**：它**不携带具体语义** ⇒ **每一处都要让读者就地看懂它指什么**
+ * （是玩家的那块地？作业范围？认领集？声明出来的实例？）—— ⛔ 不许只留一个 `area` 让后人猜。
+ * ✅ 正例：{@code LumberRegionState.Area} 的 javadoc 逐字写了"**具体指玩家用 `/alice region set`
+ * 划的那块矩形**，⛔ 不是区域类型"。
+ *
+ * <p>⚠️ **⛔ 不随之改的两类**（它们是**数据/接口**，不是类型名）：① **存档键**（`alice_lumber_regions` ·
+ * `"region"`/`"regions"` · `alice_safe_zones`/`"safe_chunks"`）② **玩家命令与 kind 字面量**
+ * （`/alice region …` · `region_lumber`）—— 改名会破既有存档/接口，⛔ 除非同刀写迁移。
+ *
  * <p>⚠️ **当前状态：`protection/` → `region/` 只搬了 3 个「原样类」**（刀 3，结构提案 `§8` 步 2）：
  * {@link com.dddgn.alice.region.JobAreaRegistry}（job 区）·
  * {@link com.dddgn.alice.region.ClaimService}（区域管理的**写入口**，原 `ProtectionClaimService`）·

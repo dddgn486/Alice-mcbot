@@ -53,15 +53,15 @@ public class RegionLumberItem extends Item {
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
-        var region = LumberCourseAnchor.region();
+        var area = LumberCourseAnchor.area();
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignRegionLumber(bot, player instanceof ServerPlayer sp ? sp : null, region,
+        if (!BotManager.assignRegionLumber(bot, player instanceof ServerPlayer sp ? sp : null, area,
                 com.dddgn.alice.fixture.DevCreateProvision.INSTANCE)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 可持续伐木区已启动 bot=" + bot.getName().getString()
-                + " 区域 " + region.describe()
+                + " 区域 " + area.describe()
                 + "（巡查 → 砍 → 继续巡查；**常驻**：只由 /alice region stop 打断）");
     }
 

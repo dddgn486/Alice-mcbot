@@ -194,13 +194,13 @@ public sealed interface GoalAction {
                     target != null && target.amount() > 0 ? Math.min(quota, target.amount()) : quota,
                     maxTicks), note, clamps);   // 能不能捡由归属+策略决定（LLM 不能自造授权）
             case "region_lumber", "region" -> {
-                var region = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
-                        .region(bot.getUUID());
-                if (region == null) {
+                var area = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
+                        .area(bot.getUUID());
+                if (area == null) {
                     // LLM **不能凭空发明区域**（区域是玩家划的，见 D-130）
                     yield new Refused("region_lumber_without_saved_region（区域必须由玩家划定）");
                 }
-                yield new StartJob(JobRequest.region(region, 16, quota, Math.max(maxTicks, 24000)),
+                yield new StartJob(JobRequest.area(area, 16, quota, Math.max(maxTicks, 24000)),
                         note, clamps);
             }
             default -> new Refused("unknown_job_kind:" + kind);

@@ -571,7 +571,7 @@ public final class DebugCommands {
      * 竖直方向**自适应**（基准层取两角较低的 Y，上界由巡查按实测树高收紧）。
      *
      * <p>**重划区域**（与已保存的不同）会重置按旧区域积累的派生记账（目标棵数/界外苗/界外待补种），
-     * 见 {@code LumberRegionState#setRegion}；划**同一个**区域是幂等重入，不动记账。
+     * 见 {@code LumberRegionState#setArea}；划**同一个**区域是幂等重入，不动记账。
      */
     private static int regionSet(CommandSourceStack source, net.minecraft.core.BlockPos a,
                                  net.minecraft.core.BlockPos b) {
@@ -581,17 +581,17 @@ public final class DebugCommands {
             return 0;
         }
         int baseY = Math.min(a.getY(), b.getY());
-        var region = new com.dddgn.alice.job.lumber.LumberRegionState.Region(
+        var area = new com.dddgn.alice.job.lumber.LumberRegionState.Area(
                 a.getX(), a.getZ(), b.getX(), b.getZ(), baseY,
                 com.dddgn.alice.job.lumber.LumberRegionState.DEFAULT_MAX_HEIGHT);
         var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
-        boolean redefined = state.region(bot.getUUID()) != null
-                && !state.region(bot.getUUID()).equals(region);
-        state.setRegion(bot.getUUID(), region);
+        boolean redefined = state.area(bot.getUUID()) != null
+                && !state.area(bot.getUUID()).equals(area);
+        state.setArea(bot.getUUID(), area);
         // 正在跑的 Job 持有的是**启动时那一刻**的区域对象（§13.1 一次启动 = 一个区域）：
         // 重划不回灌进运行中的任务，如实说清楚，免得玩家以为"改了没生效"
         boolean running = BotManager.isBusy(bot);
-        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区已设定 " + region.describe()
+        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区已设定 " + area.describe()
                 + "（x/z 取自两角、baseY 取较低的那个 Y，竖直自适应"
                 + (redefined ? "；区域变了 ⇒ 目标棵数重新推导" : "")
                 + "；用 /alice region start 启动、/alice region stop 停止）"
@@ -647,11 +647,11 @@ public final class DebugCommands {
         }
         com.dddgn.alice.job.lumber.LumberRegionState state =
                 com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
-        boolean had = state.region(bot.getUUID()) != null;
-        state.clearRegion(bot.getUUID());
+        boolean had = state.area(bot.getUUID()) != null;
+        state.clearArea(bot.getUUID());
         com.dddgn.alice.log.BotLog.info("region_clear: owner={} had={}", bot.getName().getString(), had);
         source.sendSuccess(() -> Component.literal("[alice] 已清除选定区域（had=" + had + "）"
-                + " —— 决策菜单里不会再出现 region:saved"), false);
+                + " —— 决策菜单里不会再出现 area:saved"), false);
         return had ? 1 : 0;
     }
 
@@ -663,9 +663,9 @@ public final class DebugCommands {
             return 0;
         }
         var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
-        var region = state.region(bot.getUUID());
-        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区 region="
-                + (region == null ? "-（未设定）" : region.describe())
+        var area = state.area(bot.getUUID());
+        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区 area="
+                + (area == null ? "-（未设定）" : area.describe())
                 + " baseline=" + state.baselineTrees(bot.getUUID())
                 + " mySaplings=" + state.mySaplingCount(bot.getUUID())
                 + " pendingReplant=" + state.pendingReplantCount(bot.getUUID())
@@ -680,16 +680,16 @@ public final class DebugCommands {
         // （区块级最小覆盖）"在**启动之前**摊给玩家看。
         // ⛔ 2026-10-01：原来这里还报"会不会与安全区冲突" —— 安全区退化后**该判据已删除**
         // （覆盖规则今天只剩"任何区域都不可覆盖 job 区"）。
-        if (region != null) {
+        if (area != null) {
             var server = source.getServer();
             var level = source.getLevel();
-            var area = new com.dddgn.alice.region.JobAreaRegistry.WorkingArea(
-                    level.dimension().location(), region.minX(), region.minZ(),
-                    region.maxX(), region.maxZ());
-            var chunks = area.chunkCover();
+            var workingArea = new com.dddgn.alice.region.JobAreaRegistry.WorkingArea(
+                    level.dimension().location(), area.minX(), area.minZ(),
+                    area.maxX(), area.maxZ());
+            var chunks = workingArea.chunkCover();
             var active = com.dddgn.alice.region.JobAreaRegistry.zoneOf(server, bot.getUUID());
-            source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + area.describe()
-                    + " blocks=" + area.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
+            source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + workingArea.describe()
+                    + " blocks=" + workingArea.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
                     + "（**单向派生**：工作区域 ⇒ 任务区）｜覆盖规则=可覆盖保护区与安全区；"
                     + "⛔ 任何区域都不可覆盖 job 区"
                     + "｜当前生效=" + (active == null ? "无（任务未在跑）"
@@ -812,8 +812,8 @@ public final class DebugCommands {
             return 0;
         }
         var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
-        var region = state.region(bot.getUUID());
-        if (region == null) {
+        var area = state.area(bot.getUUID());
+        if (area == null) {
             source.sendSuccess(() -> Component.literal("[alice] 该 bot 还没有区域（用 alice:region_lumber "
                     + "物品在场景里设定，或用命令另行设定）"), false);
             return 0;
@@ -821,9 +821,9 @@ public final class DebugCommands {
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         boolean ok = com.dddgn.alice.bot.BotManager.assignRegionLumber(bot,
                 source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null,
-                region, com.dddgn.alice.fixture.DevCreateProvision.INSTANCE);
+                area, com.dddgn.alice.fixture.DevCreateProvision.INSTANCE);
         source.sendSuccess(() -> Component.literal(ok
-                ? "[alice] 可持续伐木区已启动 region=" + region.describe()
+                ? "[alice] 可持续伐木区已启动 area=" + area.describe()
                 : "[alice] " + BotManager.busyMessage(bot)), false);
         return ok ? 1 : 0;
     }

@@ -115,13 +115,13 @@ public final class LumberModule implements CheckModule {
                                 stack -> stack.is(sapling), 8, "sapling");
                     }
                 }, guarded(bot, "region_maintain", () -> new RegionLumberJob(bot,
-                        LumberCourseAnchor.region(),
+                        LumberCourseAnchor.area(),
                         scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000)),
                         2000, LumberModule::premiseFailed)
                         // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
                         // ⚠️ 判据拿到的是**前提闸门**（`D-409`）⇒ 必须 `unwrap` 到内层再看类型。
-                        .withDoneWhen(task -> unwrap(task) instanceof RegionLumberJob region
-                                && region.treesChopped() >= 1 && region.plantedSomething()),
+                        .withDoneWhen(task -> unwrap(task) instanceof RegionLumberJob area
+                                && area.treesChopped() >= 1 && area.plantedSomething()),
                 // `D-344` 片 A/B：区域**"扫地面"判定 + 可配置拾取清单**的自检。
                 // 判据是**纯函数**（`sweepDecision` 只吃三个整数）⇒ 夹具**不写世界、不派真任务**
                 // （技能 `alice-scene-based-testing` 陷阱#6 的硬要求）；因此**不需要场景、也不需要 provision**。
@@ -132,7 +132,7 @@ public final class LumberModule implements CheckModule {
                 // `D-344` 片 A 的**端到端**一环：真跑一个 `RegionLumberJob`，看它"扫地面 → 捡苗 → 补种"。
                 // 场景与状态由夹具自己在 SETUP 里造（含地形函数、传送、清背包），结束**还原**
                 // ⇒ provision 传 `null`（技能：夹具自己负责传送与复位）。
-                // ⚠️ 本步**也在伐木课程的第三方认领盒内**（它用 `LumberCourseAnchor.region()`，与
+                // ⚠️ 本步**也在伐木课程的第三方认领盒内**（它用 `LumberCourseAnchor.area()`，与
                 //    `region_maintain` 同一个区域）：**建场景**的命令源不受第三方保护约束，但**bot 自己去
                 //    补种**会 —— 2026-09-23 实测 `[WRITE-REFUSED] plant pos=23, 64, 211 by=region_lumber…`
                 //    ×113 ⇒ `saplingsPlanted` 不增 ⇒ **假红** `REGION_SWEEP_E2E_FAILED`。

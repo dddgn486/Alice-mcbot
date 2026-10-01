@@ -39,7 +39,7 @@ import java.util.UUID;
  * 缺工具 ⇒ `tool_missing`（沿用 D-128 的前置检查）；脚手架没拆干净 ⇒ `scaffold_restore_incomplete`。
  *
  * <p>**健康输出**（§13.1：常驻任务不能是黑箱）：每次巡查一行
- * {@code [Job] maintain region=… viable=… mySaplings=… chopped=… actions=… lastPatrol=…}。
+ * {@code [Job] maintain area=… viable=… mySaplings=… chopped=… actions=… lastPatrol=…}。
  *
  * <p>停止：**只由玩家/决策层显式打断**（§13.1 / 用户 2026-09-12 裁定）——
  * {@code /alice region stop} ⇒ `cancelled:region_stop`（终态 `CANCELLED_BY_USER`），
@@ -101,7 +101,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private static final int SWEEP_GRANT_TICKS = 20 * 120;
 
     private final BotPlayer bot;
-    private final LumberRegionState.Region region;
+    private final LumberRegionState.Area area;
     /** 连续在作业区外的 tick 数（D-179 漂移守卫）。 */
     private int driftTicks;
     private final ScopeBuffer scope;
@@ -231,18 +231,18 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     /** 任务区覆盖的区块数（夹具/日志用）。 */
     private int taskZoneChunks;
 
-    public RegionLumberJob(BotPlayer bot, LumberRegionState.Region region, ScopeBuffer scope,
+    public RegionLumberJob(BotPlayer bot, LumberRegionState.Area area, ScopeBuffer scope,
                            LumberCandidateSource source, SelectionPolicy policy,
                            int patrolIntervalTicks, int maxTicks) {
-        this(bot, region, scope, source, policy, patrolIntervalTicks, maxTicks, null);
+        this(bot, area, scope, source, policy, patrolIntervalTicks, maxTicks, null);
     }
 
-    public RegionLumberJob(BotPlayer bot, LumberRegionState.Region region, ScopeBuffer scope,
+    public RegionLumberJob(BotPlayer bot, LumberRegionState.Area area, ScopeBuffer scope,
                            LumberCandidateSource source, SelectionPolicy policy,
                            int patrolIntervalTicks, int maxTicks,
                            net.minecraft.server.level.ServerPlayer observer) {
         this.bot = bot;
-        this.region = region;
+        this.area = area;
         this.scope = scope;
         this.source = source;
         this.policy = policy;
@@ -262,7 +262,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         if (current != null) {
             return current.target();
         }
-        return com.dddgn.alice.task.TaskTarget.block(region.center());
+        return com.dddgn.alice.task.TaskTarget.block(area.center());
     }
 
     @Override
@@ -338,7 +338,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     }
 
     public String progressSummary() {
-        return "region=" + region.describe() + " chopped=" + treesChopped + " failed=" + treesFailed
+        return "area=" + area.describe() + " chopped=" + treesChopped + " failed=" + treesFailed
                 + " mySaplings=" + LumberRegionState.get(bot.getServer()).mySaplingCount(bot.getUUID());
     }
 
@@ -369,11 +369,11 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         // 现在每 tick 计数，语义与文档一致。
         if (!nearRegion()) {
             if (++driftTicks == 1 || driftTicks % 100 == 0) {
-                BotLog.warn("[Job] region_drifted foot={} region={} driftTicks={} ⇒ 挂起作业"
+                BotLog.warn("[Job] region_drifted foot={} area={} driftTicks={} ⇒ 挂起作业"
                                 + "（不选目标/不写世界；连续超过 {} tick 将如实失败 outside_region）",
 com.dddgn.alice.pathing.MovementHelper
                                 .footCell(bot.serverLevel(), bot).toShortString(),
-                        region.describe(), driftTicks, MAX_DRIFT_TICKS);
+                        area.describe(), driftTicks, MAX_DRIFT_TICKS);
             }
             if (driftTicks > MAX_DRIFT_TICKS) {
                 terminalReason = "outside_region";
@@ -381,10 +381,10 @@ com.dddgn.alice.pathing.MovementHelper
                 return finish(com.dddgn.alice.task.Task.Status.FAILED);
             }
         } else if (driftTicks > 0) {
-            BotLog.info("[Job] region_returned foot={} region={}（已回到作业区，恢复作业）",
+            BotLog.info("[Job] region_returned foot={} area={}（已回到作业区，恢复作业）",
 com.dddgn.alice.pathing.MovementHelper
                             .footCell(bot.serverLevel(), bot).toShortString(),
-                    region.describe());
+                    area.describe());
             driftTicks = 0;
         }
         if (current != null) {
@@ -434,10 +434,10 @@ com.dddgn.alice.pathing.MovementHelper
             return null;
         }
         taskZoneScope = WorldModLedger.currentScope(server, bot.getUUID());
-        // 维度取**bot 所在维度**：`LumberRegionState.Region` 只有水平范围（玩家只划水平），
+        // 维度取**bot 所在维度**：`LumberRegionState.Area` 只有水平范围（玩家只划水平），
         // 而工作区域必须落在某个维度里 ⇒ 以作业时的维度为准（跨维度作业本来也不成立）。
-        var area = new JobAreaRegistry.WorkingArea(bot.serverLevel().dimension().location(),
-                region.minX(), region.minZ(), region.maxX(), region.maxZ());
+        var workingArea = new JobAreaRegistry.WorkingArea(bot.serverLevel().dimension().location(),
+                area.minX(), area.minZ(), area.maxX(), area.maxZ());
         // ⭐ `D-338` 附注十四：**玩家显式**的判据 = 命令（`IN_GAME_PLAYER`）或物品/夹具（`FIXTURE`）发起；
         // LLM（`LLM`）与未归因（`SYSTEM`）**不算** ⇒ 在保护区内的生效等级封顶 `L1`（拆不了玩家的方块）。
         // 野外/无认领区块不受影响（`AreaPermission` 在未认领时即 `NOT_GATED`）。
@@ -445,7 +445,7 @@ com.dddgn.alice.pathing.MovementHelper
         boolean playerDriven = com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(driver)
                 || com.dddgn.alice.decision.Driver.FIXTURE.equals(driver);
         JobAreaRegistry.Result result = JobAreaRegistry.declare(
-                server, bot.getUUID(), NAME, area, playerDriven);
+                server, bot.getUUID(), NAME, workingArea, playerDriven);
         // 解算结果**逐字留痕一次**（含 `ALREADY`/`REPLACED`/`NO_SCOPE` 这些"没发生事"的分支）——
         // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
         BotLog.info("[TaskZone] region_lumber 解算结果：{}", result.describe());
@@ -505,12 +505,12 @@ com.dddgn.alice.pathing.MovementHelper
     private boolean nearRegion() {
         net.minecraft.core.BlockPos foot = com.dddgn.alice.pathing.MovementHelper
                 .footCell(bot.serverLevel(), bot);
-        boolean horizontallyNear = foot.getX() >= region.minX() - DRIFT_MARGIN
-                && foot.getX() <= region.maxX() + DRIFT_MARGIN
-                && foot.getZ() >= region.minZ() - DRIFT_MARGIN
-                && foot.getZ() <= region.maxZ() + DRIFT_MARGIN;
-        boolean verticallySane = foot.getY() >= region.baseY() - DRIFT_MARGIN
-                && foot.getY() <= region.baseY() + region.maxHeight() + DRIFT_MARGIN;
+        boolean horizontallyNear = foot.getX() >= area.minX() - DRIFT_MARGIN
+                && foot.getX() <= area.maxX() + DRIFT_MARGIN
+                && foot.getZ() >= area.minZ() - DRIFT_MARGIN
+                && foot.getZ() <= area.maxZ() + DRIFT_MARGIN;
+        boolean verticallySane = foot.getY() >= area.baseY() - DRIFT_MARGIN
+                && foot.getY() <= area.baseY() + area.maxHeight() + DRIFT_MARGIN;
         return horizontallyNear && verticallySane;
     }
 
@@ -522,7 +522,7 @@ com.dddgn.alice.pathing.MovementHelper
         }
         var server = bot.serverLevel().getServer();
         LumberRegionState state = LumberRegionState.get(server);
-        var spec = JobDeclaration.harvestUnits(region.center(), region.coverRadius(), 1, maxTicks);
+        var spec = JobDeclaration.harvestUnits(area.center(), area.coverRadius(), 1, maxTicks);
         CandidateSet raw = source.candidates(bot, spec);
 
         state.markPatrol(bot.getUUID(), server.getTickCount());
@@ -531,12 +531,12 @@ com.dddgn.alice.pathing.MovementHelper
         // **垂直自适应**（用户 2026-09-12 裁定：玩家只划水平范围）：生效上界按**实测树高**收紧，
         // 既不会漏掉刚长高的树，也不会把"整片天空"算进区域。
         int tallestTop = tallestTreeTopY();
-        int effectiveTop = Math.max(region.baseY() + MIN_ADAPTIVE_HEIGHT,
-                Math.min(region.baseY() + region.maxHeight(), tallestTop + VERTICAL_MARGIN));
+        int effectiveTop = Math.max(area.baseY() + MIN_ADAPTIVE_HEIGHT,
+                Math.min(area.baseY() + area.maxHeight(), tallestTop + VERTICAL_MARGIN));
         List<Candidate> inRegion = new ArrayList<>();
         for (Candidate candidate : raw.viable()) {
-            if (region.containsHorizontal(candidate.anchor())
-                    && candidate.anchor().getY() >= region.baseY() - 2
+            if (area.containsHorizontal(candidate.anchor())
+                    && candidate.anchor().getY() >= area.baseY() - 2
                     && candidate.anchor().getY() <= effectiveTop
                     && !tried.contains(candidate.anchor())) {
                 inRegion.add(candidate);
@@ -544,8 +544,8 @@ com.dddgn.alice.pathing.MovementHelper
         }
         int viableInRegion = 0;
         for (Candidate candidate : raw.viable()) {
-            if (region.containsHorizontal(candidate.anchor())
-                    && candidate.anchor().getY() >= region.baseY() - 2
+            if (area.containsHorizontal(candidate.anchor())
+                    && candidate.anchor().getY() >= area.baseY() - 2
                     && candidate.anchor().getY() <= effectiveTop) {
                 viableInRegion++;
             }
@@ -566,10 +566,10 @@ com.dddgn.alice.pathing.MovementHelper
                     standing, viableInRegion, mySaplings);
         }
         int deficit = Math.max(0, state.baselineTrees(bot.getUUID()) - standing);
-        BotLog.info("[Job] maintain region={} viable={} inRegion={} tried={} mySaplings={}"
+        BotLog.info("[Job] maintain area={} viable={} inRegion={} tried={} mySaplings={}"
                         + " standing={} baseline={} deficit={} chopped={} failed={} planted={}"
                         + " pendingReplant={} waiting={} interval={} lastPatrol={}",
-                region.describe() + " adaptiveTop=" + effectiveTop,
+                area.describe() + " adaptiveTop=" + effectiveTop,
                 raw.viable().size(), inRegion.size(), tried.size(),
                 mySaplings, standing, state.baselineTrees(bot.getUUID()),
                 deficit, treesChopped, treesFailed,
@@ -583,7 +583,7 @@ com.dddgn.alice.pathing.MovementHelper
         // 加上 `欠树 deficit=5` ⇒ 每 ~2 s 一行、空转到 `maxTicks=24000`（20 分钟），期间反复唤醒 LLM。
         // ⚠️ **必须放在补种之前**：否则 `deficit>0` 会先跑去补种、把真正的阻塞原因（没权限）盖成假原因。
         if (inRegion.isEmpty()) {
-            String blocked = permissionBlock(region, raw.rejected(), effectiveTop);
+            String blocked = permissionBlock(area, raw.rejected(), effectiveTop);
             if (blocked != null) {
                 terminalReason = "no_permitted_candidate";
                 failure = terminalReason + " " + blocked;
@@ -654,7 +654,7 @@ com.dddgn.alice.pathing.MovementHelper
                 // 至少要说清"现在是什么状态、在等什么、怎么收工"（2026-09-12 客户端实测：
                 // 空区域常驻 ⇒ 玩家只看到 bot 站着不动，以为"没有任何反应"）。
                 toldNoWork = true;
-                tell("区域 " + region.describe() + " 里没有可作业的树"
+                tell("区域 " + area.describe() + " 里没有可作业的树"
                         + "（viable=" + viableInRegion + " mySaplings="
                         + state.mySaplingCount(bot.getUUID()) + " deficit=" + deficit + "）——"
                         + (state.autoIdleStop(bot.getUUID())
@@ -686,9 +686,9 @@ com.dddgn.alice.pathing.MovementHelper
                             + "「等生长」的对象）/ 改区域范围 / 用 /alice region stop 收工";
                     BotLog.warn("[Job] maintain **不可维持**（区内无树无苗无欠）：{} —— 仍按常驻巡查"
                                     + "（收工只由玩家/决策层打断，§13.1 + 用户 2026-09-12 裁定）；可做：{}",
-                            region.describe(), maintainRemediation);
+                            area.describe(), maintainRemediation);
                     com.dddgn.alice.decision.BotEventLog.record(bot, "MAINTAIN_UNREACHABLE", "warn",
-                            "区域不可维持（无树无苗无欠） region=" + region.describe(),
+                            "区域不可维持（无树无苗无欠） area=" + area.describe(),
                             "remediation=" + maintainRemediation);
                     tell("这个区域**已经没有可维持的东西**了（无树、无苗、也不欠树）⇒ 不可维持；"
                             + "我仍按常驻巡查（不擅自收工），你可以：" + maintainRemediation);
@@ -813,7 +813,7 @@ com.dddgn.alice.pathing.MovementHelper
      * <p>**为什么不看 `viable`**：调用方只在 `inRegion.isEmpty()` 时问它 —— **"无权"与"没有"必须分开**：
      * 前者该如实失败，后者该照旧等生长（那是常驻作业的设计语义、也是用户要的"等窗口"）。
      */
-    public static String permissionBlock(LumberRegionState.Region region, List<String> rejected,
+    public static String permissionBlock(LumberRegionState.Area area, List<String> rejected,
                                          int effectiveTop) {
         List<String> hits = new ArrayList<>();
         String code = null;
@@ -830,8 +830,8 @@ com.dddgn.alice.pathing.MovementHelper
                 continue;
             }
             net.minecraft.core.BlockPos anchor = parseRejectedAnchor(entry.substring(0, cut));
-            if (anchor == null || !region.containsHorizontal(anchor)
-                    || anchor.getY() < region.baseY() - 2 || anchor.getY() > effectiveTop) {
+            if (anchor == null || !area.containsHorizontal(anchor)
+                    || anchor.getY() < area.baseY() - 2 || anchor.getY() > effectiveTop) {
                 continue;
             }
             if (code == null) {
@@ -972,9 +972,9 @@ com.dddgn.alice.pathing.MovementHelper
 
     /** 区域内（水平范围内）最高原木的 Y；没有树时返回基准层。 */
     private int tallestTreeTopY() {
-        int tallest = region.baseY();
-        for (var tree : TreeScanner.scan(bot.serverLevel(), region.center(), region.coverRadius())) {
-            if (!region.containsHorizontal(tree.base())) {
+        int tallest = area.baseY();
+        for (var tree : TreeScanner.scan(bot.serverLevel(), area.center(), area.coverRadius())) {
+            if (!area.containsHorizontal(tree.base())) {
                 continue;
             }
             tallest = Math.max(tallest, tree.top().getY());
@@ -1053,7 +1053,7 @@ com.dddgn.alice.pathing.MovementHelper
      * <p><b>几何前提</b>（技能 `alice-scene-based-testing` §6.9.1 ①：测量盒以谁为中心、多大，
      * 必须写下来而不是心里假设）：范围 = 作业区域的**水平范围**（`minX..maxX` × `minZ..maxZ`）
      * + 竖直 `baseY-2 … baseY+maxHeight+1` —— 与 `patrol()` 判"树算不算在区内"用的是**同一个**
-     * `region` 对象 ⇒ "扫描范围"与"作业范围"**不会分叉**（不另写一份几何）。
+     * `area` 对象 ⇒ "扫描范围"与"作业范围"**不会分叉**（不另写一份几何）。
      *
      * <p>清单为空 ⇒ **直接返回空**：清单为空意味着"用户没说要捡什么" ⇒ **不猜**。
      */
@@ -1064,8 +1064,8 @@ com.dddgn.alice.pathing.MovementHelper
         }
         var level = bot.serverLevel();
         var box = new net.minecraft.world.phys.AABB(
-                region.minX(), region.baseY() - 2, region.minZ(),
-                region.maxX() + 1, region.baseY() + region.maxHeight() + 2, region.maxZ() + 1);
+                area.minX(), area.baseY() - 2, area.minZ(),
+                area.maxX() + 1, area.baseY() + area.maxHeight() + 2, area.maxZ() + 1);
         List<net.minecraft.world.entity.item.ItemEntity> hits = new ArrayList<>();
         for (var item : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box)) {
             if (item.getItem().isEmpty()) {
@@ -1124,7 +1124,7 @@ com.dddgn.alice.pathing.MovementHelper
         var level = bot.serverLevel();
         // ⭐ ① 裁定：**只在扫地面期间**放宽（`SESSION` = 纯内存、不持久化；TTL 兜底 + 结束主动撤销）
         var grant = com.dddgn.alice.decision.CollectGrants.add(level.getServer(),
-                region.minX(), region.minZ(), region.maxX(), region.maxZ(),
+                area.minX(), area.minZ(), area.maxX(), area.maxZ(),
                 com.dddgn.alice.decision.PermissionGate.Scope.SESSION, "region_lumber", SWEEP_GRANT_TICKS);
         sweepGrantId = grant.id();
         // 起始锚点 = 离 bot **最近**的那件；其余交给 `CollectDropsTask` 自己建簇/重锚
@@ -1288,9 +1288,9 @@ com.dddgn.alice.pathing.MovementHelper
         // （`/alice region stop` 那种**不经 finish** 的显式打断走的是作用域收尾钩子
         //  `JobAreaRegistry.release(closedScope)`；两条路都堵住。）
         JobAreaRegistry.release(taskZoneScope);
-        BotLog.info("[Job] maintain SUMMARY region={} chopped={} failed={} patrols={} mySaplings={}"
+        BotLog.info("[Job] maintain SUMMARY area={} chopped={} failed={} patrols={} mySaplings={}"
                         + " planted={} baseline={} saplingItem={} zone={} reason={} → {}",
-                region.describe(), treesChopped, treesFailed,
+                area.describe(), treesChopped, treesFailed,
                 LumberRegionState.get(bot.getServer()).patrols(bot.getUUID()),
                 LumberRegionState.get(bot.getServer()).mySaplingCount(bot.getUUID()),
                 LumberRegionState.get(bot.getServer()).saplingsPlanted(bot.getUUID()),

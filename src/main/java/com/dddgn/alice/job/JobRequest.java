@@ -27,7 +27,7 @@ public record JobRequest(
         /** 产物标签（挖掘用，如 `#forge:ores/iron`）；null = 不限。 */
         String productTag,
         /** 区域型专用：水平区域（玩家划定；null = 非区域型）。 */
-        com.dddgn.alice.job.lumber.LumberRegionState.Region region,
+        com.dddgn.alice.job.lumber.LumberRegionState.Area area,
         /**
          * **种类分配**（挖掘用，`D-361`）：每条形如 `"<键>=<数量>"`，键 = **标签或方块 id**。
          *
@@ -78,9 +78,9 @@ public record JobRequest(
                 kindQuotas);
     }
 
-    public static JobRequest region(com.dddgn.alice.job.lumber.LumberRegionState.Region region,
+    public static JobRequest area(com.dddgn.alice.job.lumber.LumberRegionState.Area area,
                                     int radius, int quota, int maxTicks) {
-        return new JobRequest(Kind.REGION_LUMBER, region.center(), radius, quota, maxTicks, null, region,
+        return new JobRequest(Kind.REGION_LUMBER, area.center(), radius, quota, maxTicks, null, area,
                 null);
     }
 
@@ -102,7 +102,7 @@ public record JobRequest(
         return "kind=" + kind + " center=" + center.toShortString() + " radius=" + radius
                 + " quota=" + quota + " maxTicks=" + maxTicks
                 + (productTag == null ? "" : " product=" + productTag)
-                + (region == null ? "" : " region=" + region.describe())
+                + (area == null ? "" : " area=" + area.describe())
                 + (kindQuotas.isEmpty() ? "" : " kinds=" + kindQuotas);
     }
 }

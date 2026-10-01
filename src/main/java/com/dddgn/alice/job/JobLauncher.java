@@ -113,10 +113,10 @@ public final class JobLauncher {
                             request.maxTicks()),
                     scope);
             case REGION_LUMBER -> {
-                if (request.region() == null) {
-                    throw new IllegalArgumentException("REGION_LUMBER 请求必须带 region");
+                if (request.area() == null) {
+                    throw new IllegalArgumentException("REGION_LUMBER 请求必须带 area");
                 }
-                yield new com.dddgn.alice.job.lumber.RegionLumberJob(bot, request.region(), scope,
+                yield new com.dddgn.alice.job.lumber.RegionLumberJob(bot, request.area(), scope,
                         new com.dddgn.alice.job.lumber.LumberCandidateSource(), policy,
                         REGION_PATROL_INTERVAL_TICKS, request.maxTicks());
             }
