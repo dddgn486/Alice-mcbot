@@ -62,8 +62,8 @@ POP_FLOOR = {
     "machine_rows": 1,
     "optional_switches": 2,
     "bottom_lines": 2,
-    "zone_verdicts": 3,
-    "zone_acts": 2,
+    "authz_verdicts": 3,
+    "authz_acts": 2,
 }
 
 
@@ -279,7 +279,7 @@ def parse_risk_switches() -> tuple[dict[str, dict], str]:
     return {"known": known_names, "optional": opt, "bottom": bot}, "pathing/risk/RiskSwitches.java"
 
 
-def parse_zone() -> tuple[dict[str, list[str]], str]:
+def parse_authz() -> tuple[dict[str, list[str]], str]:
     text = read(JAVA / "region" / "authz" / "AreaPermission.java")
     out: dict[str, list[str]] = {}
     for name in ("Verdict", "Act"):
@@ -313,7 +313,7 @@ def build_model() -> dict:
     battery, battery_src = parse_battery()
     machines, machines_src = parse_machine_rows()
     switches, switches_src = parse_risk_switches()
-    zone, zone_src = parse_zone()
+    authz, authz_src = parse_authz()
 
     # ---- 运行序（模块 take-all 按声明序展开；内联步原样）----
     module_of: dict[str, str] = {}
@@ -340,7 +340,7 @@ def build_model() -> dict:
         "battery": (battery, battery_src),
         "machines": (machines, machines_src),
         "switches": (switches, switches_src),
-        "zone": (zone, zone_src),
+        "authz": (authz, authz_src),
         "run": run,
         "module_of": module_of,
     }
@@ -369,8 +369,8 @@ def assert_all(model: dict) -> list[str]:
         "machine_rows": len(model["machines"][0]),
         "optional_switches": len(model["switches"][0]["optional"]),
         "bottom_lines": len(model["switches"][0]["bottom"]),
-        "zone_verdicts": len(model["zone"][0]["Verdict"]),
-        "zone_acts": len(model["zone"][0]["Act"]),
+        "authz_verdicts": len(model["authz"][0]["Verdict"]),
+        "authz_acts": len(model["authz"][0]["Act"]),
     }
     for key, floor in POP_FLOOR.items():
         got = pop[key]
@@ -466,7 +466,7 @@ def render(model: dict) -> str:
     contracts: dict = model["job_contracts"][0]
     movements, changing = model["movements"][0]
     sw = model["switches"][0]
-    zone = model["zone"][0]
+    authz = model["authz"][0]
     machines: list[dict] = model["machines"][0]
 
     core = [s for s in run if curation.get(s["name"]) != "EXTRA"]
@@ -499,7 +499,7 @@ def render(model: dict) -> str:
     A(f"| 机器类型（上游已登记） | {len(machines)} 行 | §5 |")
     A(f"| 玩家能调的开关 | {len(sw['optional'])} | §6 |")
     A(f"| 底线（**任何玩家入口都不许出现**） | {len(sw['bottom'])} | §7 |")
-    A(f"| 区块授权判定 | Verdict {len(zone['Verdict'])} × Act {len(zone['Act'])} | §7 |")
+    A(f"| 区块授权判定 | Verdict {len(authz['Verdict'])} × Act {len(authz['Act'])} | §7 |")
     A("")
     A("---")
     A("")
@@ -612,7 +612,7 @@ def render(model: dict) -> str:
     A("")
     A("### §7.2 区块授权面（世界写入为什么会被拒）")
     A("")
-    A(f"出处：`{model['zone'][1]}`。判定三态 + 两种动作；授权/预算/账本的完整清单 = `docs/authz/OVERVIEW.md`"
+    A(f"出处：`{model['authz'][1]}`。判定三态 + 两种动作；授权/预算/账本的完整清单 = `docs/authz/OVERVIEW.md`"
       "（生成物，出处 = `docs/authz/AUTHZ_REGISTRY.csv`）。")
     A("")
     A("| Verdict | 含义 |")
@@ -622,12 +622,12 @@ def render(model: dict) -> str:
         "ALLOW": "有任务区覆盖 + 等级够 ⇒ 放行（仍受授权/预算/账本约束）",
         "DENY": "拒绝（带码）",
     }
-    for v in zone["Verdict"]:
+    for v in authz["Verdict"]:
         A(f"| `{v}` | {meaning.get(v, '—')} |")
     A("")
     A("| Act |")
     A("|---|")
-    for a in zone["Act"]:
+    for a in authz["Act"]:
         A(f"| `{a}` |")
     A("")
     A("## §8 门禁在断言什么（**跨出处**的双向；「生成的文档 == 生成的文档」是同义反复，不算判据）")

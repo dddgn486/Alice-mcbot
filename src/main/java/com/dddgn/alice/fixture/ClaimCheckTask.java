@@ -89,13 +89,13 @@ public final class ClaimCheckTask implements Task {
     private static final int SAFE_BASE_CHUNK_X = 2000;
     private static final int SAFE_BASE_CHUNK_Z = 2000;
 
-    private enum Phase { ZONE, RELEASE, PERSIST, MIGRATE, PROTOCOL, GEOMETRY, BLACKLIST, SAFE, CLEANUP, DONE }
+    private enum Phase { CLAIM, RELEASE, PERSIST, MIGRATE, PROTOCOL, GEOMETRY, BLACKLIST, SAFE, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final net.minecraft.server.level.ServerPlayer observer;
     private final List<String> failures = new ArrayList<>();
 
-    private Phase phase = Phase.ZONE;
+    private Phase phase = Phase.CLAIM;
     private int ticks;
     private int checks;
     private boolean done;
@@ -114,7 +114,7 @@ public final class ClaimCheckTask implements Task {
     /** 进入前的安全区计数（`D-338` ②；收尾按**增量**断言 ⇒ 真实存档里也能跑）。 */
     private int safeDeclaredBefore;
     /** 安全区用例是否已经认领了那片 3×3（失败路径要把它们拆掉）。 */
-    private boolean safeZoneClaimed;
+    private boolean safeRegionClaimed;
 
     public ClaimCheckTask(BotPlayer bot, net.minecraft.server.level.ServerPlayer observer) {
         this.bot = bot;
@@ -151,7 +151,7 @@ public final class ClaimCheckTask implements Task {
             return finish();
         }
         switch (phase) {
-            case ZONE -> zonePhase();
+            case CLAIM -> claimPhase();
             case RELEASE -> releasePhase();
             case PERSIST -> persistPhase();
             case MIGRATE -> migratePhase();
@@ -170,7 +170,7 @@ public final class ClaimCheckTask implements Task {
     // ==================== 各相位 ====================
 
     /** 认领 bot 所在区块 ⇒ 该区块全高度拒绝、相邻区块不受影响、单一安全入口看得到。 */
-    private void zonePhase() {
+    private void claimPhase() {
         ServerLevel level = bot.serverLevel();
         AreaData data = AreaData.get(level.getServer());
         BlockPos here = bot.blockPosition();
@@ -755,7 +755,7 @@ public final class ClaimCheckTask implements Task {
         // ② 认领 3×3 ⇒ **内部区块**（四邻腐蚀）恰好 = 中心那一个（期望值在夹具里独立算）
         int added = 0;
         for (long key : area) {
-            safeZoneClaimed = true;
+            safeRegionClaimed = true;
             if (data.claim(level, ChunkPos.getX(key), ChunkPos.getZ(key))) {
                 added++;
             }
@@ -874,7 +874,7 @@ public final class ClaimCheckTask implements Task {
                 removed++;
             }
         }
-        safeZoneClaimed = false;
+        safeRegionClaimed = false;
         check("自清理：安全区计数回到进入前（" + data.safeChunkCount() + " = " + safeBefore + "）",
                 data.safeChunkCount() == safeBefore);
         BotLog.info("[Protection] 安全区/内部区块 ✓：3×3 内部={}（四邻腐蚀）；专用区 9 个区块已取消"
@@ -901,13 +901,13 @@ public final class ClaimCheckTask implements Task {
             data.removeTag(supportTag.location());
             addedTagRule = false;
         }
-        if (safeZoneClaimed) {   // D-338 ②：安全区与其保护区认领一起拆（失败路径也要拆干净）
+        if (safeRegionClaimed) {   // D-338 ②：安全区与其保护区认领一起拆（失败路径也要拆干净）
             for (int dx = 0; dx < 3; dx++) {
                 for (int dz = 0; dz < 3; dz++) {
                     data.unclaim(level, SAFE_BASE_CHUNK_X + dx, SAFE_BASE_CHUNK_Z + dz);
                 }
             }
-            safeZoneClaimed = false;
+            safeRegionClaimed = false;
         }
         if (hereWasClaimed) {
             data.claim(level, hereChunkX, hereChunkZ);      // 进入前就有 ⇒ 复原（精确复原，不是"清空"）

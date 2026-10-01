@@ -1008,10 +1008,10 @@ public class MineMenuCheckTask implements Task {
         // **计划层**理由 `outside_work_area` ⇒ 两类理由同时可见、**互不顶替**。
         // ⚠️ 判据要**强**才可红：把**整卷扫描**都罩进保护区 ⇒ 一旦检查顺序反了（先算能不能挖），
         //    区外候选就会全被 `protected_area` 顶替 ⇒ `outsideByPlan` 归零 ⇒ 红。
-        var zones = com.dddgn.alice.protection.AreaData.get(bot.getServer());
+        var areas = com.dddgn.alice.protection.AreaData.get(bot.getServer());
         var dimension = bot.serverLevel().dimension().location();
-        var claimsBefore = new java.util.HashSet<>(zones.claims(dimension));
-        zones.claimCircle(bot.serverLevel(), center, 5);
+        var claimsBefore = new java.util.HashSet<>(areas.claims(dimension));
+        areas.claimCircle(bot.serverLevel(), center, 5);
         try {
             var protectedSession = source.newSession(intentSpec, Integer.MAX_VALUE, Integer.MAX_VALUE);
             protectedSession.advance(bot);
@@ -1027,9 +1027,9 @@ public class MineMenuCheckTask implements Task {
         } finally {
             // 收尾必须还原：只放掉**本判据新认领**的区块（判据自己不留副作用）
             // ⚠️ 必须先**拷贝**：`claims(...)` 返回的是活集合的视图，边遍历边 unclaim 会 CME
-            for (long key : new java.util.ArrayList<>(zones.claims(dimension))) {
+            for (long key : new java.util.ArrayList<>(areas.claims(dimension))) {
                 if (!claimsBefore.contains(key)) {
-                    zones.unclaim(bot.serverLevel(),
+                    areas.unclaim(bot.serverLevel(),
                             net.minecraft.world.level.ChunkPos.getX(key),
                             net.minecraft.world.level.ChunkPos.getZ(key));
                 }

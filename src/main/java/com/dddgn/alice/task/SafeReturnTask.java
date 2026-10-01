@@ -105,14 +105,14 @@ public final class SafeReturnTask implements Task {
      * @return true = 调用方应启动 {@link SafeReturnTask}
      */
     public static boolean shouldStart(ServerLevel level, UUID botId, BlockPos foot) {
-        AreaData zones = AreaData.get(level.getServer());
+        AreaData areas = AreaData.get(level.getServer());
         if (arrivedAtHome(level, botId, foot)) {
             return false;   // 已经在归位点 ⇒ 不启动
         }
         if (homeOf(level, botId) != null) {
             return true;    // 有归位点（同维度）⇒ **归位点优先**，跳过区几何
         }
-        return !zones.isInReturnArea(level, foot) && zones.nearestReturnCell(level, foot) != null;
+        return !areas.isInReturnArea(level, foot) && areas.nearestReturnCell(level, foot) != null;
     }
 
     /**
@@ -145,18 +145,18 @@ public final class SafeReturnTask implements Task {
             return fail("return_tick_limit", "total=" + totalTicks + " rounds=" + rounds);
         }
         ServerLevel level = bot.serverLevel();
-        AreaData zones = AreaData.get(level.getServer());
+        AreaData areas = AreaData.get(level.getServer());
         BlockPos foot = MovementHelper.footCell(level, bot);
         ReturnPointData.Point home = homeOf(level, bot.getUUID());
         // ① 到达判据（优先级链最前）：**归位点 > 安全区内部 > 保护区内部**
-        if (arrived(level, zones, home, foot)) {
+        if (arrived(level, areas, home, foot)) {
             return done("returned:" + (home == null
-                    ? "inside=" + foot.toShortString() + " safe=" + zones.isSafe(level, foot)
+                    ? "inside=" + foot.toShortString() + " safe=" + areas.isSafe(level, foot)
                     : "home=" + home.pos().toShortString() + " d="
                     + FarWalkTask.distanceXZ(foot, home.pos()) + " r=" + home.radius()));
         }
         // ② 终点：有归位点就用它（跳过区几何），否则用"返程到达集"里最近的一格
-        BlockPos entry = home != null ? home.pos() : zones.nearestReturnCell(level, foot);
+        BlockPos entry = home != null ? home.pos() : areas.nearestReturnCell(level, foot);
         if (entry == null) {
             return fail("return_no_safe_zone", "claims=0 safe=0 dim=" + level.dimension().location()
                     + " from=" + foot.toShortString());
@@ -176,7 +176,7 @@ public final class SafeReturnTask implements Task {
                 // 末段：终点区块已加载 ⇒ 直取**认领区内**的一个可站格（精确目标）
                 BlockPos stand = standableNear(level, entry, cell -> home != null
                         ? FarWalkTask.distanceXZ(cell, home.pos()) <= home.radius()
-                        : zones.isInReturnArea(level, cell), foot);
+                        : areas.isInReturnArea(level, cell), foot);
                 if (stand == null) {
                     return fail("return_no_standable_cell", "entry=" + entry.toShortString()
                             + " search=" + STAND_SEARCH + " from=" + foot.toShortString());
@@ -197,9 +197,9 @@ public final class SafeReturnTask implements Task {
                 note = "hop " + hop.describe() + " from=" + foot.toShortString();
             }
             legCurve.add("leg=" + rounds + (finalLeg ? " final " : " hop ") + note);
-            BotLog.info("[SafeReturn] leg={} kind={} zone={} arrivalChunks={} distance={} from={} entry={} {}",
-                    rounds, finalLeg ? "final" : "hop", regionKind(zones, level, home),
-                    zones.returnArrivalChunks(level.dimension().location()).size(),
+            BotLog.info("[SafeReturn] leg={} kind={} region={} arrivalChunks={} distance={} from={} entry={} {}",
+                    rounds, finalLeg ? "final" : "hop", regionKind(areas, level, home),
+                    areas.returnArrivalChunks(level.dimension().location()).size(),
                     distance, foot.toShortString(), entry.toShortString(), note);
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "safereturn-" + rounds);
@@ -224,7 +224,7 @@ public final class SafeReturnTask implements Task {
                     + (result == null ? "-" : result.status()));
         }
         BlockPos now = MovementHelper.footCell(level, bot);
-        if (arrived(level, zones, home, now)) {
+        if (arrived(level, areas, home, now)) {
             return done("returned:" + (home == null ? "inside=" + now.toShortString()
                     : "home=" + home.pos().toShortString()) + " rounds=" + rounds);
         }
@@ -303,20 +303,20 @@ public final class SafeReturnTask implements Task {
     }
 
     /** 到达判据（`D-338` ③ + 附注四①）：**归位点 > 安全区内部 > 保护区内部**。 */
-    private static boolean arrived(ServerLevel level, AreaData zones, ReturnPointData.Point home,
+    private static boolean arrived(ServerLevel level, AreaData areas, ReturnPointData.Point home,
                                    BlockPos foot) {
         if (home != null) {
             return FarWalkTask.distanceXZ(foot, home.pos()) <= home.radius();
         }
-        return zones.isInReturnArea(level, foot);
+        return areas.isInReturnArea(level, foot);
     }
 
     /** 目标区种类（日志/诊断用）：归位点 ⇒ `home`；有安全区 ⇒ `safe`；否则 ⇒ `protect`。 */
-    private static String regionKind(AreaData zones, ServerLevel level, ReturnPointData.Point home) {
+    private static String regionKind(AreaData areas, ServerLevel level, ReturnPointData.Point home) {
         if (home != null) {
             return "home";
         }
-        return zones.safeClaims(level.dimension().location()).isEmpty() ? "protect" : "safe";
+        return areas.safeClaims(level.dimension().location()).isEmpty() ? "protect" : "safe";
     }
 
     private Status done(String why) {

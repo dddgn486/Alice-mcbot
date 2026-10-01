@@ -83,7 +83,7 @@ public final class LossyWriteAccountedCheckTask implements Task {
     private int totalTicks;
     private int checks;
     private String scopeId = "-";
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
     private WorldModLedger.Population baseline;
     private Attribution grant;
     private BlockBreakSession session;
@@ -321,12 +321,12 @@ public final class LossyWriteAccountedCheckTask implements Task {
         // ⭐ 前提：保护区 + L2 任务区封套（`D-398`：明文目标策略也要过区域授权）——
         // 顺序必须是"先开作用域、再声明任务区"（见 `RestoreUnderfootSafetyCheckTask.startRestore` 的 A4 教训）。
         scopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "rc3_lossy");
-        zone = FixtureClaim.protect(level, bot.getUUID(),
+        claim = FixtureClaim.protect(level, bot.getUUID(),
                 new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
                 new BlockPos(ORIGIN.getX() + 6, FLOOR_Y + 4, ORIGIN.getZ() + 2), "region_lumber");
-        if (!zone.ok()) {
-            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + zone.describe());
-            BotLog.warn("[RC3] 前提未成立：{}", zone.describe());
+        if (!claim.ok()) {
+            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + claim.describe());
+            BotLog.warn("[RC3] 前提未成立：{}", claim.describe());
             return;
         }
         baseline = WorldModLedger.populationBaseline(level.getServer());
@@ -359,8 +359,8 @@ public final class LossyWriteAccountedCheckTask implements Task {
             level.setBlock(entry.getKey(), entry.getValue(), 3);
         }
         touched.clear();
-        if (zone != null) {
-            zone.release();
+        if (claim != null) {
+            claim.release();
         }
         WorldModLedger.closeScope(level.getServer(), bot.getUUID());
         BlockPos home = new BlockPos(ORIGIN.getX(), FLOOR_Y + 1, ORIGIN.getZ());

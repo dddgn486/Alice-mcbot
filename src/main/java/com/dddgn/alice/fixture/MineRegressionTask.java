@@ -326,7 +326,7 @@ public final class MineRegressionTask implements Task {
      * 而**只认领不声明任务区**会被 `AreaPermission` 判 `protected_area` 拒写
      * （尝试② 实测 `support_skipped result=ZONE_DENIED`）⇒ **两件一起对**才谈得上"真放支撑 + 用完即拆"。
      */
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
     private Item expectedItem;
     private int inventoryBefore;
     /**
@@ -418,11 +418,11 @@ public final class MineRegressionTask implements Task {
             // 的硬约束是"任务区必须挂在**打开的作用域**上"（不许在任务之外造授权封套），
             // 所以 `FixtureClaim` 只有在作用域已开时才**借**用现成 scope（不会另开一个、也不会替我们关）。
             if (current.expectSupport() && assertsLikeExecute(current.kind())) {
-                zone = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
+                claim = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
                         SUPPORT_MIN, SUPPORT_MAX, "region_lumber");
-                if (!zone.ok()) {
+                if (!claim.ok()) {
                     // 前提没摆成 ⇒ **如实判红**，别默默继续（那会把"前提缺失"伪装成"支撑没垫"）
-                    record(current, false, "zone_premise_failed " + zone.describe());
+                    record(current, false, "zone_premise_failed " + claim.describe());
                     finishCase();
                     return index >= CASES.size() ? finish() : Status.RUNNING;
                 }
@@ -1023,12 +1023,12 @@ public final class MineRegressionTask implements Task {
         // ⭐ `D-467`：**密封前提的对称还原**（夹具纪律：每条终态路径都要复位，失败路径同样走）。
         // 放在这里是因为 `finishCase()` 是**所有**用例终态的唯一出口（正常 / 超时 / settle / 连锁 / 前提失败）。
         // `release()` 幂等，且只还"本夹具**自己新认领**的区块"—— 本来就是我们的地不还。
-        if (zone != null) {
-            zone.release();
-            zone = null;
+        if (claim != null) {
+            claim.release();
+            claim = null;
         }
         // ⭐ `D-474`：**竞态砌的墙在每条终态路径上都要还**（正常 / 超时 / 前提失败 / 断言失败）。
-        // 与 `zone.release()` 同形 —— `finishCase()` 是用例终态的唯一出口，幂等。
+        // 与 `claim.release()` 同形 —— `finishCase()` 是用例终态的唯一出口，幂等。
         clearRaceWall();
         mineTask = null;
         advance();

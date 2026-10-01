@@ -112,7 +112,7 @@ public final class ScaffoldLifecycleTask implements Task {
     /** 1 = 正常生命周期；2 = 残留验证轮。 */
     private int round = 1;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
     /** 第一轮是否通过（第二轮断言要把两轮一起算）。 */
     private boolean phase1Pass;
     private String recoveryDecision = "-";
@@ -167,8 +167,8 @@ public final class ScaffoldLifecycleTask implements Task {
             case DONE -> Task.Status.DONE;
         };
         // 夹具纪律：**结束复位**（含失败路径）—— 本夹具自己摆的"保护区 + 任务区"前提必须还回去。
-        if (status != Task.Status.RUNNING && zone != null) {
-            zone.release();
+        if (status != Task.Status.RUNNING && claim != null) {
+            claim.release();
         }
         return status;
     }
@@ -201,12 +201,12 @@ public final class ScaffoldLifecycleTask implements Task {
         // **不记账、不回收**（`recordPlacement` 直接跳过）⇒ 不摆这个前提，"拆干净"这条判据根本
         // 无从成立（实测：`scaffold` 曾 `pillar=4 torn=0 residue=4` 红过一次）。
         // 前提 = 认领场景区块 + 声明 L2 任务区封套（`FixtureClaim` 有完整理由）。
-        zone = FixtureClaim.protect(level, bot.getUUID(),
+        claim = FixtureClaim.protect(level, bot.getUUID(),
                 BlockPos.containing(SCENE_BOX.minX, SCENE_BOX.minY, SCENE_BOX.minZ),
                 BlockPos.containing(SCENE_BOX.maxX, SCENE_BOX.maxY, SCENE_BOX.maxZ), "region_lumber");
-        if (!zone.ok()) {
+        if (!claim.ok()) {
             // **不许静默降级**：前提没摆成 ⇒ 如实失败（否则后面的判据会在错误的世界前提上做判断）
-            failure = "FIXTURE_ZONE_PREMISE_FAILED " + zone.describe();
+            failure = "FIXTURE_ZONE_PREMISE_FAILED " + claim.describe();
             BotLog.warn("[Scaffold] {}", failure);
             phase = Phase.ASSERT;
             return Task.Status.RUNNING;

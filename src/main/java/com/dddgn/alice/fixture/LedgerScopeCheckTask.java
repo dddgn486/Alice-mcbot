@@ -58,7 +58,7 @@ import com.dddgn.alice.task.FixtureClaim;
  * `region_lumber`（`LUMBER ⇒ L2 工作面`）+ `playerDriven=true` 的封套 —— 它**不是**在验权限阶梯
  * （那是 `task_zone` 的活），而是**让闸门放行**，否则根本测不到"区内记账 / 回收"这半边。
  * 反过来这也顺带证明了那条阶梯是活的：**不声明封套 ⇒ 区内放置被拒 `protected_area`**
- * （本步在区外臂之前会断言这一点，见 {@code assertZoneGateAlive}）。
+ * （本步在区外臂之前会断言这一点，见 {@code claimPrep} 的前置断言）。
  *
  * <h2>场景</h2>
  * 自建孤立场景（x=4200 / z=2600 一带，避开 3400/3600/3700/3800/3900/4000 段）：地板 y=98、
@@ -76,11 +76,11 @@ public final class LedgerScopeCheckTask implements Task {
     /** 区外臂的目标格（未认领时）。 */
     private static final BlockPos WILD_TARGET = new BlockPos(ORIGIN.getX() + 1, FLOOR_Y + 1, ORIGIN.getZ());
     /** 区内臂的目标格（认领后；会被回收）。 */
-    private static final BlockPos ZONE_TARGET = new BlockPos(ORIGIN.getX() - 1, FLOOR_Y + 1, ORIGIN.getZ());
+    private static final BlockPos CLAIM_TARGET = new BlockPos(ORIGIN.getX() - 1, FLOOR_Y + 1, ORIGIN.getZ());
     /** 销账臂的目标格（区内记账 → unclaim → 应被销掉、方块留下）。 */
     private static final BlockPos PURGE_TARGET = new BlockPos(ORIGIN.getX(), FLOOR_Y + 1, ORIGIN.getZ() + 1);
 
-    private enum Phase { SETUP, WILD_PLACE, WILD_RESTORE, ZONE_PREP, ZONE_PLACE, ZONE_RESTORE, PURGE, DONE }
+    private enum Phase { SETUP, WILD_PLACE, WILD_RESTORE, CLAIM_PREP, CLAIM_PLACE, CLAIM_RESTORE, PURGE, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -95,11 +95,11 @@ public final class LedgerScopeCheckTask implements Task {
     private String scopeId;
     private boolean ownsScope;
     /** ⭐ 夹具自摆的"保护区 + L2 任务区"前提（结束复位）。 */
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
     private RestoreScopeTask restore;
     private String wildTerminal = "-";
-    private String zoneTerminal = "-";
-    private String zoneNotes = "-";
+    private String claimTerminal = "-";
+    private String claimNotes = "-";
     private int outsideSkipsBefore;
     /** ⭐ `Z2`：本夹具窗口起点的**人口基线**（记账次数 + 区外跳过次数）—— 收尾读数的差值基准。 */
     private WorldModLedger.Population populationBaseline = WorldModLedger.Population.ZERO;
@@ -156,9 +156,9 @@ public final class LedgerScopeCheckTask implements Task {
             case SETUP -> setup(level);
             case WILD_PLACE -> wildPlace(level);
             case WILD_RESTORE -> wildRestore(level);
-            case ZONE_PREP -> zonePrep(level);
-            case ZONE_PLACE -> zonePlace(level);
-            case ZONE_RESTORE -> zoneRestore(level);
+            case CLAIM_PREP -> claimPrep(level);
+            case CLAIM_PLACE -> claimPlace(level);
+            case CLAIM_RESTORE -> claimRestore(level);
             case PURGE -> purge(level);
             case DONE -> {
                 return finish(level);
@@ -186,18 +186,18 @@ public final class LedgerScopeCheckTask implements Task {
             scope = new ScopeBuffer();
             BotLog.info("[Z1] SETUP 原点={} 地板 y={} 目标 区外={} 区内={} 销账={} scope={}",
                     ORIGIN.toShortString(), FLOOR_Y, WILD_TARGET.toShortString(),
-                    ZONE_TARGET.toShortString(), PURGE_TARGET.toShortString(), scopeId);
+                    CLAIM_TARGET.toShortString(), PURGE_TARGET.toShortString(), scopeId);
         }
         if (phaseTicks < 3) {
             return;
         }
         // 前提：三个目标格**都在同一个区块**（一次 claim 覆盖全部）+ 起点确实是"无主区域"
         check("前提：三格同区块（一次认领即覆盖，实测 wild="
-                        + chunkOf(WILD_TARGET) + " zone=" + chunkOf(ZONE_TARGET)
+                        + chunkOf(WILD_TARGET) + " claim=" + chunkOf(CLAIM_TARGET)
                         + " purge=" + chunkOf(PURGE_TARGET) + "）",
-                chunkOf(WILD_TARGET) == chunkOf(ZONE_TARGET) && chunkOf(ZONE_TARGET) == chunkOf(PURGE_TARGET));
+                chunkOf(WILD_TARGET) == chunkOf(CLAIM_TARGET) && chunkOf(CLAIM_TARGET) == chunkOf(PURGE_TARGET));
         check("前提：起点未认领（否则「区外」这一半无从谈起）", LedgerScope.isWild(level, WILD_TARGET));
-        if (!LedgerScope.isWild(level, ZONE_TARGET)) {
+        if (!LedgerScope.isWild(level, CLAIM_TARGET)) {
             failures.add("前提被破坏：目标格已在保护区内（夹具无法测「区外」臂）");
             phase = Phase.DONE;
             return;
@@ -247,48 +247,48 @@ public final class LedgerScopeCheckTask implements Task {
                 "nothing_to_restore".equals(wildTerminal));
         check("臂② 区外方块**留在原地**（世界事实=" + shortId(level, WILD_TARGET) + "）", stillThere);
         restore = null;
-        phase = Phase.ZONE_PREP;
+        phase = Phase.CLAIM_PREP;
         phaseTicks = 0;
     }
 
     /** 臂 ③ 前提：证明"没有封套 ⇒ 区内写入被拒"，再摆出保护区 + L2 任务区封套。 */
-    private void zonePrep(ServerLevel level) {
+    private void claimPrep(ServerLevel level) {
         if (phaseTicks != 1) {
             if (phaseTicks >= 2) {
-                phase = Phase.ZONE_PLACE;
+                phase = Phase.CLAIM_PLACE;
                 phaseTicks = 0;
             }
             return;
         }
         // **门禁是活的**：还没有认领/封套时，先证明这道闸门不是恒假（"未认领 ⇒ 不拦"也是其中一半）
         check("臂③ 前提：起点未认领 ⇒ 闸门不拦（NOT_GATED）",
-                LedgerScope.isWild(level, ZONE_TARGET)
+                LedgerScope.isWild(level, CLAIM_TARGET)
                         && com.dddgn.alice.region.authz.AreaPermission.placeRefusal(level, bot.getUUID(),
-                                ZONE_TARGET, WriteReason.STEP_PLACEMENT) == null);
+                                CLAIM_TARGET, WriteReason.STEP_PLACEMENT) == null);
         // 夹具自己摆前提：认领区块 + 声明 L2 任务区（夹具自己的任务是 DIAGNOSTIC ⇒ L0，见类注释）
-        zone = FixtureClaim.protect(level, bot.getUUID(),
+        claim = FixtureClaim.protect(level, bot.getUUID(),
                 ORIGIN.offset(-3, -2, -3), ORIGIN.offset(3, 2, 3), "region_lumber");
-        check("臂③ 前提：保护区 + 任务区前提成立（" + zone.describe() + "）", zone.ok());
-        if (!zone.ok()) {
+        check("臂③ 前提：保护区 + 任务区前提成立（" + claim.describe() + "）", claim.ok());
+        if (!claim.ok()) {
             phase = Phase.DONE;
             return;
         }
         check("臂③ 前提：现在被判为保护区内（`LedgerScope.isProtected`）",
-                LedgerScope.isProtected(level, ZONE_TARGET));
+                LedgerScope.isProtected(level, CLAIM_TARGET));
         check("臂③ 前提：封套等级 = L2 工作面（拆/放都放行）",
-                zone.declaredZone() != null && zone.declaredZone().level()
+                claim.declaredJobRegion() != null && claim.declaredJobRegion().level()
                         == com.dddgn.alice.write.WritePolicyMatrix.Level.L2_WORKFACE);
     }
 
     /** 臂 ③：**区内放置 ⇒ 必有条目 + 回收真的发生**。 */
-    private void zonePlace(ServerLevel level) {
+    private void claimPlace(ServerLevel level) {
         if (phaseTicks == 1) {
-            BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, ZONE_TARGET, false,
+            BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, CLAIM_TARGET, false,
                     grant(), Blocks.COBBLESTONE);
-            WorldModLedger.Entry entry = WorldModLedger.at(level.getServer(), ZONE_TARGET);
-            check("臂③ 区内放置成功（result=" + result + "，世界事实=" + shortId(level, ZONE_TARGET) + "）",
+            WorldModLedger.Entry entry = WorldModLedger.at(level.getServer(), CLAIM_TARGET);
+            check("臂③ 区内放置成功（result=" + result + "，世界事实=" + shortId(level, CLAIM_TARGET) + "）",
                     result == BlockInteraction.PlaceResult.PLACED
-                            && level.getBlockState(ZONE_TARGET).is(Blocks.COBBLESTONE));
+                            && level.getBlockState(CLAIM_TARGET).is(Blocks.COBBLESTONE));
             check("臂③ 区内放置**必有账本条目**（`D-398` R3：一定记账）"
                             + "（条目=" + (entry == null ? "null" : entry.describe()) + "）",
                     entry != null && entry.policy() == WorldModLedger.Policy.TEMP);
@@ -297,25 +297,25 @@ public final class LedgerScopeCheckTask implements Task {
         }
         if (phaseTicks >= 3) {
             restore = new RestoreScopeTask(bot, scope, scopeId);
-            phase = Phase.ZONE_RESTORE;
+            phase = Phase.CLAIM_RESTORE;
             phaseTicks = 0;
         }
     }
 
     /** 臂 ③ 结论：回收真的把区内那格拆了（`D-403`：保留自动拆除）。 */
-    private void zoneRestore(ServerLevel level) {
+    private void claimRestore(ServerLevel level) {
         Task.Status status = restore.tick();
         if (status == Task.Status.RUNNING) {
             return;
         }
-        zoneTerminal = String.valueOf(restore.terminalReason());
+        claimTerminal = String.valueOf(restore.terminalReason());
         List<String> notes = restore.notes();
-        zoneNotes = notes.isEmpty() ? "-" : String.join(" | ", notes);
-        check("臂③ 区内回收：方块已被拆掉（世界事实=" + shortId(level, ZONE_TARGET)
-                        + "，终态=" + zoneTerminal + " notes=" + zoneNotes + "）",
-                level.getBlockState(ZONE_TARGET).isAir());
-        check("臂③ 区内回收：账本条目已被销（" + (WorldModLedger.at(level.getServer(), ZONE_TARGET) == null)
-                + "）", WorldModLedger.at(level.getServer(), ZONE_TARGET) == null);
+        claimNotes = notes.isEmpty() ? "-" : String.join(" | ", notes);
+        check("臂③ 区内回收：方块已被拆掉（世界事实=" + shortId(level, CLAIM_TARGET)
+                        + "，终态=" + claimTerminal + " notes=" + claimNotes + "）",
+                level.getBlockState(CLAIM_TARGET).isAir());
+        check("臂③ 区内回收：账本条目已被销（" + (WorldModLedger.at(level.getServer(), CLAIM_TARGET) == null)
+                + "）", WorldModLedger.at(level.getServer(), CLAIM_TARGET) == null);
         restore = null;
         phase = Phase.PURGE;
         phaseTicks = 0;
@@ -366,9 +366,9 @@ public final class LedgerScopeCheckTask implements Task {
                 + closure.describe(), closure.inArea() == 0);
         cleanup(level);
         BotLog.info("[Z1] SUMMARY checks={} failures={} outsideSkips={}→{} wildTerminal={} "
-                        + "zoneTerminal={} zoneNotes={} purgeDropped={} ticks={} → {}",
+                        + "claimTerminal={} claimNotes={} purgeDropped={} ticks={} → {}",
                 findings.size() + failures.size(), failures.size(), outsideSkipsBefore, outsideSkipsAfter,
-                wildTerminal, zoneTerminal, zoneNotes, purgeDropped, ticks,
+                wildTerminal, claimTerminal, claimNotes, purgeDropped, ticks,
                 failures.isEmpty() ? "PASS" : "FAIL");
         for (String line : findings) {
             BotLog.info("[Z1]   {}", line);
@@ -421,8 +421,8 @@ public final class LedgerScopeCheckTask implements Task {
         }
         touched.clear();
         // ②③ 还认领状态 + 解任务区封套（`FixtureClaim` 只还**它自己加的**区块，不乱动别人的区）
-        if (zone != null) {
-            zone.release();
+        if (claim != null) {
+            claim.release();
         }
         // ④ 还作用域（只关自己开的那个）
         if (ownsScope) {

@@ -632,17 +632,17 @@ public final class Quota {
      *
      * @return 拒绝的 {@link AreaPermission.Decision}；`null` = 这一档在区内**没有**配额这一道（放行）
      */
-    static AreaPermission.Decision inJobRegionPlaceRefusal(JobRegionRegistry.JobRegion zone, AreaPermission.Act act) {
+    static AreaPermission.Decision inJobRegionPlaceRefusal(JobRegionRegistry.JobRegion jobRegion, AreaPermission.Act act) {
         if (act != AreaPermission.Act.PLACE
-                || zone.effectiveLevel() != WritePolicyMatrix.Level.L1_SCAFFOLD) {
+                || jobRegion.effectiveLevel() != WritePolicyMatrix.Level.L1_SCAFFOLD) {
             return null;
         }
-        int used = JobRegionRegistry.inJobRegionPlaceCount(zone.scopeId());
+        int used = JobRegionRegistry.inJobRegionPlaceCount(jobRegion.scopeId());
         if (used < L1_MAX_PLACES) {
             return null;
         }
         return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "zone_place_quota",
-                "任务区 " + zone.kind() + " 等级 L1 的**区内放置配额**已用尽（" + used + "/"
+                "任务区 " + jobRegion.kind() + " 等级 L1 的**区内放置配额**已用尽（" + used + "/"
                         + L1_MAX_PLACES + "）");
     }
 

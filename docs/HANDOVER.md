@@ -5793,7 +5793,33 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 **证据**：合并/内层迁移逻辑做成**夹具可喂的纯函数** ＋ 夹具断言；文件键胶水＝代码 ＋ 真存档实验
 （`run/world-pristine` 预置旧名文件 ⇒ 看迁移 WARN 与条数）。
 
-**✅ 实际结果**：A/B/C/D/E 全落 ＋ `compileJava` 成功 · `check-all` 静态 `pass=40 warning=1 failed=0` · ⭐ 电池 **8/8 全 PASS**（`protection_zones` **98/0** ← 95+3 条迁移判据 · `task_zone` 94/0 · lumber 6 步；`passed=8/8 ticks=1301`）· `BARITONE_ANCHORS` 补 `9551aa1b` 行 · `POLICY_MATRIX.csv` 重生成。⏳ **仍待裁（`O135` 第 3 段）**：ⓐ 拒绝码 `zone_*`/`protected_safe_zone`（**稳定词表**，⛔ 我没顺手改）ⓑ 夹具局部名 `zones`/`zone` 与 `SafeReturnTask.zones`/`ScaffoldLifecycleTask.zone`。
+**✅ 实际结果**：A/B/C/D/E 全落 ＋ `compileJava` 成功 · `check-all` 静态 `pass=40 warning=1 failed=0` · ⭐ 电池 **8/8 全 PASS**（`protection_zones` **98/0** ← 95+3 条迁移判据 · `task_zone` 94/0 · lumber 6 步；`passed=8/8 ticks=1301`）· `BARITONE_ANCHORS` 补 `9551aa1b` 行 · `POLICY_MATRIX.csv` 重生成。⏳ **仍待裁（`O135` 第 3 段·后半）**：见 **§B⁸**。
+
+### §B⁸ ✅ **`O135` 第 3 段·前半已落地（2026-10-01）** —— `zone` 的**标识符级**清理（⛔ 零行为增量）
+
+⭐ **做法（这是本刀最该被复用的东西）**：⛔ **不用盲 `sed`** —— 上一刀盲替换把**包名** `region` 改成 `area`、还把
+`WritePolicyMatrix.Row.zone`（那是 `Tenure` 地理归属）一起改了。本刀写了个**带状态机的改名器**（`/tmp/rename_zone.py`，
+逐字符跟踪 `CODE`/`字符串`/`字符`/`行注释`/`块注释`），**只在 `CODE` 状态**替标识符 ⇒ 字符串与注释**碰不到**，
+编译器兜底。⚠️ 它**不入库**（一次性工具）；要复用时按同样口径重写。
+
+**改动面 = 33 文件 / `+342 −342`（严格对称 ⇒ 天然"零行为增量"的旁证）**：
+| 组 | 内容 | 量 |
+|---|---|---|
+| G1 | `AreaData zones` → **`areas`** | 127 |
+| G2 | `FixtureClaim.Handle zone` → **`claim`** | ~46 |
+| G3 | `JobRegionRegistry.JobRegion zone` → **`jobRegion`** | ~21 |
+| G4 | 其余局部/私有名：`ZONE_CENTER`→`SAFE_CENTER` · `ZONE_TARGET`→`CLAIM_TARGET` · `zoneRefusal`→`regionRefusal` · `zoneDiffCount`→**`tenureDiffCount`**（它比的是 `Tenure` 两档 ⇒ 跟 `Row.zone`→`tenure` 一致）· `returnZoneChunks`→`returnRegionChunks` · `requiresZoneAuthorization`→**`requiresJobRegionAuthorization`** · `declaredZone`→`declaredJobRegion` · `Phase.ZONE*`→`CLAIM_*`/`JOB_REGION` · `zonePrep/zonePlace/zoneRestore`→`claim*` · `assertZoneArms`→`assertJobRegionArms` · `zoneAware`→`regionAware` · `safeZone(...)`→`safeRegion(...)` · `ZONE_PROBES`→`JOB_REGION_PROBES` | 60+ |
+| G5 | **日志字段名同刀**：`zone=`→`jobRegion=`/`region=` · `zoneAuth=`→`regionAuth=` · `zoneDiff=`→`tenureDiff=` · `zones=`→`tenures=` · `dZone=`→`dSafe=` · `ledgerInZone=`→`ledgerInRegion=` · `zone_equiv`→`tenure_equiv`（检查项 id）· `zoneTerminal/zoneNotes=`→`claim*` | 16 |
+| G6 | **工具侧内部名**（同步表脚本）：`policy-map.py` 里那个叫 `zone` 的变量**其实是 `Tenure`** ⇒ ⭐ **CSV 列名 `zone`→`tenure`** ＋ 键 `zones`→`tenures` ＋ 重生成 · `capability-list.py` 的 `parse_zone`/`zone`→**`authz`**（重生成 `CAPABILITY_LIST.md`）· `kernel-predicates.py` 局部 `zone`→`authz_src` | 3 脚本 |
+
+**⛔ 明确不动的三类（`id` 稳定性纪律 —— 与"物品 id 不变"同一条）**：
+1. **存档旧键** `alice_safe_zones`（迁移墓碑，⛔ 永不改）；
+2. **电池步 id** `protection_zones` / `task_zone` / `ledger_zone_scope` / `check:ledger-zone`（⭐ **用户手上的测试入口**）；
+3. **夹具身份串** `task_zone_fixture` / `task-zone-fixture-{owner,stranger}`（与步 id 对齐；改它会留下旧 owner 的孤儿数据）。
+➕ 历史注释里**引用用户原话 / 客户端实测日志**的行（`RegionLumberJob` 的 2026-09-19 实测引文）⛔ 逐字不改（「原文不改，只加指针」）。
+
+**文档**：`GLOSSARY` 加 `zone`＝**已废词**行（含"两处活着的 `zone` 要认得出"）· `ALICE_PATHING_CORE_R2_MOVEMENTS`/
+`WORLD_WRITE_AUTHORIZATION` 的 `requiresZoneAuthorization`→新名 · `O135` 状态行。
 
 **E 收尾（原计划）**：`compileJava` · `check-all` 静态 `pass=40 warning=1 failed=0` · 电池（`single:task_zone,protection_zones,
 ledger_zone_scope,write_policy,job_area_grant` ＋ lumber 6 步）· `docs/BARITONE_ANCHORS.md`（若扫到内核路径）·
@@ -5801,7 +5827,19 @@ ledger_zone_scope,write_policy,job_area_grant` ＋ lumber 6 步）· `docs/BARIT
 `check-duplicate-class-names` 若 `WorkingArea` 变唯一则要**撤**旧登记）· 文档（`D-567` 补、`O135` 收口、`TESTING_GUIDE`
 日志前缀、`TEST_MATRIX` 行）· 提交＋推送＋镜像。
 
-### §C ⏳ 下一刀 = **清理 `zone`**（用户 2026-10-01 已定方向「然后来清理 `zone`」；⛔ 具体名字/批次待裁，台账 `O135`）
+### §C ⏳ **下一刀 = `O135` 第 3 段·后半**（对外契约级 `zone` 字面量，⚠️ **等用户裁**）
+
+⛔ **不是"忘了做"，是"名字归用户"**（他逐字：「**所以不是要我定名字吗**」）。待裁 5 组（改它 = **一次词表口径变更**：
+`TESTING_GUIDE`／`EXPECTED_REDS`／历史日志引用会**同时失效**）：
+
+| # | 待裁字面量 | 引用面 | 我的建议名 |
+|---|---|---|---|
+| ① | 拒绝码 `zone_read_only` · `zone_break_not_allowed` · `zone_place_not_scaffold` · `zone_place_quota` · `zone_reason_required` | prod 6 文件 · 夹具 2 · `kernel-predicates.py:679`（**硬写断言**）· 现行文档 6 | `job_region_read_only` / `…_break_not_allowed` / `…_place_not_scaffold` / `…_place_quota` / `…_reason_required` |
+| ② | `CapabilityGate` 判决码 `zone_protected` · `zone_protected_by_declaration` | `CapabilityGate` ＋ `CapabilityGateCheckTask` | `region_protected` / `region_protected_by_declaration` |
+| ③ | `SafeReturnTask` 失败码 `return_no_safe_zone` ＋ 诊断标签 `no_zone` | `SafeReturnTask` · `SafeReturnCheckTask` | `return_no_safe_region` / `no_region` |
+| ④ | 夹具码 `zone_premise` · `zone_premise_failed` | `CraftStationCheckTask` · `MineRegressionTask` | `claim_premise` / `claim_premise_failed` |
+| ⑤ | 门禁规则名 `rule_bulk_write_zone_gate` · `rule_ledger_closure_zone_scoped` · `rule_write_budget_zone_and_container_exception` | `kernel-predicates.py` ＋ 4 处源码/文档指针 | `rule_bulk_write_job_region_gate` / `rule_ledger_closure_region_scoped` / `rule_write_budget_region_and_container_exception` |
+| — | `protected_safe_zone` | **已是墓碑**（码已删，只剩注释/文档） | ⛔ 不改（历史） |
 
 ⭐ **上一轮那条主线（刀 2/3/4）已全部走完**（见 `§B″`/`§B‴`/`§B⁗`/`§B⁵`）：
 

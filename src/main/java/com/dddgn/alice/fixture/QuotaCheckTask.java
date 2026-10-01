@@ -30,7 +30,7 @@ import com.dddgn.alice.task.TaskTarget;
  *
  * <p>输出：`[Quota] CHECK breaks=?/1 exhausted=? wall_broken=? passed_wall=? status=? → PASS|FAIL`。
  *
- * <p>⭐ `Z3`（2026-09-23）追加**"区"那一臂**（{@link #assertZoneArms}）：`write_budget` 原先只判
+ * <p>⭐ `Z3`（2026-09-23）追加**"区"那一臂**（{@link #assertJobRegionArms}）：`write_budget` 原先只判
  * "额度用满就不再改世界"；现在还要判「**区外无格数额度**」（无装订时连做 70 次破坏/放置都不许被拒 ——
  * 70 > `Caps.DEFAULT` 的 64/32，所以这臂对"兜底又变回 64"有鉴别力）与「**显式装订照旧强制**」
  * （`capForEscape(1,1)` ⇒ 第 2 次必被拒）。⚠️ 判据的静态那一半（"默认回退 = 不限"）在门禁
@@ -51,9 +51,9 @@ public final class QuotaCheckTask implements Task {
     /** 单次自检的 tick 上限。 */
     private static final int RUN_BUDGET_TICKS = 600;
     /** `Z3` 的"区"那一臂：无装订时连做多少次破坏/放置都必须放行（> `Caps.DEFAULT` 的 64/32 才有鉴别力）。 */
-    private static final int ZONE_PROBES = 70;
+    private static final int JOB_REGION_PROBES = 70;
 
-    private enum Phase { SETUP, RUN, ASSERT, ZONE, DONE }
+    private enum Phase { SETUP, RUN, ASSERT, JOB_REGION, DONE }
 
     private final BotPlayer bot;
     private final com.dddgn.alice.perception.ScopeBuffer scope;
@@ -63,7 +63,7 @@ public final class QuotaCheckTask implements Task {
     private String failure = "";
     private String resultStatus = "-";
     /** `Z3` 的"区"那一臂的读数（进 SUMMARY，便于读日志的人核对）。 */
-    private String zoneDetail = "-";
+    private String jobRegionDetail = "-";
 
     public QuotaCheckTask(BotPlayer bot, com.dddgn.alice.perception.ScopeBuffer scope) {
         this.bot = bot;
@@ -91,7 +91,7 @@ public final class QuotaCheckTask implements Task {
             case SETUP -> setup();
             case RUN -> run();
             case ASSERT -> assertResult();
-            case ZONE -> assertZoneArms();
+            case JOB_REGION -> assertJobRegionArms();
             case DONE -> Task.Status.DONE;
         };
     }
@@ -184,7 +184,7 @@ public final class QuotaCheckTask implements Task {
             phase = Phase.DONE;
             return Task.Status.FAILED;
         }
-        phase = Phase.ZONE;   // ⭐ `Z3`：预算的不变式成立之后，再判"区外无额度 / 显式装订照旧强制"
+        phase = Phase.JOB_REGION;   // ⭐ `Z3`：预算的不变式成立之后，再判"区外无额度 / 显式装订照旧强制"
         return Task.Status.RUNNING;
     }
 
@@ -206,15 +206,15 @@ public final class QuotaCheckTask implements Task {
      * ⚠️ 这条拒必须是**瞬时**语义 —— 它跨边界时用 {@link Quota#EXHAUSTED_CODE}，
      * 由门禁钉"只有一个拼法"；本臂负责"真的会拒"。
      */
-    private Task.Status assertZoneArms() {
+    private Task.Status assertJobRegionArms() {
         ServerLevel level = bot.serverLevel();
         String scope = Quota.scopeOf(bot);
         boolean wild = com.dddgn.alice.protection.LedgerScope.isWild(level, START_FOOT);
         if (!wild) {
-            failure = "ZONE_PREMISE_NOT_WILD start=" + START_FOOT.toShortString()
+            failure = "JOB_REGION_PREMISE_NOT_WILD start=" + START_FOOT.toShortString()
                     + "（本臂只在区外成立；场景/认领变了就要先修前提）";
-            BotLog.warn("[Quota] ZONE premise=FAIL {} ⇒ 本臂不作数", failure);
-            zoneDetail = "premise=FAIL";
+            BotLog.warn("[Quota] JOB_REGION premise=FAIL {} ⇒ 本臂不作数", failure);
+            jobRegionDetail = "premise=FAIL";
             phase = Phase.DONE;
             return Task.Status.FAILED;
         }
@@ -224,8 +224,8 @@ public final class QuotaCheckTask implements Task {
         int p0 = Quota.places(bot);
         int rb0 = Quota.refusedBreaks(bot);
         int rp0 = Quota.refusedPlaces(bot);
-        for (int i = 0; i < ZONE_PROBES; i++) {
-            BlockPos probe = START_FOOT.offset(i - ZONE_PROBES / 2, 0, 0);
+        for (int i = 0; i < JOB_REGION_PROBES; i++) {
+            BlockPos probe = START_FOOT.offset(i - JOB_REGION_PROBES / 2, 0, 0);
             Quota.consumeBreak(bot, level, probe, null);
             Quota.consumePlace(bot, level, probe, null);
         }
@@ -235,8 +235,8 @@ public final class QuotaCheckTask implements Task {
         int dRefusedPlaces = Quota.refusedPlaces(bot) - rp0;
         // 读数也必须同源：剩余额度不能因为 counters 涨了就说"没额度了"（P1-a 的那类副本）
         int remainBreaks = Quota.remainingBreaks(bot);
-        boolean armA = dBreaks == ZONE_PROBES && dPlaces == ZONE_PROBES
-                && dRefusedBreaks == 0 && dRefusedPlaces == 0 && remainBreaks > ZONE_PROBES;
+        boolean armA = dBreaks == JOB_REGION_PROBES && dPlaces == JOB_REGION_PROBES
+                && dRefusedBreaks == 0 && dRefusedPlaces == 0 && remainBreaks > JOB_REGION_PROBES;
         // ---- 臂②：显式装订 ⇒ 第 2 次必被拒 ----
         // ⚠️ 额度是**本作用域累计**的（RUN 阶段已经用掉过若干次）⇒ 这里要的是"**再给 1 次**"，
         // 写成绝对值 1 会让**第一次**就被拒（本夹具第一版就这么错过：判据看着对、前提是假的）。
@@ -253,15 +253,15 @@ public final class QuotaCheckTask implements Task {
                 && secondPlace == Quota.Verdict.REFUSED
                 && Quota.refusedBreaks(bot) - rb1 == 1
                 && Quota.refusedPlaces(bot) - rp1 == 1;
-        zoneDetail = "wild=" + wild + " unbound[breaks=+" + dBreaks + " places=+" + dPlaces
+        jobRegionDetail = "wild=" + wild + " unbound[breaks=+" + dBreaks + " places=+" + dPlaces
                 + " refused=+" + dRefusedBreaks + "/+" + dRefusedPlaces + " remainBreaks=" + remainBreaks
                 + "] capForEscape[2ndBreak=" + secondBreak + " 2ndPlace=" + secondPlace + "]";
-        BotLog.info("[Quota] ZONE 野外={} 臂①无装订不设额度={} 臂②显式装订照旧强制={}｜{}",
-                wild, armA ? "PASS" : "FAIL", armB ? "PASS" : "FAIL", zoneDetail);
+        BotLog.info("[Quota] JOB_REGION 野外={} 臂①无装订不设额度={} 臂②显式装订照旧强制={}｜{}",
+                wild, armA ? "PASS" : "FAIL", armB ? "PASS" : "FAIL", jobRegionDetail);
         phase = Phase.DONE;
         if (!(armA && armB)) {
-            failure = "WRITE_BUDGET_ZONE_FAILED armA(no-binding-unbounded)=" + armA
-                    + " armB(explicit-binding-enforced)=" + armB + " " + zoneDetail;
+            failure = "WRITE_BUDGET_JOB_REGION_FAILED armA(no-binding-unbounded)=" + armA
+                    + " armB(explicit-binding-enforced)=" + armB + " " + jobRegionDetail;
             return Task.Status.FAILED;
         }
         return Task.Status.DONE;

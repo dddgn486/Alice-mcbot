@@ -224,7 +224,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      * 中途变化会让"同一条任务里两格拿到不同授权"。而且它是**锁定**的 ——
      * 唯一写入者就是本 Job（命令层没有写入口，玩家改不了）。
      */
-    private boolean zoneResolved;
+    private boolean jobRegionResolved;
     /** 本任务区的 scopeId（收尾用它 release；**解算时抓下来**，不依赖收尾时作用域还开着）。 */
     private String jobRegionScope;
     /** 任务区状态文本（日志/夹具/失败报告可见），如 `DECLARED chunks=6`、`NO_SCOPE`。 */
@@ -331,7 +331,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 failureReason(), "maintain", progressSummary()
                 + " terminal=" + terminalReason
                 + " waitingFor=" + waitingFor
-                + " zone=" + jobRegionStatus
+                + " jobRegion=" + jobRegionStatus
                 + " mySaplings=" + com.dddgn.alice.job.lumber.LumberAreaState
                         .get(bot.getServer()).mySaplingCount(bot.getUUID())
                 + (failure.isBlank() ? "" : " failure=" + failure),
@@ -348,13 +348,13 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         if (terminated) {
             return com.dddgn.alice.task.Task.Status.DONE;
         }
-        if (!zoneResolved) {
+        if (!jobRegionResolved) {
             // 首 tick 先解算任务区（**在这一 tick 的最前面** ⇒ "第一 tick 必有定论"是可断言前提）：
             // 有冲突就地如实失败，绝不带着一个无效的授权封套继续跑。
-            zoneResolved = true;
-            com.dddgn.alice.task.Task.Status zoneVerdict = resolveJobRegion();
-            if (zoneVerdict != null) {
-                return zoneVerdict;
+            jobRegionResolved = true;
+            com.dddgn.alice.task.Task.Status jobRegionVerdict = resolveJobRegion();
+            if (jobRegionVerdict != null) {
+                return jobRegionVerdict;
             }
         }
         if (++ticks > maxTicks) {
@@ -1290,7 +1290,7 @@ com.dddgn.alice.pathing.MovementHelper
         //  `JobRegionRegistry.release(closedScope)`；两条路都堵住。）
         JobRegionRegistry.release(jobRegionScope);
         BotLog.info("[Job] maintain SUMMARY area={} chopped={} failed={} patrols={} mySaplings={}"
-                        + " planted={} baseline={} saplingItem={} zone={} reason={} → {}",
+                        + " planted={} baseline={} saplingItem={} jobRegion={} reason={} → {}",
                 area.describe(), treesChopped, treesFailed,
                 LumberAreaState.get(bot.getServer()).patrols(bot.getUUID()),
                 LumberAreaState.get(bot.getServer()).mySaplingCount(bot.getUUID()),

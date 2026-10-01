@@ -328,12 +328,12 @@ public final class BlockInteraction {
         // ⭐ 区域级授权面（`D-338` 附注七③）：**保护区内放置**这条闸门**今天本来不存在**
         //（`D-338` 核对表里的缺口）⇒ 在这里补上。判据与破坏侧**同一个函数**（`AreaPermission`）。
         // ⚠️ 没有任务区时拒绝码逐字仍是 `protected_area`；野外/未认领 ⇒ 不拦、不留痕。
-        String zoneRefusal = com.dddgn.alice.region.authz.AreaPermission.regionRefusal(level, bot.getUUID(), placeAt,
+        String regionRefusal = com.dddgn.alice.region.authz.AreaPermission.regionRefusal(level, bot.getUUID(), placeAt,
                 com.dddgn.alice.protection.AreaData.get(level.getServer()).protectionReason(level, placeAt),
                 grant == null ? null : grant.reason(), com.dddgn.alice.region.authz.AreaPermission.Act.PLACE);
-        if (zoneRefusal != null) {
+        if (regionRefusal != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
-                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), zoneRefusal);
+                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), regionRefusal);
             return PlaceResult.ZONE_DENIED;
         }
         // ⭐ `I5` 放置面（2026-09-25）：**最后一道闸门** —— 与破坏侧 `beginBreak` 同一个理由：

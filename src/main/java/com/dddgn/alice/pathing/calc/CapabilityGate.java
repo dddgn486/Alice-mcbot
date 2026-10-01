@@ -73,8 +73,8 @@ public final class CapabilityGate {
         if (facts.pureTraversalRequest()) {
             return Optional.of("CAPABILITY_UNAUTHORIZED");
         }
-        // ② 保护区（requiresZoneAuthorization）
-        if (caps.requiresZoneAuthorization()) {
+        // ② 保护区（requiresJobRegionAuthorization）
+        if (caps.requiresJobRegionAuthorization()) {
             String reason = facts.protectionReason(toFoot, !caps.canBreakBlocks());
             if (reason != null) {
                 return Optional.of("ZONE_" + reason.toUpperCase(Locale.ROOT));
@@ -103,7 +103,7 @@ public final class CapabilityGate {
         return "changesWorld=" + caps.changesWorld()
                 + " break=" + caps.canBreakBlocks()
                 + " place=" + caps.canPlaceBlocks()
-                + " zoneAuth=" + caps.requiresZoneAuthorization()
+                + " regionAuth=" + caps.requiresJobRegionAuthorization()
                 + " consumes=" + caps.consumesResources()
                 + " needsTool=" + caps.requiresTool()
                 + " intents=" + caps.mutationIntents();

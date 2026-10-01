@@ -38,10 +38,10 @@ import java.util.UUID;
  *
  * <h2>用法（夹具纪律：结束复位）</h2>
  * <pre>{@code
- * zone = FixtureClaim.protect(level, bot.getUUID(), min, max, "region_lumber");
- * check("前提", zone.ok() && zone.describe());
+ * claim = FixtureClaim.protect(level, bot.getUUID(), min, max, "region_lumber");
+ * check("前提", claim.ok() && claim.describe());
  * ...
- * zone.release();   // 终态路径（含失败路径）必须调用；release 幂等
+ * claim.release();   // 终态路径（含失败路径）必须调用；release 幂等
  * }</pre>
  */
 public final class FixtureClaim {
@@ -83,7 +83,7 @@ public final class FixtureClaim {
         String scopeId = WorldModLedger.currentScope(server, owner);
         boolean ownsScope = false;
         if (scopeId == null) {
-            scopeId = WorldModLedger.openScope(server, owner, "fixture_zone");
+            scopeId = WorldModLedger.openScope(server, owner, "fixture_claim");
             ownsScope = true;
         }
         int minX = Math.min(cornerA.getX(), cornerB.getX());
@@ -130,7 +130,7 @@ public final class FixtureClaim {
         }
 
         /** 生效的任务区（`ok()` 为假时可能为 null）——夹具据此断言等级。 */
-        public JobRegionRegistry.JobRegion declaredZone() {
+        public JobRegionRegistry.JobRegion declaredJobRegion() {
             return declared == null ? null : declared.jobRegion();
         }
 

@@ -81,7 +81,7 @@ public class CraftStationCheckTask implements Task {
     /** 失败路径的清理尝试过没有（防 `finish()` ↔ `CLEANUP` 互相递归）。 */
     private boolean cleanupAttempted;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
 
     public CraftStationCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -141,10 +141,10 @@ public class CraftStationCheckTask implements Task {
         // 区外按裁定**不记账、不回收** ⇒ 不摆前提就会实测成 `write_accounted=FAIL / teardown_clean=FAIL`
         // （台子留在世界里）——那不是缺陷，是"这片地本来就不该记"。所以这里认领场景区块 +
         // 声明 L2 任务区封套（理由与生产一致性见 `FixtureClaim` 的类注释）。
-        zone = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
+        claim = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
                 start.offset(-6, -8, -6), start.offset(6, 8, 6), "region_lumber");
-        check("zone_premise", zone.ok(), zone.describe());
-        if (!zone.ok()) {
+        check("zone_premise", claim.ok(), claim.describe());
+        if (!claim.ok()) {
             return finish();
         }
         // **上一轮失败留下的残留**先销账：场景函数把这块地清成空气了，账本里的条目已是幽灵；
@@ -348,8 +348,8 @@ public class CraftStationCheckTask implements Task {
     }
 
     private Status finish() {
-        if (zone != null) {
-            zone.release();   // 夹具纪律：结束复位（含失败路径）—— 还回本夹具摆的保护区/任务区前提
+        if (claim != null) {
+            claim.release();   // 夹具纪律：结束复位（含失败路径）—— 还回本夹具摆的保护区/任务区前提
         }
         // **§6.9.4 副作用边界**：任何失败路径都不许把世界改动留在身后。
         // 2026-09-13 实测就吃了这一条：`station_placed=FAIL` 直接 finish() ⇒ 那块圆石留在世界里，

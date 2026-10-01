@@ -66,10 +66,10 @@ public final class BlockBreakSafety {
             return "fluid_block";
         }
         String worldProtection = AreaData.get(level.getServer()).protectionReason(level, target);
-        String zoneRefusal = AreaPermission.regionRefusal(level, bot.getUUID(), target, worldProtection,
+        String regionRefusal = AreaPermission.regionRefusal(level, bot.getUUID(), target, worldProtection,
                 reason, AreaPermission.Act.BREAK);
-        if (zoneRefusal != null) {
-            return zoneRefusal;
+        if (regionRefusal != null) {
+            return regionRefusal;
         }
         if (isUnbreakable(level, target)) {
             return "unbreakable_block";

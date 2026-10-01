@@ -145,12 +145,12 @@ MovementCapabilities
 ├─ canBreakBlocks
 ├─ canPlaceBlocks
 ├─ canEnterFluid
-├─ requiresZoneAuthorization
+├─ requiresJobRegionAuthorization
 ├─ intrinsicReversibility
 └─ supportsMidExecutionRevalidation
 ```
 
-`requiresZoneAuthorization` 只表达该 Movement 需要经过策略授权；它不表示 Movement 自己可以绕过禁区策略。
+`requiresJobRegionAuthorization` 只表达该 Movement 需要经过策略授权；它不表示 Movement 自己可以绕过禁区策略。
 
 `intrinsicReversibility` 表示 Movement 类型的固有可能性；实际 `evaluatedRecoverability` 必须结合当前世界、路径和请求策略计算，不能由类名或静态布尔值伪造。
 

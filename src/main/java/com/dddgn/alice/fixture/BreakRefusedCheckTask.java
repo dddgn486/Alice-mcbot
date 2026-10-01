@@ -92,7 +92,7 @@ public final class BreakRefusedCheckTask implements Task {
 
     private BlockBreakSession session;
     /** ⭐ `RC4`：预算对照臂的现场（保护区封套 + 授权 + 两个读数）。 */
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
     private Attribution budgetGrant;
     private int budgetBefore = -1;
     private int budgetRefundedBefore = -1;
@@ -368,9 +368,9 @@ public final class BreakRefusedCheckTask implements Task {
             clearTarget();
             placeTarget();
             budgetGrant = Attribution.of("check:break-refused", WriteReason.EXPECTED_TARGET);
-            zone = FixtureClaim.protect(lvl, bot.getUUID(),
+            claim = FixtureClaim.protect(lvl, bot.getUUID(),
                     target.offset(-2, -2, -2), target.offset(2, 2, 2), "region_lumber");
-            check("⑥ 前提：夹具摆出保护区 + 任务区封套（" + zone.describe() + "）", zone.ok());
+            check("⑥ 前提：夹具摆出保护区 + 任务区封套（" + claim.describe() + "）", claim.ok());
             String refusal = BlockInteraction.breakRefusal(bot, lvl, target, budgetGrant);
             check("⑥ 前提：目标格在明文目标策略下**可写**（refusal=" + refusal + "）", refusal == null);
             budgetBefore = Quota.breaks(bot);
@@ -427,18 +427,18 @@ public final class BreakRefusedCheckTask implements Task {
                         + "；没有它，「breaks 没涨」也可能是「压根没扣过」）",
                 refundedAfter == budgetRefundedBefore + 1);
         bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
-        if (zone != null) {
-            zone.release();
-            zone = null;
+        if (claim != null) {
+            claim.release();
+            claim = null;
         }
         advance(Phase.CLEANUP);
     }
 
     /** 自清理：目标格还原、模式还原、认领撤销、探针拆掉。 */
     private void cleanupPhase() {
-        if (zone != null) {
-            zone.release();   // 前提未成立/中途失败时也要复位（`release` 幂等）
-            zone = null;
+        if (claim != null) {
+            claim.release();   // 前提未成立/中途失败时也要复位（`release` 幂等）
+            claim = null;
         }
         if (bot != null) {
             ServerLevel level = bot.serverLevel();

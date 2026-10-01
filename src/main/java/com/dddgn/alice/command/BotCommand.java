@@ -138,9 +138,9 @@ public final class BotCommand {
                                 // 刻意**零参数**：作用对象 = 执行者**当前所在区块**（资产在脚下 ⇒ 站在里面声明）。
                                 // 勾选界面（可多选、可框选）是后续增量，且其操作逻辑先给用户审核。
                                 .then(Commands.literal("claim")
-                                        .executes(ctx -> safeZone(ctx.getSource(), true)))
+                                        .executes(ctx -> safeRegion(ctx.getSource(), true)))
                                 .then(Commands.literal("unclaim")
-                                        .executes(ctx -> safeZone(ctx.getSource(), false))))
+                                        .executes(ctx -> safeRegion(ctx.getSource(), false))))
                         .then(Commands.literal("add-block")
                                 .then(Commands.argument("id", StringArgumentType.string())
                                         .executes(ctx -> changeBlockRule(ctx.getSource(),
@@ -218,7 +218,7 @@ public final class BotCommand {
      * <p>为什么未认领就**拒绝**而不是顺手认领保护区：那会让"声明安全区"静默扩大资产保护范围
      * （= 静默提权）。这里选择明确拒绝 + 告诉下一步。
      */
-    private static int safeZone(CommandSourceStack source, boolean declare) {
+    private static int safeRegion(CommandSourceStack source, boolean declare) {
         if (!(source.getEntity() instanceof ServerPlayer actor)) {
             source.sendFailure(Component.literal("[alice] 安全区声明必须由玩家在游戏内执行"
                     + "（作用对象 = 他当前所在区块 ⇒ 站在资产里敲）"));
@@ -337,13 +337,13 @@ public final class BotCommand {
             BlockPos at = actor.blockPosition();
             // `D-338` 附注四②：**任务区**（工作区域派生的区块级授权封套）——只读展示，
             // 玩家由此能看出"这个区块现在被某个任务覆盖着"（任务存续期内他手改不了它）。
-            com.dddgn.alice.region.JobRegionRegistry.JobRegion zone =
+            com.dddgn.alice.region.JobRegionRegistry.JobRegion jobRegion =
                     com.dddgn.alice.region.JobRegionRegistry.jobRegionAt(level, at);
             source.sendSuccess(() -> Component.literal("[alice] 当前位置 " + at.toShortString()
                     + "（区块 " + (at.getX() >> 4) + ", " + (at.getZ() >> 4) + "）：保护区="
                     + data.isClaimed(level, at) + " 安全区=" + data.isSafe(level, at)
-                    + " 任务区=" + (zone == null ? "无"
-                            : zone.kind() + "（scope=" + zone.scopeId() + "，任务存续期内玩家不可改）")), false);
+                    + " 任务区=" + (jobRegion == null ? "无"
+                            : jobRegion.kind() + "（scope=" + jobRegion.scopeId() + "，任务存续期内玩家不可改）")), false);
         }
         source.sendSuccess(() -> Component.literal("[alice] 保护区（父类）/ 安全区（子类）: "
                 + data.summary() + "｜内部区块（向中心靠的安全范围）：保护区="

@@ -654,16 +654,16 @@ def rule_no_permitted_candidate():
     ③ `RegionLumberJob.patrol()` **真的调用**它、并给出 `no_permitted_candidate` 终态码。
     删掉任何一处 ⇒ 门禁红。
     """
-    zone = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "region" / "authz"
-            / "AreaPermission.java")
+    authz_src = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "region" / "authz"
+                 / "AreaPermission.java")
     region = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "lumber" / "RegionLumberJob.java"
     problems = []
-    ztext = zone.read_text(encoding="utf-8")
-    start = ztext.find("public static boolean permanentDenial(String code) {")
+    atext = authz_src.read_text(encoding="utf-8")
+    start = atext.find("public static boolean permanentDenial(String code) {")
     if start < 0:
         problems.append("AreaPermission 找不到 `permanentDenial`（分类的唯一出处没了 ⇒ 本规则要跟着改）")
     else:
-        body = ztext[start:ztext.find("\n    }", start)]
+        body = atext[start:atext.find("\n    }", start)]
         # ⚠️ 必须**先剥注释**：方法体里那句注释就举了 `trunk_too_tall(unreachable=…)` 当例子
         # （2026-09-19 实测：不剥注释 ⇒ 本规则假红，报"收了搜索性理由"）
         body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)

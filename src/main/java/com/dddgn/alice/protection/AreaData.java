@@ -395,7 +395,7 @@ public final class AreaData extends SavedData {
      * ⭐ **返程目标区**（`D-338` ③ 优先级链的第一段）：**有安全区 ⇒ 安全区；没有 ⇒ 保护区**。
      * 纯集合查询（零方块读取、零区块加载）。
      */
-    public Set<Long> returnZoneChunks(ResourceLocation dimension) {
+    public Set<Long> returnRegionChunks(ResourceLocation dimension) {
         Set<Long> safe = safeClaims(dimension);
         return safe.isEmpty() ? claims(dimension) : safe;
     }
@@ -406,9 +406,9 @@ public final class AreaData extends SavedData {
      * （用户 2026-09-19 裁定：小基地不要加几何，正解是玩家设定归位点）。
      */
     public Set<Long> returnArrivalChunks(ResourceLocation dimension) {
-        Set<Long> zone = returnZoneChunks(dimension);
-        Set<Long> internal = internalChunks(zone);
-        return internal.isEmpty() ? zone : internal;
+        Set<Long> chunks = returnRegionChunks(dimension);
+        Set<Long> internal = internalChunks(chunks);
+        return internal.isEmpty() ? chunks : internal;
     }
 
     /**

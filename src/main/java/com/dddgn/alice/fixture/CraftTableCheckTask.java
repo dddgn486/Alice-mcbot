@@ -189,7 +189,7 @@ public class CraftTableCheckTask implements Task {
         var pending = WorldModLedger.pendingTemporaryInCurrentScope(bot.serverLevel().getServer(), bot.getUUID());
         int writes = com.dddgn.alice.region.authz.Quota.writeCount(bot);
         check("no_world_write", writes == 0 && pending.isEmpty(),
-                "writes=" + writes + " ledgerInZone=" + pending.size() + " "
+                "writes=" + writes + " ledgerInRegion=" + pending.size() + " "
                         + com.dddgn.alice.region.authz.Quota.population(bot));
         session = null;
         return advance(Phase.NO_TABLE_CASE);

@@ -91,7 +91,7 @@
 | G6 | legacy `pathing/movement` 裸写入 | `DescendMovement.java:142`、`PillarMovement.java:146` 裸 `level.setBlock(DIRT)` | 当前**无生产调用者**（`MovementHelper.generateMovements` 无外部调用），是潜在缺口 |
 | G7 | 死代码闸门 | `FluidRiskPolicy.miningRefusal` 无调用者，但 `MineTask` 保留 `fluid_risk_lava` 硬拒绝分支 | 一个**永远为假**的硬拒绝分支（勘测清单 4） |
 | ~~G9~~ | ~~`breakForBulkEdit` 只审计不设闸~~ **已修复（R2b）** | 闸门收进方法内（按 `grant.reason()` 派生策略；`BULK_EDIT` → 明确目标策略）；`RoadBuildTask.forceBreak` 改为**如实返回被拒**（不再假装成功）；返回值 `true=已破坏 / false=被拒未写入` | 已闭合（行为变更，待回归验证） |
-| G8 | `MovementCapabilities` 无读取点 | `changesWorld`/`canBreakBlocks`/`requiresZoneAuthorization` 等字段只在自身内部出现 | 文档性元数据，**不构成闸门**（勘测清单 2） |
+| G8 | `MovementCapabilities` 无读取点 | `changesWorld`/`canBreakBlocks`/`requiresJobRegionAuthorization` 等字段只在自身内部出现 | 文档性元数据，**不构成闸门**（勘测清单 2） |
 
 **豁免（非生产写入）**：`bot/BotSelftest`、`pathing/PathingRegression`、`task/mining/MiningReplanFixture`、
 `transfer/*Fixture` 等夹具类直接改世界用于布景，不走授权面。

@@ -164,23 +164,23 @@ public final class AreaPermission {
         if (level == null || pos == null) {
             return new Decision(Verdict.NOT_GATED, null, "no_level_or_pos");
         }
-        AreaData zones = AreaData.get(level.getServer());
-        if (!zones.isClaimed(level, pos)) {
+        AreaData areas = AreaData.get(level.getServer());
+        if (!areas.isClaimed(level, pos)) {
             return new Decision(Verdict.NOT_GATED, null,
                     "unclaimed chunk " + (pos.getX() >> 4) + "," + (pos.getZ() >> 4));
         }
         // ⛔ 2026-10-01 用户裁定：**撤掉"安全区无条件拒"**（原 `protected_safe_zone` 那一档）——
         // 安全区**退化**为「保护区上的一个标记位」，与保护区**同权限**（专属语义只剩"返程首选目的地"）。
         // ⇒ 安全区内的格子走**与保护区完全相同**的判据（任务区覆盖 ＋ 等级）。
-        JobRegionRegistry.JobRegion zone = JobRegionRegistry.jobRegionOf(level.getServer(), owner);
-        if (zone == null || !zone.covers(pos)) {
+        JobRegionRegistry.JobRegion jobRegion = JobRegionRegistry.jobRegionOf(level.getServer(), owner);
+        if (jobRegion == null || !jobRegion.covers(pos)) {
             return new Decision(Verdict.DENY, "protected_area",
                     "保护区内的写入需要**生效的任务区**覆盖这一格（owner=" + shortId(owner)
-                            + " zone=" + (zone == null ? "无" : zone.kind() + "/不覆盖此格") + "）");
+                            + " jobRegion=" + (jobRegion == null ? "无" : jobRegion.kind() + "/不覆盖此格") + "）");
         }
         if (reason == null) {
             return new Decision(Verdict.DENY, "zone_reason_required",
-                    "任务区 " + zone.kind() + " 存在，但这次写入**没有声明理由** ⇒ 不给放行");
+                    "任务区 " + jobRegion.kind() + " 存在，但这次写入**没有声明理由** ⇒ 不给放行");
         }
         if (act == Act.BREAK && level.getBlockState(pos).hasBlockEntity()) {
             // ⭐⭐ **刀 2「宝贵 → 位置判据」**（`D-565` ⑤，2026-10-01 用户逐字：
@@ -207,15 +207,15 @@ public final class AreaPermission {
                     "这一格在**已认领区块**里、且是**方块实体**（" + level.getBlockState(pos).getBlock()
                             .getName().getString() + "）⇒ 区内**一律不可挖掘**"
                             + "（" + pos.toShortString() + "；理由 " + reason.name()
-                            + " 不构成例外，等级 " + zone.effectiveLevel().label() + " 也不构成例外）");
+                            + " 不构成例外，等级 " + jobRegion.effectiveLevel().label() + " 也不构成例外）");
         }
         // ══════════════ E 维：授权**到哪一档** ══════════════
-        Decision byLevel = AreaPermissionLevel.check(zone, reason, act);
+        Decision byLevel = AreaPermissionLevel.check(jobRegion, reason, act);
         if (byLevel.verdict() == Verdict.DENY) {
             return byLevel;
         }
         // ══════════════ F 维：还能**动几次** ══════════════
-        Decision byQuota = Quota.inJobRegionPlaceRefusal(zone, act);
+        Decision byQuota = Quota.inJobRegionPlaceRefusal(jobRegion, act);
         return byQuota != null ? byQuota : byLevel;
     }
 

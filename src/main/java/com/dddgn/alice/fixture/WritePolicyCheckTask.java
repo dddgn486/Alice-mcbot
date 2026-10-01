@@ -53,7 +53,7 @@ import com.dddgn.alice.task.TaskTarget;
  *       {@code miningApproach} 禁用 {@code PILLAR/FALL/DOWNWARD} 但必须保留破坏进入（D-067 ㉘）；</li>
  *   <li>D <b>登记表能认出各任务</b>：12 个真实 requester 归到预期类别，
  *       含 {@code :attemptN} 派生形态；空/{@code unknown} ⇒ {@code UNREGISTERED}（**记为错误**）；</li>
- *   <li>E <b>两区今天等价</b>（{@code zoneDiff=0}）：这是"R1 不改变默认行为"的**可执行**证据，
+ *   <li>E <b>两区今天等价</b>（{@code tenureDiff=0}）：这是"R1 不改变默认行为"的**可执行**证据，
  *       一旦有人让两区不同，这里会红并逼出决策记录；</li>
  *   <li>F <b>义务解析与今天的口径一致</b>：{@code REASON_DEFAULT} 行 == {@code WriteReason.temporary()}，
  *       显式行（{@code BUILD}/{@code MANUAL}=KEEP、{@code TRAVERSAL}=TEMP）如声明。</li>
@@ -365,8 +365,8 @@ public class WritePolicyCheckTask implements Task {
         check("requester_registry", mismatched.isEmpty(), "mismatched=" + mismatched);
 
         // E 两区等价
-        check("zone_equiv", WritePolicyMatrix.zoneDiffCount() == 0,
-                "zoneDiff=" + WritePolicyMatrix.zoneDiffCount()
+        check("tenure_equiv", WritePolicyMatrix.tenureDiffCount() == 0,
+                "tenureDiff=" + WritePolicyMatrix.tenureDiffCount()
                         + "（EXTERNAL 与 WORKSPACE 今天必须逐条相同 ⇒ 不改变默认行为）");
 
         // F 义务解析
@@ -463,7 +463,7 @@ public class WritePolicyCheckTask implements Task {
                 + " self_write_free=" + verdict("self_write_free")
                 + " grants_semantics=" + verdict("grants_semantics")
                 + " requester_registry=" + verdict("requester_registry")
-                + " zone_equiv=" + verdict("zone_equiv")
+                + " tenure_equiv=" + verdict("tenure_equiv")
                 + " obligation=" + verdict("obligation")
                 + " container_gate_live=" + verdict("container_gate_live")
                 + " container_gate_armed=" + verdict("container_gate_armed")
@@ -477,7 +477,7 @@ public class WritePolicyCheckTask implements Task {
         BotLog.info("[WritePolicy] SUMMARY {} {}", summary, String.join(" ", notes));
         BotLog.info("[WritePolicy] 表 {}", WritePolicyMatrix.describe());
         for (WritePolicyMatrix.Row row : WritePolicyMatrix.ROWS) {
-            BotLog.info("[WritePolicy] row={} zone={} task={} obligation={} movements={} reasons={}",
+            BotLog.info("[WritePolicy] row={} tenure={} task={} obligation={} movements={} reasons={}",
                     row.id(), row.tenure(), row.task(), row.obligation(),
                     row.movements(), row.reasons() == null ? 0 : row.reasons().size());
         }

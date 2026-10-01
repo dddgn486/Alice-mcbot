@@ -129,12 +129,12 @@ public class CapabilityGateCheckTask implements Task {
         expect("capability_unauthorized", CapabilityGate.check(breaker, MovementType.BREAK_AND_ENTER, pos,
                 new FakeFacts(true, null, 4, true, true, true)), "CAPABILITY_UNAUTHORIZED");
         // 负例 2：保护区。**用合成 caps**（`zoneAuth=true`）而不是依赖工厂声明 ——
-        // 2026-09-12 实测：当时 `pathAccess()` 声明 `requiresZoneAuthorization=false`，这条负例"放行"，
+        // 2026-09-12 实测：当时 `pathAccess()` 声明 `requiresJobRegionAuthorization=false`，这条负例"放行"，
         // 暴露了"保护区永不触发"的真问题（已修工厂）；这里保持合成用例，保证断言不随工厂声明漂移。
-        MovementCapabilities zoneAware = new MovementCapabilities(true, Set.of(),
+        MovementCapabilities regionAware = new MovementCapabilities(true, Set.of(),
                 false, false, com.dddgn.alice.pathing.calc.IntrinsicReversibility.REVERSIBLE,
                 RecoverabilityLevel.LOCAL_STEP, 0, true, false, false, true, true);
-        expect("zone_protected", CapabilityGate.check(zoneAware, MovementType.BREAK_AND_ENTER, pos,
+        expect("zone_protected", CapabilityGate.check(regionAware, MovementType.BREAK_AND_ENTER, pos,
                 new FakeFacts(false, "protected_area", 4, true, true, true)), "ZONE_PROTECTED_AREA");
         // 负例 2b：**生产声明**也必须过保护区（防"字段又变装饰"回归）
         expect("zone_protected_by_declaration", CapabilityGate.check(breaker, MovementType.BREAK_AND_ENTER, pos,

@@ -1006,7 +1006,7 @@ public final class WritePolicyMatrix {
     }
 
     /** EXTERNAL 与 WORKSPACE 的解析差异条数（今天必须为 0；不为 0 ⇒ 必须补决策记录）。 */
-    public static int zoneDiffCount() {
+    public static int tenureDiffCount() {
         int diff = 0;
         for (Task task : Task.values()) {
             for (WriteReason reason : WriteReason.values()) {
@@ -1020,9 +1020,9 @@ public final class WritePolicyMatrix {
 
     /** 一行摘要（命令/日志用）。 */
     public static String describe() {
-        return "rows=" + ROWS.size() + " zones=" + Tenure.values().length + " tasks=" + Task.values().length
+        return "rows=" + ROWS.size() + " tenures=" + Tenure.values().length + " tasks=" + Task.values().length
                 + " reasons=" + WriteReason.values().length + " grants=" + MovementGrant.values().length
-                + " zoneDiff=" + zoneDiffCount()
+                + " tenureDiff=" + tenureDiffCount()
                 + " unregistered=" + UNREGISTERED_SEEN.size()
                 + " undeclared=" + UNDECLARED_SEEN.size()
                 + " containerGate=" + (containerGateArmed ? "armed" : "observe")

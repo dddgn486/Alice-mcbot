@@ -57,7 +57,7 @@ import com.dddgn.alice.task.TaskTarget;
 public final class SafeReturnCheckTask implements Task {
 
     /** 区中心（专用孤立点，远离其它场景与基准）：块 (3000,-60,4000) = 区块 (187,250)。 */
-    private static final BlockPos ZONE_CENTER = new BlockPos(3000, -60, 4000);
+    private static final BlockPos SAFE_CENTER = new BlockPos(3000, -60, 4000);
 
     /** 保护区 = 中心 ± 2 ⇒ **5×5 区块**（内部区块 = 中央 3×3）。 */
     private static final int PROT_HALF = 2;
@@ -66,26 +66,26 @@ public final class SafeReturnCheckTask implements Task {
     private static final int SAFE_HALF = 1;
 
     /** 区外起点：往 −X 走 200 格（跨到别的区块，离区足够远）。 */
-    private static final BlockPos OUTSIDE = ZONE_CENTER.offset(-200, 0, 0);
+    private static final BlockPos OUTSIDE = SAFE_CENTER.offset(-200, 0, 0);
 
     /** 保护区用例起点：保护区西边界（块 2960）再往西 60 格 ⇒ 只走 ~76 格就到内部区块。 */
-    private static final BlockPos PROT_START = ZONE_CENTER.offset(-100, 0, 0);
+    private static final BlockPos PROT_START = SAFE_CENTER.offset(-100, 0, 0);
 
     /** 单区块用例起点：该区块西边界（块 2992）再往西 60 格。 */
-    private static final BlockPos SINGLE_START = ZONE_CENTER.offset(-68, 0, 0);
+    private static final BlockPos SINGLE_START = SAFE_CENTER.offset(-68, 0, 0);
 
     /** 保护区里但**不在**安全区里的位置（区块 185,248 ⇒ 5×5 有、3×3 无）——判决矩阵用。 */
     private static final BlockPos PROT_ONLY = new BlockPos(2960, -60, 3968);
 
     /** 封死盒子的位置：往 +Z 走 240 格（区外）。 */
-    private static final BlockPos SEAL = ZONE_CENTER.offset(0, 0, 240);
+    private static final BlockPos SEAL = SAFE_CENTER.offset(0, 0, 240);
 
     /**
      * ⭐ **归位点**（`D-338` 附注四①）：故意放在**两个区之外**（区块 183,254）——
      * 于是"归位点优先"与"区几何"会走到**完全不同的地方**（区几何会去 2992,4000 / 2976,4000）⇒
      * 判别性判据（忽略归位点的实现必然红）。
      */
-    private static final BlockPos HOME = ZONE_CENTER.offset(-64, 0, 64);
+    private static final BlockPos HOME = SAFE_CENTER.offset(-64, 0, 64);
 
     /** 归位点用例起点：再往西 60 格（快）。 */
     private static final BlockPos HOME_START = HOME.offset(-60, 0, 0);
@@ -135,7 +135,7 @@ public final class SafeReturnCheckTask implements Task {
 
     @Override
     public TaskTarget target() {
-        return TaskTarget.block(ZONE_CENTER);
+        return TaskTarget.block(SAFE_CENTER);
     }
 
     @Override
@@ -158,13 +158,13 @@ public final class SafeReturnCheckTask implements Task {
             return finish();
         }
         ServerLevel level = bot.serverLevel();
-        AreaData zones = AreaData.get(level.getServer());
+        AreaData areas = AreaData.get(level.getServer());
         switch (phase) {
             case PREPARE -> {
                 if (settle == 0) {
                     // 进入前的现场（收尾要**按增量**还原 ⇒ 真实存档里也能跑）
-                    safeDeclaredBefore = zones.safeChunkCount();
-                    chunksBefore = zones.claimedChunkCount();
+                    safeDeclaredBefore = areas.safeChunkCount();
+                    chunksBefore = areas.claimedChunkCount();
                     homesBefore = ReturnPointData.get(level.getServer()).count();
                     teleport(bot, OUTSIDE);
                     settle++;
@@ -178,10 +178,10 @@ public final class SafeReturnCheckTask implements Task {
                                 + level.getBlockState(outsideStart.below()).getBlock().getName().getString() + "）",
                         !level.getBlockState(outsideStart.below()).isAir());
                 check("前提：此刻世界**没有任何认领区**（否则 NO_ZONE 用例不成立；claims="
-                                + zones.claims(level.dimension().location()).size() + "）",
-                        zones.claims(level.dimension().location()).isEmpty());
+                                + areas.claims(level.dimension().location()).size() + "）",
+                        areas.claims(level.dimension().location()).isEmpty());
                 check("前提：此刻世界**没有任何安全区声明**（否则 NO_ZONE 用例不成立；safe="
-                                + zones.safeChunkCount() + "）", zones.safeChunkCount() == 0);
+                                + areas.safeChunkCount() + "）", areas.safeChunkCount() == 0);
                 phase = Phase.NO_ZONE;
             }
             case NO_ZONE -> {
@@ -210,35 +210,35 @@ public final class SafeReturnCheckTask implements Task {
                 phase = Phase.DECLARE;
             }
             case DECLARE -> {
-                int centreChunkX = ZONE_CENTER.getX() >> 4;
-                int centreChunkZ = ZONE_CENTER.getZ() >> 4;
-                int claimed = ring(zones, level, centreChunkX, centreChunkZ, PROT_HALF, true);
+                int centreChunkX = SAFE_CENTER.getX() >> 4;
+                int centreChunkZ = SAFE_CENTER.getZ() >> 4;
+                int claimed = ring(areas, level, centreChunkX, centreChunkZ, PROT_HALF, true);
                 check("前提：认领保护区 5×5 = 25 个区块（实际新增 " + claimed + "）", claimed == 25);
-                int declared = ringSafe(zones, level, centreChunkX, centreChunkZ, SAFE_HALF, true);
+                int declared = ringSafe(areas, level, centreChunkX, centreChunkZ, SAFE_HALF, true);
                 check("前提：在保护区内声明安全区 3×3 = 9 个区块（实际新增 " + declared + "）", declared == 9);
-                check("前提：**安全区 ⊆ 保护区**（安全区块数 " + zones.safeChunkCount()
-                                + " ≤ 认领区块数 " + zones.claimedChunkCount() + "）",
-                        zones.safeChunkCount() <= zones.claimedChunkCount());
+                check("前提：**安全区 ⊆ 保护区**（安全区块数 " + areas.safeChunkCount()
+                                + " ≤ 认领区块数 " + areas.claimedChunkCount() + "）",
+                        areas.safeChunkCount() <= areas.claimedChunkCount());
                 check("前提：3×3 安全区的**内部区块恰好 = 中心 1 个**（实际 "
-                                + describeChunks(zones.internalSafeClaims(level.dimension().location()))
+                                + describeChunks(areas.internalSafeClaims(level.dimension().location()))
                                 + "）",
-                        zones.internalSafeClaims(level.dimension().location())
+                        areas.internalSafeClaims(level.dimension().location())
                                 .equals(java.util.Set.of(ChunkPos.asLong(centreChunkX, centreChunkZ))));
                 check("前提：5×5 保护区的**内部区块 = 中央 3×3**（实际 "
-                                + describeChunks(zones.internalClaims(level.dimension().location())) + "）",
-                        zones.internalClaims(level.dimension().location()).size() == 9);
+                                + describeChunks(areas.internalClaims(level.dimension().location())) + "）",
+                        areas.internalClaims(level.dimension().location()).size() == 9);
                 check("前提：区外起点既不在保护区也不在安全区",
-                        !zones.isClaimed(level, outsideStart) && !zones.isSafe(level, outsideStart));
+                        !areas.isClaimed(level, outsideStart) && !areas.isSafe(level, outsideStart));
                 // 判决矩阵（接线看的就这一条）
                 check("② 判决：区外 + 有区 ⇒ `shouldStart=true`", SafeReturnTask.shouldStart(level, bot.getUUID(), outsideStart));
                 check("② 判决：已在**安全区内部**（到达到达集里）⇒ `shouldStart=false`"
                                 + "（已安全，不再兜底）",
-                        !SafeReturnTask.shouldStart(level, bot.getUUID(), ZONE_CENTER));
+                        !SafeReturnTask.shouldStart(level, bot.getUUID(), SAFE_CENTER));
                 check("⭐ 判决（`D-338` ③ 优先级链）：**在保护区里、但不在安全区里**、而世界有安全区 ⇒ "
                                 + "仍然 `shouldStart=true`（有安全区就回安全区；实际 isClaimed="
-                                + zones.isClaimed(level, PROT_ONLY) + " isSafe=" + zones.isSafe(level, PROT_ONLY)
+                                + areas.isClaimed(level, PROT_ONLY) + " isSafe=" + areas.isSafe(level, PROT_ONLY)
                                 + " shouldStart=" + SafeReturnTask.shouldStart(level, bot.getUUID(), PROT_ONLY) + "）",
-                        zones.isClaimed(level, PROT_ONLY) && !zones.isSafe(level, PROT_ONLY)
+                        areas.isClaimed(level, PROT_ONLY) && !areas.isSafe(level, PROT_ONLY)
                                 && SafeReturnTask.shouldStart(level, bot.getUUID(), PROT_ONLY));
                 check("前提：此刻**没有**归位点（本用例自己设定与清除；count="
                                 + ReturnPointData.get(level.getServer()).count() + " = " + homesBefore + "）",
@@ -261,8 +261,8 @@ public final class SafeReturnCheckTask implements Task {
                                 + bot.blockPosition().toShortString() + "）",
                         setCode == 1 && point != null && point.pos().equals(bot.blockPosition()));
                 check("⭐ 前提：归位点**在两个区之外**（否则「归位点优先」与「区几何」分不开；isClaimed="
-                                + zones.isClaimed(level, homeCell) + " isSafe=" + zones.isSafe(level, homeCell) + "）",
-                        !zones.isClaimed(level, homeCell) && !zones.isSafe(level, homeCell));
+                                + areas.isClaimed(level, homeCell) + " isSafe=" + areas.isSafe(level, homeCell) + "）",
+                        !areas.isClaimed(level, homeCell) && !areas.isSafe(level, homeCell));
                 check("⭐ 判决：有归位点（同维度）⇒ `shouldStart=true` —— **即使世界里有安全区**"
                                 + "（实际 " + SafeReturnTask.shouldStart(level, bot.getUUID(), OUTSIDE) + "）",
                         SafeReturnTask.shouldStart(level, bot.getUUID(), OUTSIDE));
@@ -286,21 +286,21 @@ public final class SafeReturnCheckTask implements Task {
                 }
                 BlockPos now = bot.blockPosition();
                 double toHome = FarWalkTask.distanceXZ(now, homeCell);
-                double toZone = FarWalkTask.distanceXZ(now, ZONE_CENTER);
+                double toSafe = FarWalkTask.distanceXZ(now, SAFE_CENTER);
                 findings.add("home status=" + status + " rounds=" + task.rounds()
                         + " ticks=" + (ticks - caseStartTick) + " from=" + caseStartFoot.toShortString()
-                        + " to=" + now.toShortString() + " dHome=" + toHome + " dZone=" + toZone
+                        + " to=" + now.toShortString() + " dHome=" + toHome + " dSafe=" + toSafe
                         + " legs=[" + String.join("; ", task.legCurve()) + "]");
-                BotLog.info("[SafeReturnDiag] home status={} rounds={} ticks={} dHome={} dZone={} to={}",
-                        status, task.rounds(), ticks - caseStartTick, toHome, toZone, now.toShortString());
+                BotLog.info("[SafeReturnDiag] home status={} rounds={} ticks={} dHome={} dSafe={} to={}",
+                        status, task.rounds(), ticks - caseStartTick, toHome, toSafe, now.toShortString());
                 check("⭐ **归位点优先**：必须走到**归位点半径内**（status=" + status + " 脚位="
                                 + now.toShortString() + " 距归位点=" + toHome + " ≤ r="
                                 + ReturnPointData.DEFAULT_RADIUS + "）",
                         status == Task.Status.DONE && toHome <= ReturnPointData.DEFAULT_RADIUS);
                 check("⭐ 且**没有**跑回区里（区几何本来可用：到达集 "
-                                + zones.returnArrivalChunks(level.dimension().location()).size()
-                                + " 个区块；距区中心=" + toZone + " ⇒ 必须仍远）",
-                        toZone > 30 && !zones.isInReturnArea(level, now));
+                                + areas.returnArrivalChunks(level.dimension().location()).size()
+                                + " 个区块；距区中心=" + toSafe + " ⇒ 必须仍远）",
+                        toSafe > 30 && !areas.isInReturnArea(level, now));
                 task = null;
                 var server = level.getServer();
                 var source = server.createCommandSourceStack().withEntity(bot).withPosition(bot.position())
@@ -321,7 +321,7 @@ public final class SafeReturnCheckTask implements Task {
                 }
                 BlockPos now = bot.blockPosition();
                 long here = ChunkPos.asLong(now.getX() >> 4, now.getZ() >> 4);
-                boolean inSafeInternal = zones.internalSafeClaims(level.dimension().location()).contains(here);
+                boolean inSafeInternal = areas.internalSafeClaims(level.dimension().location()).contains(here);
                 findings.add("safe status=" + status + " rounds=" + task.rounds()
                         + " ticks=" + (ticks - caseStartTick) + " from=" + caseStartFoot.toShortString()
                         + " to=" + now.toShortString() + " inSafeInternal=" + inSafeInternal
@@ -333,8 +333,8 @@ public final class SafeReturnCheckTask implements Task {
                                 + " 脚位=" + now.toShortString() + " 其区块=" + chunkOf(now)
                                 + " 在安全区内部集里=" + inSafeInternal + "；起走 200 格）",
                         status == Task.Status.DONE && inSafeInternal);
-                check("② 到达时 `isSafe=true`（不是「停在保护区边界」；实际 " + zones.isSafe(level, now) + "）",
-                        zones.isSafe(level, now));
+                check("② 到达时 `isSafe=true`（不是「停在保护区边界」；实际 " + areas.isSafe(level, now) + "）",
+                        areas.isSafe(level, now));
                 check("② 返程必须**分段**（段数 ≥ 2 ⇒ 是「一跳一跳逼近」而不是一次搜到底；实际 rounds="
                                 + task.rounds() + "）", task.rounds() >= 2);
                 check("② 判决：已进到达集 ⇒ `shouldStart=false`（已经安全，不再兜底）",
@@ -343,20 +343,20 @@ public final class SafeReturnCheckTask implements Task {
                 phase = Phase.DEGRADE;
             }
             case DEGRADE -> {
-                int centreChunkX = ZONE_CENTER.getX() >> 4;
-                int centreChunkZ = ZONE_CENTER.getZ() >> 4;
-                int removed = ringSafe(zones, level, centreChunkX, centreChunkZ, SAFE_HALF, false);
+                int centreChunkX = SAFE_CENTER.getX() >> 4;
+                int centreChunkZ = SAFE_CENTER.getZ() >> 4;
+                int removed = ringSafe(areas, level, centreChunkX, centreChunkZ, SAFE_HALF, false);
                 check("③ 取消安全区声明（3×3 = 9 个，实际 " + removed + "）并**保留**保护区认领（claims="
-                                + zones.claimedChunkCount() + "）",
-                        removed == 9 && zones.safeChunkCount() == safeDeclaredBefore
-                                && zones.claimedChunkCount() > 0);
+                                + areas.claimedChunkCount() + "）",
+                        removed == 9 && areas.safeChunkCount() == safeDeclaredBefore
+                                && areas.claimedChunkCount() > 0);
                 check("③ 前提：此刻**没有**安全区 ⇒ 目标降级为**保护区的内部区块**（内部集 "
-                                + zones.internalClaims(level.dimension().location()).size()
+                                + areas.internalClaims(level.dimension().location()).size()
                                 + " 个；安全区内部集 "
-                                + zones.internalSafeClaims(level.dimension().location()).size() + " 个）",
-                        zones.safeChunkCount() == safeDeclaredBefore
-                                && zones.internalSafeClaims(level.dimension().location()).isEmpty()
-                                && zones.internalClaims(level.dimension().location()).size() == 9);
+                                + areas.internalSafeClaims(level.dimension().location()).size() + " 个）",
+                        areas.safeChunkCount() == safeDeclaredBefore
+                                && areas.internalSafeClaims(level.dimension().location()).isEmpty()
+                                && areas.internalClaims(level.dimension().location()).size() == 9);
                 settle = 0;
                 phase = Phase.PROT_RUN;
             }
@@ -367,7 +367,7 @@ public final class SafeReturnCheckTask implements Task {
                 }
                 BlockPos now = bot.blockPosition();
                 long here = ChunkPos.asLong(now.getX() >> 4, now.getZ() >> 4);
-                boolean inProtInternal = zones.internalClaims(level.dimension().location()).contains(here);
+                boolean inProtInternal = areas.internalClaims(level.dimension().location()).contains(here);
                 findings.add("prot status=" + status + " rounds=" + task.rounds()
                         + " ticks=" + (ticks - caseStartTick) + " from=" + caseStartFoot.toShortString()
                         + " to=" + now.toShortString() + " inProtInternal=" + inProtInternal
@@ -380,20 +380,20 @@ public final class SafeReturnCheckTask implements Task {
                                 + inProtInternal + "）",
                         status == Task.Status.DONE && inProtInternal);
                 check("③ 这一例脚位**不在**安全区里（该例没有安全区 ⇒ 证明优先级链真的换了区；实际 isSafe="
-                                + zones.isSafe(level, now) + "）", !zones.isSafe(level, now));
+                                + areas.isSafe(level, now) + "）", !areas.isSafe(level, now));
                 task = null;
                 phase = Phase.SINGLE;
             }
             case SINGLE -> {
-                int centreChunkX = ZONE_CENTER.getX() >> 4;
-                int centreChunkZ = ZONE_CENTER.getZ() >> 4;
-                ring(zones, level, centreChunkX, centreChunkZ, PROT_HALF, false);
-                boolean single = zones.claim(level, centreChunkX, centreChunkZ);
-                check("④ 前提：塌成**只认领中心 1 个区块**（实际认领 " + zones.claimedChunkCount()
-                                + " 个，本次=" + single + "）", zones.claimedChunkCount() == 1);
+                int centreChunkX = SAFE_CENTER.getX() >> 4;
+                int centreChunkZ = SAFE_CENTER.getZ() >> 4;
+                ring(areas, level, centreChunkX, centreChunkZ, PROT_HALF, false);
+                boolean single = areas.claim(level, centreChunkX, centreChunkZ);
+                check("④ 前提：塌成**只认领中心 1 个区块**（实际认领 " + areas.claimedChunkCount()
+                                + " 个，本次=" + single + "）", areas.claimedChunkCount() == 1);
                 check("④ 前提：1 区块的区**没有内部区块**（退化口径；实际 "
-                                + zones.internalClaims(level.dimension().location()).size() + "）",
-                        zones.internalClaims(level.dimension().location()).isEmpty());
+                                + areas.internalClaims(level.dimension().location()).size() + "）",
+                        areas.internalClaims(level.dimension().location()).isEmpty());
                 settle = 0;
                 phase = Phase.SINGLE_RUN;
             }
@@ -413,7 +413,7 @@ public final class SafeReturnCheckTask implements Task {
                 check("④ **内部区块为空 ⇒ 退化「进区即到」**：脚位落在该区块内即 DONE（status=" + status
                                 + " 脚位=" + now.toShortString() + " 其区块=" + chunkOf(now) + "）",
                         status == Task.Status.DONE
-                                && here == ChunkPos.asLong(ZONE_CENTER.getX() >> 4, ZONE_CENTER.getZ() >> 4));
+                                && here == ChunkPos.asLong(SAFE_CENTER.getX() >> 4, SAFE_CENTER.getZ() >> 4));
                 task = null;
                 phase = Phase.SEAL_BUILD;
             }
@@ -459,19 +459,19 @@ public final class SafeReturnCheckTask implements Task {
             case CLEANUP -> {
                 overwritten.forEach((pos, state) -> level.setBlock(pos, state, 3));
                 overwritten.clear();
-                int centreChunkX = ZONE_CENTER.getX() >> 4;
-                int centreChunkZ = ZONE_CENTER.getZ() >> 4;
-                ringSafe(zones, level, centreChunkX, centreChunkZ, SAFE_HALF, false);
-                ring(zones, level, centreChunkX, centreChunkZ, PROT_HALF, false);
-                check("自复位：认领数回到进入前（" + zones.claimedChunkCount() + " = " + chunksBefore + "）",
-                        zones.claimedChunkCount() == chunksBefore);
-                check("自复位：安全区数回到进入前（" + zones.safeChunkCount() + " = " + safeDeclaredBefore + "）",
-                        zones.safeChunkCount() == safeDeclaredBefore);
+                int centreChunkX = SAFE_CENTER.getX() >> 4;
+                int centreChunkZ = SAFE_CENTER.getZ() >> 4;
+                ringSafe(areas, level, centreChunkX, centreChunkZ, SAFE_HALF, false);
+                ring(areas, level, centreChunkX, centreChunkZ, PROT_HALF, false);
+                check("自复位：认领数回到进入前（" + areas.claimedChunkCount() + " = " + chunksBefore + "）",
+                        areas.claimedChunkCount() == chunksBefore);
+                check("自复位：安全区数回到进入前（" + areas.safeChunkCount() + " = " + safeDeclaredBefore + "）",
+                        areas.safeChunkCount() == safeDeclaredBefore);
                 ReturnPointData homes = ReturnPointData.get(level.getServer());
                 homes.clear(bot.getUUID());
                 check("自复位：归位点数回到进入前（" + homes.count() + " = " + homesBefore + "）",
                         homes.count() == homesBefore);
-                teleport(bot, ZONE_CENTER);   // 传送自带 stopMovement
+                teleport(bot, SAFE_CENTER);   // 传送自带 stopMovement
                 phase = Phase.DONE;
                 return finish();
             }
@@ -498,8 +498,8 @@ public final class SafeReturnCheckTask implements Task {
             task = new SafeReturnTask(bot);
             caseStartTick = ticks;
             BotLog.info("[SafeReturnDiag] {} 起走 from={} 区中心={} 距离={}", tag,
-                    caseStartFoot.toShortString(), ZONE_CENTER.toShortString(),
-                    FarWalkTask.distanceXZ(caseStartFoot, ZONE_CENTER));
+                    caseStartFoot.toShortString(), SAFE_CENTER.toShortString(),
+                    FarWalkTask.distanceXZ(caseStartFoot, SAFE_CENTER));
             return null;
         }
         Task.Status status = task.tick();
@@ -531,14 +531,14 @@ public final class SafeReturnCheckTask implements Task {
     // ==================== 工具 ====================
 
     /** 认领/取消一个 (2·half+1)² 的区块环；返回发生变化（新增/移除）的区块数。 */
-    private static int ring(AreaData zones, ServerLevel level, int centreChunkX, int centreChunkZ,
+    private static int ring(AreaData areas, ServerLevel level, int centreChunkX, int centreChunkZ,
                             int half, boolean claim) {
         int changed = 0;
         for (int dx = -half; dx <= half; dx++) {
             for (int dz = -half; dz <= half; dz++) {
                 boolean did = claim
-                        ? zones.claim(level, centreChunkX + dx, centreChunkZ + dz)
-                        : zones.unclaim(level, centreChunkX + dx, centreChunkZ + dz);
+                        ? areas.claim(level, centreChunkX + dx, centreChunkZ + dz)
+                        : areas.unclaim(level, centreChunkX + dx, centreChunkZ + dz);
                 if (did) {
                     changed++;
                 }
@@ -548,17 +548,17 @@ public final class SafeReturnCheckTask implements Task {
     }
 
     /** 声明/取消一个 (2·half+1)² 的安全区；返回发生变化的安全区块数。 */
-    private static int ringSafe(AreaData zones, ServerLevel level, int centreChunkX, int centreChunkZ,
+    private static int ringSafe(AreaData areas, ServerLevel level, int centreChunkX, int centreChunkZ,
                                 int half, boolean declare) {
         int changed = 0;
         for (int dx = -half; dx <= half; dx++) {
             for (int dz = -half; dz <= half; dz++) {
                 if (declare) {
-                    if (zones.declareSafe(level, centreChunkX + dx, centreChunkZ + dz)
+                    if (areas.declareSafe(level, centreChunkX + dx, centreChunkZ + dz)
                             == AreaData.SafeDeclare.DECLARED) {
                         changed++;
                     }
-                } else if (zones.clearSafe(level, centreChunkX + dx, centreChunkZ + dz)) {
+                } else if (areas.clearSafe(level, centreChunkX + dx, centreChunkZ + dz)) {
                     changed++;
                 }
             }

@@ -897,8 +897,8 @@ public final class DebugCommands {
                 .pendingForOwner(server, bot.getUUID()).size();
         final int pendingAll = com.dddgn.alice.ledger.WorldModLedger.size(server);
         final int tempOpen = BotManager.pendingTemporaryCount(bot);
-        final String zoneSummary = com.dddgn.alice.protection.AreaData.get(server).summary();
-        final String zoneVerdict = com.dddgn.alice.protection.AreaData.get(server)
+        final String areaSummary = com.dddgn.alice.protection.AreaData.get(server).summary();
+        final String areaVerdict = com.dddgn.alice.protection.AreaData.get(server)
                 .protectionReason(source.getLevel(), foot);
 
         // 最近一次任务的终态（拒绝码/失败码归因）
@@ -926,8 +926,8 @@ public final class DebugCommands {
         source.sendSuccess(() -> Component.literal("[alice] L4 账本：本 bot pending=" + pendingMine
                 + "；未闭合临时块=" + tempOpen + "；全局 pending=" + pendingAll
                 + "；当前 scope=" + (scopeId == null ? "无" : scopeId)), false);
-        source.sendSuccess(() -> Component.literal("[alice] L4 保护区：" + zoneSummary
-                + "；bot 脚下=" + (zoneVerdict == null ? "可通过" : zoneVerdict)), false);
+        source.sendSuccess(() -> Component.literal("[alice] L4 保护区：" + areaSummary
+                + "；bot 脚下=" + (areaVerdict == null ? "可通过" : areaVerdict)), false);
         source.sendSuccess(() -> Component.literal("[alice] 最近终态：" + last), false);
         return 1;
     }

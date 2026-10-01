@@ -186,7 +186,7 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     /** ⭐ `A4`：DONE 时账本里仍挂着的条目数（正向对照的读数）。 */
     private int remainingAfter = -1;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
-    private FixtureClaim.Handle zone;
+    private FixtureClaim.Handle claim;
 
     public RestoreUnderfootSafetyCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -528,7 +528,7 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         //
         // ⭐⭐ `A4`（2026-09-23）：**顺序不能反** —— 必须**先开作用域、再声明任务区**。
         // `JobRegionRegistry.jobRegionOf` 是**按"当前作用域"**找生效任务区的：
-        //     `scopeId = WorldModLedger.currentScope(server, owner); zone = REGIONS.get(scopeId);`
+        //     `scopeId = WorldModLedger.currentScope(server, owner); jobRegion = REGIONS.get(scopeId);`
         // 旧版反着来（先 `protect` ⇒ 任务区挂在外层电池步作用域 `#N:Regression:<step>` 上，
         // 再 `openScope("c2_underfoot")` ⇒ 当前作用域变成新的内层 `#N+1`）⇒ 回收期的每一次写入
         // 都在**另一个**作用域上 ⇒ `jobRegionOf` 返回 null ⇒ `AreaPermission` 判 `protected_area`
@@ -543,14 +543,14 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         // ⚠️ 前提盒子必须**同时**覆盖：① 阶梯 + 摔落面；② 臂②那格（南侧 3 格）；③ 臂③的远区块
         // （认领是**按区块**的，`x+512` ⇒ 顺带认领中间那 33 列区块 —— 这些区块**不读不写**，
         //  认领本身是纯数据操作，不会加载任何区块，这正是臂③能成立的前提）。
-        zone = FixtureClaim.protect(level, bot.getUUID(),
+        claim = FixtureClaim.protect(level, bot.getUUID(),
                 new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
                 new BlockPos(ORIGIN.getX() + FAR_OFFSET_X + 2, FLOOR_Y + PILLAR_H + 2,
                         ORIGIN.getZ() + FLOOR_DZ),
                 "region_lumber");
-        if (!zone.ok()) {
-            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + zone.describe());
-            BotLog.warn("[C2] 前提未成立：{}", zone.describe());
+        if (!claim.ok()) {
+            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + claim.describe());
+            BotLog.warn("[C2] 前提未成立：{}", claim.describe());
             return;
         }
         // ⭐ **自下而上**播种（= 真机 `PILLAR` 上行的真实顺序）
@@ -676,8 +676,8 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         WorldModLedger.forget(level, stepPos(PILLAR_H - 1));
         WorldModLedger.forget(level, floatPos());
         WorldModLedger.forget(level, farPos());
-        if (zone != null) {
-            zone.release();   // 夹具纪律：结束复位（含失败路径）
+        if (claim != null) {
+            claim.release();   // 夹具纪律：结束复位（含失败路径）
         }
         WorldModLedger.closeScope(level.getServer(), bot.getUUID());
         BlockPos home = new BlockPos(ORIGIN.getX(), FLOOR_Y + 1, ORIGIN.getZ());

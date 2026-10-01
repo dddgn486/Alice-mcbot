@@ -66,7 +66,7 @@ SITE_CATEGORIES = {
     "probe",              # 探针/诊断用途的临时写入
 }
 
-CSV_HEADER = ["id", "zone", "task", "obligation", "movements", "movement_types",
+CSV_HEADER = ["id", "tenure", "task", "obligation", "movements", "movement_types",
               "reasons_count", "reasons", "code_ref", "note"]
 
 
@@ -230,7 +230,7 @@ def parse_matrix() -> dict:
         if len(fields) != 8:
             raise ValueError(f"Row 字段数不是 8（实际 {len(fields)}）：{inner[:80]}…")
         row_id = java_strings(fields[0])[0]
-        zone = fields[1].split(".")[-1]
+        tenure = fields[1].split(".")[-1]
         task = fields[2].split(".")[-1]
         obligation = fields[3].split(".")[-1]
         movements_field = fields[4]
@@ -248,13 +248,13 @@ def parse_matrix() -> dict:
         else:
             reasons = re.findall(r"WriteReason\.(\w+)", reasons_field)
         rows.append({
-            "id": row_id, "zone": zone, "task": task, "obligation": obligation,
+            "id": row_id, "tenure": tenure, "task": task, "obligation": obligation,
             "movements": movements, "movements_declared": movements_field != "null",
             "reasons": reasons, "code_ref": java_strings(fields[6])[0],
             "note": java_strings(fields[7])[0],
         })
 
-    zone_names = parse_enum(text, "Tenure")
+    tenure_names = parse_enum(text, "Tenure")
     task_names = parse_enum(text, "Task")
 
     prefix_rules = re.findall(r'new String\[\]\{"([^"]+)",\s*"(\w+)"\}', text)
@@ -286,7 +286,7 @@ def parse_matrix() -> dict:
         raise ValueError("无法从源码解析任务族规则（正则失效）⇒ 拒绝静默放行")
 
     return {
-        "rows": rows, "zones": zone_names, "tasks": task_names,
+        "rows": rows, "tenures": tenure_names, "tasks": task_names,
         "grants": grant_types, "prefix_rules": prefix_rules,
         "derived_markers": derived_markers, "family_rules": family_rules,
     }
@@ -411,7 +411,7 @@ def build_rows_csv(matrix: dict) -> list[list[str]]:
             types.append(factory_by_grant.get(grant, "?"))
         reasons = row["reasons"]
         out.append([
-            row["id"], row["zone"], row["task"], row["obligation"],
+            row["id"], row["tenure"], row["task"], row["obligation"],
             "未声明" if not row["movements_declared"] else "|".join(row["movements"]),
             "未声明" if not row["movements_declared"] else "|".join(types),
             str(len(reasons)) if reasons != ["*"] else "全部",
@@ -441,14 +441,14 @@ def main() -> int:
     problems: list[str] = []
 
     # ① 全枚举
-    expected = len(matrix["zones"]) * len(matrix["tasks"])
+    expected = len(matrix["tenures"]) * len(matrix["tasks"])
     if len(matrix["rows"]) != expected:
         problems.append(f"行数 {len(matrix['rows'])} ≠ Tenure×Task {expected}")
-    for zone in matrix["zones"]:
+    for tenure in matrix["tenures"]:
         for task in matrix["tasks"]:
-            hits = [r for r in matrix["rows"] if r["zone"] == zone and r["task"] == task]
+            hits = [r for r in matrix["rows"] if r["tenure"] == tenure and r["task"] == task]
             if len(hits) != 1:
-                problems.append(f"{zone}×{task} 行数={len(hits)}（应为 1）")
+                problems.append(f"{tenure}×{task} 行数={len(hits)}（应为 1）")
 
     # ② 理由无孤儿
     covered: set[str] = set()
@@ -582,7 +582,7 @@ def main() -> int:
     if unused:
         print(f"提示（非失败）：这些理由在 {len(code_corpus)} 个源文件里没有任何调用点 ⇒ 疑似死值：{unused}")
 
-    print(f"表：rows={len(matrix['rows'])} zones={len(matrix['zones'])} tasks={len(matrix['tasks'])} "
+    print(f"表：rows={len(matrix['rows'])} tenures={len(matrix['tenures'])} tasks={len(matrix['tasks'])} "
           f"grant={len(matrix['grants'])} 注册前缀={len(matrix['prefix_rules'])} "
           f"派生标记={matrix['derived_markers']} 族规则={len(matrix['family_rules'])}")
     if problems:
