@@ -5756,6 +5756,49 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 `permissionBlock(region,…)` → `permissionBlock(area,…)`（它断言 `patrol()` 分支的**逐字文本**）。
 ⚠️ 本线**不需要客户端轮次**。
 
+### §B⁷ ⏳ **本刀执行计划（已定，压缩后可照此续）** —— `zone` 清理 ＋ `workingArea`/`job_region` 改名（2026-10-01）
+
+**用户的四裁（逐字要点）**：① `zone` 清理**按我提案表全套改**（生产 API ＋ 日志 ＋ 夹具）② **存档键改＋同刀写迁移**
+（⛔ 不许静默丢数据）③ 类名 `LumberRegionState` → `LumberAreaState` ④ ⭐ **job 三层**（`D-567` 补充）：
+**对外 job 种类 = `region_job`**（先只作口径词）· **具体 kind = `region_lumber`（保留）** ·
+**对内实际作业区 = `workingArea`（玩家划的就是它）** · **由它创建的 = `job_region`**；
+⭐ 他并追问「**这两个同名类不能合并吗？本来就是重复的**」⇒ **合，见下**。
+
+**A ⭐ `WorkingArea` 合并（回答他的追问）**：今天两份重复定义 —— ① `job/lumber/LumberAreaState.Area`
+（`minX/minZ/maxX/maxZ ＋ baseY ＋ maxHeight`）② `region/JobAreaRegistry.WorkingArea`
+（`dimension ＋ minX/minZ/maxX/maxZ`）。⇒ 合成**一个顶层** `region/WorkingArea`（**只留水平 footprint**：
+`minX/minZ/maxX/maxZ` ＋ `center`/`coverRadius`/`containsHorizontal`/`areaXZ`/`chunkCover`/`describe`）；
+⭐ `dimension` **挪到 `JobRegion` 上**（它是"区域在哪个维度"的属性，⛔ 不是 footprint 的属性；且 `zoneAt` 是它
+**唯一**读者 ⇒ 挪过去零行为变化、**零存档形状变化**）；`LumberAreaState.Area` 改为**组合** `WorkingArea`
+（`record Area(WorkingArea footprint, int baseY, int maxHeight)` ＋ 转发访问器）⇒ **不再有重复的四个 int**。
+⚠️ `declare(...)` 因此多一个 `ResourceLocation dimension` 形参（24 个调用点都手上有维度）。
+
+**B 改名族（`job_region`）**：`JobAreaRegistry` → **`JobRegionRegistry`** · `JobArea` → **`JobRegion`** ·
+`zoneOf`→`jobRegionOf` · `zoneAt`→`jobRegionAt` · `zonePlaceCount`→`inJobRegionPlaceCount` ·
+`recordZonePlacement`→`recordJobRegionPlacement` · `activeZones`→`activeRegions` · `Result.zone()`→`jobRegion()` ·
+日志前缀 `[TaskZone]`→**`[JobRegion]`** · `summary` 的 `task_zones=`→`job_regions=`。
+
+**C `zone` 其余批（提案表已批准）**：`WritePolicyMatrix.{zoneLevel→areaLevel, TenureSource.zoneAt→areaAt}` ·
+`AreaData.isInReturnZone`→`isInReturnArea` · `SafeReturnTask.zoneKind`→**`regionKind`**（它返 `"protect"/"safe"`＝
+两种**区域类型** ⇒ 这里正好用 `region`）· `Quota.inZonePlaceRefusal`→`inJobRegionPlaceRefusal` ·
+`MineCandidateSource` 局部 `safeZones`→`claims` · `ScopeBuffer` 的 `closure.inZone()`→`inArea()` ·
+日志 `[SafeZone]`→`[Claim]` · `SafeReturn` 的 `zone=`→`region=`。⛔ **不动**：拒绝码 `return_no_safe_zone`（稳定词表）。
+
+**D 存档迁移（他裁"改＋迁移"）**：⭐ 目标名 = **含废词的那几个**：`AreaData.DATA_KEY`
+`alice_safe_zones`→**`alice_regions`** · `LumberAreaState.DATA_KEY` `alice_lumber_regions`→**`alice_lumber_areas`** ·
+内层 `"regions"`→`"areas"`／`"region"`→`"area"`。⚠️ **`"claims"`/`"safe_chunks"`/`"blocks"`/`"tags"` 保留**
+（⛔ 不含废词、且描述准确 —— 已如实告诉用户这一处收窄）。迁移做法：旧**文件键**用
+`SavedDataStorage.get(AreaData::load, LEGACY_KEY)` 读一次＋**并集合并**＋`setDirty()`＋**响亮 WARN（带条数）**；
+内层键**读旧写新**。⚠️ **`WorkingArea` 不含 `dimension` ⇒ 迁移无需猜维度**（这正是选这个形状的原因之一）。
+**证据**：合并/内层迁移逻辑做成**夹具可喂的纯函数** ＋ 夹具断言；文件键胶水＝代码 ＋ 真存档实验
+（`run/world-pristine` 预置旧名文件 ⇒ 看迁移 WARN 与条数）。
+
+**E 收尾**：`compileJava` · `check-all` 静态 `pass=40 warning=1 failed=0` · 电池（`single:task_zone,protection_zones,
+ledger_zone_scope,write_policy,job_area_grant` ＋ lumber 6 步）· `docs/BARITONE_ANCHORS.md`（若扫到内核路径）·
+同步表（`kernel-predicates` 的 `permissionBlock(area,…)`/`zoneOf` 等硬写、`check-layer-direction` 的 `REGION_MOVED`、
+`check-duplicate-class-names` 若 `WorkingArea` 变唯一则要**撤**旧登记）· 文档（`D-567` 补、`O135` 收口、`TESTING_GUIDE`
+日志前缀、`TEST_MATRIX` 行）· 提交＋推送＋镜像。
+
 ### §C ⏳ 下一刀 = **清理 `zone`**（用户 2026-10-01 已定方向「然后来清理 `zone`」；⛔ 具体名字/批次待裁，台账 `O135`）
 
 ⭐ **上一轮那条主线（刀 2/3/4）已全部走完**（见 `§B″`/`§B‴`/`§B⁗`/`§B⁵`）：

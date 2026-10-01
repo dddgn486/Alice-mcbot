@@ -27721,3 +27721,21 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 ⭐ **电池 6/6 全 PASS**（`single:lumber_job,region_sweep,region_sweep_e2e,region_maintain,region_maintain_unmaintainable,lumber_failure`
 ⇒ `passed=6/6 ticks=1644`，日志 `run/headless-logs/20261001-190914-single_lumber_*.log`）
 ⇒ ⭐ **行为零变化**（改名刀的主判据；本刀**不需要客户端轮次**）。
+
+#### `D-567` 补充：⭐ job 种类 / workingArea / job_region 三层（2026-10-01 第二轮，逐字）
+
+> 用户逐字：「**`region_lumber` 这个名字可以保留，你要区分，对外区域 job 应该叫 `region_job`，
+> 这是 job 的种类，`workingArea` 是对内的实际作业区称呼，也就是玩家实际是划分 `workingArea`，
+> 发布 `region_lumber`，根据 `workingArea` 创建 `job_region`**」
+
+| 词 | 是什么 | 今天代码里对应 |
+|---|---|---|
+| **`workingArea`** | ⭐ **对内的实际作业区**（**玩家实际划分的就是它**） | 玩家那块地 = `LumberRegionState.Area`（`D-567` 上一条刚由 `Region` 改来）；作业内的方块级矩形 = `JobAreaRegistry.WorkingArea` |
+| **`region_lumber`** | ⭐ **对外区域 job 名**（具体 kind，**保留**） | `JobRequest.Kind.REGION_LUMBER` / `RegionLumberJob` / `RegionLumberItem` / `region_lumber` |
+| **`region_job`** | ⭐ **对外 job 的「种类」** | ⚠️ 今天**没有 family 载体**（`JobRequest.Kind` 是平表：`LUMBER`/`MINE`/`REGION_LUMBER`/`COLLECT`/`CRAFT`…） |
+| **`job_region`** | ⭐ **由 `workingArea` 创建出来的区域** | `JobAreaRegistry.JobArea`（今天的「任务区 / job 区」，区块级封套、随 `scopeId` 生灭） |
+
+⇒ ⚠️ **与上一条的口径合起来读**：`region` = 确定概念（保护区 · **`job_region`** · 安全区）·
+`Area` = 统称 · `workingArea` = 实际作业区 · `region_job` = 对外种类名。
+⏳ **落地映射（改名清单）待用户确认** —— 见 `O135`（`zone` 清理的目标名由这些词决定：`zoneOf`/`Result.zone()`/`[TaskZone]`
+这一族的目标名应是 **`jobRegion*`**，而**不是**我先前按旧「任务区」口径提的 `jobArea*`）。
