@@ -27591,4 +27591,5 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
   ① 复制一份回 `protection/` ⇒ 红「搬包没做完（同一层不许有两份定义）」·
   ② 把 `region/` 那份挪走 ⇒ 红「搬包不是删除」；还原 ⇒ `PASS`（`region/` 5 文件）
 - `ALICE_HEADLESS=1 tools/check-all.sh` ⇒ `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`
+- ⚠️⭐ **提交后要复跑 `check-baritone-anchor`**（`O113`/刀 5 同一个坑）：本刀**看起来不碰内核**，但 `action/BlockInteraction.java` 出现在**引用面**上（一行 import）⇒ 提交后门禁判它「改了代码但没登记行」⇒ 已在 `docs/BARITONE_ANCHORS.md` 补 `e6b88a67` 行（**Alice 特有：零行为增量**）
 - ⭐ **碰到本刀两个类的夹具步同轮复跑，零回归**：`protection_zones`（CORE 内，`ClaimCheckTask` 用 `ClaimService` ＋ `MapGeometry`）⇒ **`checks=95 failures=0 PASS`**；`single:task_zone`（用 `JobAreaRegistry`）⇒ **`checks=94 failures=0 PASS`**。CORE 整轮唯一红 = 既有的已登记红 `mine_regression`（`EXPECTED_REDS` 1-1b₂，与本刀无关）
