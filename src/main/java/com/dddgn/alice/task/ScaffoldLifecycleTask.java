@@ -206,7 +206,7 @@ public final class ScaffoldLifecycleTask implements Task {
                 BlockPos.containing(SCENE_BOX.maxX, SCENE_BOX.maxY, SCENE_BOX.maxZ), "region_lumber");
         if (!claim.ok()) {
             // **不许静默降级**：前提没摆成 ⇒ 如实失败（否则后面的判据会在错误的世界前提上做判断）
-            failure = "FIXTURE_ZONE_PREMISE_FAILED " + claim.describe();
+            failure = "FIXTURE_CLAIM_PREMISE_FAILED " + claim.describe();
             BotLog.warn("[Scaffold] {}", failure);
             phase = Phase.ASSERT;
             return Task.Status.RUNNING;

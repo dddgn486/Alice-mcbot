@@ -324,7 +324,7 @@ public final class MineRegressionTask implements Task {
      * <p>为什么必须摆：`D-398` 把写入责任收窄到保护区 —— **区外不记账 ⇒ 无回收义务**
      * （`MineTask` 走 `restore_skip pending=0` 早退，`RESTORE` 相位一次都到不了；`D-465` 尝试① 实测）。
      * 而**只认领不声明任务区**会被 `AreaPermission` 判 `protected_area` 拒写
-     * （尝试② 实测 `support_skipped result=ZONE_DENIED`）⇒ **两件一起对**才谈得上"真放支撑 + 用完即拆"。
+     * （尝试② 实测 `support_skipped result=REGION_DENIED`）⇒ **两件一起对**才谈得上"真放支撑 + 用完即拆"。
      */
     private FixtureClaim.Handle claim;
     private Item expectedItem;
@@ -422,7 +422,7 @@ public final class MineRegressionTask implements Task {
                         SUPPORT_MIN, SUPPORT_MAX, "region_lumber");
                 if (!claim.ok()) {
                     // 前提没摆成 ⇒ **如实判红**，别默默继续（那会把"前提缺失"伪装成"支撑没垫"）
-                    record(current, false, "zone_premise_failed " + claim.describe());
+                    record(current, false, "claim_premise_failed " + claim.describe());
                     finishCase();
                     return index >= CASES.size() ? finish() : Status.RUNNING;
                 }

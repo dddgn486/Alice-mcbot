@@ -758,7 +758,7 @@ public final class PathSession {
             public String protectionReason(BlockPos pos, boolean placing) {
                 // ⭐ D-338 附注十：这一处**必须过区域级授权面**（AreaPermission），否则在保护区里
                 // 连任务区（L2）授权的 PILLAR/垫脚都会被拒 —— 客户端实测就是这个原因导致
-                // "高树最高一格够不到、没搭柱子、直接跳过"（该轮 144 次 ZONE_PROTECTED_AREA、零放置）。
+                // "高树最高一格够不到、没搭柱子、直接跳过"（该轮 144 次 REGION_PROTECTED_AREA、零放置）。
                 // 没有任务区时返回码**逐字**仍是 `protected_area` ⇒ 既有行为/失败码不变。
                 var serverLevel = (net.minecraft.server.level.ServerLevel) level;
                 String raw = com.dddgn.alice.protection.AreaData.get(bot.getServer())

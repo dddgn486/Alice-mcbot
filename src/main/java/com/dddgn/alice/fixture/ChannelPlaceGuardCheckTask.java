@@ -191,7 +191,7 @@ public final class ChannelPlaceGuardCheckTask implements Task {
                             && !MovementHelper.bodyPassable(level, pocket.offset(0, 0, 1))
                             && !MovementHelper.bodyPassable(level, pocket.offset(0, 0, -1))
                             && !MovementHelper.canWalkThrough(level, pocket.above(2)));
-            check("前提③：区域级授权面不拦这一格（否则执行层判据会拿到 `ZONE_DENIED` 而不是 `CHANNEL_DENIED`）",
+            check("前提③：区域级授权面不拦这一格（否则执行层判据会拿到 `REGION_DENIED` 而不是 `CHANNEL_DENIED`）",
                     AreaPermission.regionRefusal(level, bot.getUUID(), blocked,
                             AreaData.get(level.getServer()).protectionReason(level, blocked),
                             WriteReason.STEP_PLACEMENT, AreaPermission.Act.PLACE) == null);

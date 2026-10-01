@@ -29,7 +29,7 @@ import com.dddgn.alice.task.TaskTarget;
  *
  * <p><b>五组用例（`D-338` ③ 把口径从"进认领区块即到"改成优先级链之后）</b>：
  * <ol>
- *   <li>{@code NO_ZONE}：世界**没有任何认领区** ⇒ 必须**立刻**如实失败 `return_no_safe_zone`
+ *   <li>{@code NO_REGION}：世界**没有任何认领区** ⇒ 必须**立刻**如实失败 `return_no_safe_region`
  *       （"没有安全区"不是"到不了"，也**不许**退化成站定不动之外的行为）；判决 `shouldStart=false`；</li>
  *   <li>{@code SAFE_RUN}：认领 **5×5 保护区** + 在其中声明 **3×3 安全区**，把 bot 放到 **200 格外的区外**
  *       ⇒ 必须走到**安全区的内部区块**（3×3 的内部区块恰好 = 中心 1 个）—— 不是"停在保护区边界"，
@@ -97,7 +97,7 @@ public final class SafeReturnCheckTask implements Task {
     private static final int HOME_TICK_CAP = 900;
     private static final int BUDGET_TICKS = 3400;
 
-    private enum Phase { PREPARE, NO_ZONE, DECLARE, HOME_SET, HOME_RUN, SAFE_RUN, DEGRADE, PROT_RUN,
+    private enum Phase { PREPARE, NO_REGION, DECLARE, HOME_SET, HOME_RUN, SAFE_RUN, DEGRADE, PROT_RUN,
         SINGLE, SINGLE_RUN, SEAL_BUILD, SEALED, CLEANUP, DONE }
 
     private final BotPlayer bot;
@@ -177,14 +177,14 @@ public final class SafeReturnCheckTask implements Task {
                 check("前提：区外起点脚下必须有支撑（脚位=" + outsideStart.toShortString() + " 脚下="
                                 + level.getBlockState(outsideStart.below()).getBlock().getName().getString() + "）",
                         !level.getBlockState(outsideStart.below()).isAir());
-                check("前提：此刻世界**没有任何认领区**（否则 NO_ZONE 用例不成立；claims="
+                check("前提：此刻世界**没有任何认领区**（否则 NO_REGION 用例不成立；claims="
                                 + areas.claims(level.dimension().location()).size() + "）",
                         areas.claims(level.dimension().location()).isEmpty());
-                check("前提：此刻世界**没有任何安全区声明**（否则 NO_ZONE 用例不成立；safe="
+                check("前提：此刻世界**没有任何安全区声明**（否则 NO_REGION 用例不成立；safe="
                                 + areas.safeChunkCount() + "）", areas.safeChunkCount() == 0);
-                phase = Phase.NO_ZONE;
+                phase = Phase.NO_REGION;
             }
-            case NO_ZONE -> {
+            case NO_REGION -> {
                 if (task == null) {
                     task = new SafeReturnTask(bot);
                     caseStartTick = ticks;
@@ -194,12 +194,12 @@ public final class SafeReturnCheckTask implements Task {
                 if (status == Task.Status.RUNNING) {
                     return Task.Status.RUNNING;
                 }
-                findings.add("no_zone status=" + status + " reason=" + task.failureReason());
-                BotLog.info("[SafeReturnDiag] no_zone status={} reason={}", status, task.failureReason());
-                check("① 没有安全区 ⇒ 必须立刻如实失败 `return_no_safe_zone`（实际 status=" + status
+                findings.add("no_region status=" + status + " reason=" + task.failureReason());
+                BotLog.info("[SafeReturnDiag] no_region status={} reason={}", status, task.failureReason());
+                check("① 没有安全区 ⇒ 必须立刻如实失败 `return_no_safe_region`（实际 status=" + status
                                 + " reason=" + task.failureReason() + "）",
                         status == Task.Status.FAILED
-                                && task.failureReason().startsWith("return_no_safe_zone"));
+                                && task.failureReason().startsWith("return_no_safe_region"));
                 check("① 没有安全区时**不许移动**（起点=" + outsideStart.toShortString() + " 现位="
                                 + bot.blockPosition().toShortString() + "）",
                         bot.blockPosition().distManhattan(outsideStart) <= 1);

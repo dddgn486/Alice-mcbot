@@ -143,7 +143,7 @@ public class CraftStationCheckTask implements Task {
         // 声明 L2 任务区封套（理由与生产一致性见 `FixtureClaim` 的类注释）。
         claim = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
                 start.offset(-6, -8, -6), start.offset(6, 8, 6), "region_lumber");
-        check("zone_premise", claim.ok(), claim.describe());
+        check("claim_premise", claim.ok(), claim.describe());
         if (!claim.ok()) {
             return finish();
         }

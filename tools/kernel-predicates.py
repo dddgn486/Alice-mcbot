@@ -646,7 +646,7 @@ def rule_no_permitted_candidate():
     事实（裁定依据，客户端实测）：区域作业的候选扫描把**没权限的树**丢进 `rejected`、`viable` 里根本没有
     它 ⇒ 作业的世界模型变成「区域里没有树」⇒ 走**待机巡查等生长**（那是为树苗生长设计的正常机制）。
     2026-09-19 19:06 客户端：LLM 自起的 `region_lumber` 在保护区内被封顶 `L1`、5 棵树全
-    `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` + `欠树 deficit=5`，**空转到 `maxTicks=24000`
+    `job_region_break_not_allowed` ⇒ `viable=0 inRegion=0` + `欠树 deficit=5`，**空转到 `maxTicks=24000`
     （20 分钟）**，期间反复唤醒 LLM。用户口径：「任务要如实失败，不能继续跑」。
 
     本规则断言：① 分类的**唯一出处** `AreaPermission.permanentDenial` 在、且**永久码齐**；
@@ -676,8 +676,8 @@ def rule_no_permitted_candidate():
         # 它是「区内任何 `hasBlockEntity()` 一律不可挖掘」的拒绝码，**必须**算永久拒绝：
         # 这一格再扫多少次也不会变成可挖 ⇒ 漏掉它，区域作业又会把"挖不动"当成"区域里没有候选"、
         # 空转到 `maxTicks`（正是本规则存在的理由）。
-        for code in ('"zone_break_not_allowed"', '"protected_area"', '"protected_block_entity"',
-                     '"zone_read_only"', '"zone_place_not_scaffold"'):
+        for code in ('"job_region_break_not_allowed"', '"protected_area"', '"protected_block_entity"',
+                     '"job_region_read_only"', '"job_region_place_not_scaffold"'):
             if code not in body:
                 problems.append("`permanentDenial` 丢了永久码 " + code + "（权限类拒绝必须算永久）")
         if "trunk_too_tall" in body:
@@ -772,7 +772,7 @@ def rule_loop_admission():
     return problems
 
 
-def rule_bulk_write_zone_gate():
+def rule_bulk_write_job_region_gate():
     """D-343（2026-09-19 用户裁定）：**道路施工那条批量写入链不许绕过区域授权面**，
     且 `RoadObstaclePolicy` 的"裸判据"必须**继续是**规划期规避（不许被顺手接上阶梯）。
 
@@ -4031,7 +4031,7 @@ def rule_k4_capability_provenance():
     return violations
 
 
-def rule_ledger_closure_zone_scoped():
+def rule_ledger_closure_region_scoped():
     """`Z2`（2026-09-23）：**"账本收工了没有"只许一个口径，而且必须带人口**。
 
     事实（为什么必须门禁化，不是注释）：`Z1` 让 `recordPlacement` **在区外不记账** ⇒
@@ -5142,7 +5142,7 @@ def rule_replay_bounded():
     return problems
 
 
-def rule_write_budget_zone_and_container_exception():
+def rule_write_budget_region_and_container_exception():
     """`Z3`（2026-09-23）：**额度只有一处出处；容器轴是唯一例外；瞬时码只有一个拼法**。
 
     <h3>为什么（审计挖出来的真缺陷，不是推测）</h3>
@@ -5536,7 +5536,7 @@ def main() -> int:
     ring = rule_stop_event_ring()
     noperm = rule_no_permitted_candidate()
     loop = rule_loop_admission()
-    bwg = rule_bulk_write_zone_gate()
+    bwg = rule_bulk_write_job_region_gate()
     d344 = rule_replant_sweep_bounded()
     attr = rule_structured_attribution()
     s3 = rule_search_limit_not_unreachable()
@@ -5572,14 +5572,14 @@ def main() -> int:
     btfooting = rule_break_traverse_footing()
     d385 = rule_break_cost_state_penalty()
     capability = rule_k4_capability_provenance()
-    z2 = rule_ledger_closure_zone_scoped()
+    z2 = rule_ledger_closure_region_scoped()
     rc3 = rule_lossy_write_accounted()
     a3 = rule_kill_drop_attributed()
     p7 = rule_battery_nonpass_steps_listed()
     p3 = rule_job_area_grant_scoped()
     rc4 = rule_write_truth_single_source()
     p2b = rule_replay_bounded()
-    z3 = rule_write_budget_zone_and_container_exception()
+    z3 = rule_write_budget_region_and_container_exception()
     z4 = rule_vacuous_assertions_carry_population()
     pl1 = rule_stale_proof_replan()
     diagside = rule_diagonal_side_single_source()

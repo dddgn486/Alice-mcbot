@@ -34,7 +34,7 @@ import com.dddgn.alice.task.TaskTarget;
  * "额度用满就不再改世界"；现在还要判「**区外无格数额度**」（无装订时连做 70 次破坏/放置都不许被拒 ——
  * 70 > `Caps.DEFAULT` 的 64/32，所以这臂对"兜底又变回 64"有鉴别力）与「**显式装订照旧强制**」
  * （`capForEscape(1,1)` ⇒ 第 2 次必被拒）。⚠️ 判据的静态那一半（"默认回退 = 不限"）在门禁
- * `rule_write_budget_zone_and_container_exception` 里 —— **两个半张一起才叫判据**。
+ * `rule_write_budget_region_and_container_exception` 里 —— **两个半张一起才叫判据**。
  */
 public final class QuotaCheckTask implements Task {
 
@@ -195,7 +195,7 @@ public final class QuotaCheckTask implements Task {
      * 不是区外就**如实判红**（不许默默换个说法继续，`Z2` 的教训：夹具得自己声明前提）。
      *
      * <p><b>臂①「无装订 ⇒ 不设格数额度」</b>：把生效上限装成 {@link Quota.Caps#UNBOUNDED}
-     * （= 默认派生的那个值，见门禁 `rule_write_budget_zone_and_container_exception`）
+     * （= 默认派生的那个值，见门禁 `rule_write_budget_region_and_container_exception`）
      * ⇒ 连做 {@link #ZONE_PROBES} 次破坏 + 放置**一次都不许被拒**（`D-398` R4：区外无限制修改，
      * 闸门改为时间预算防空转）。
      *

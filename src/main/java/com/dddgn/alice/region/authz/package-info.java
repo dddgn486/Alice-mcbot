@@ -50,8 +50,8 @@
  *
  * <p>入口是 {@code AreaPermission}（"**一个判据，多处消费**"：候选扫描 ×2 · 破坏闸门 · 放置闸门 ·
  * 能力闸门**都问同一个入口**，⛔ 不许各写一套 —— 重演"六份重复"的旧账）。
- * 拒绝码是**稳定词表**（`protected_area` / `zone_read_only` / `zone_break_not_allowed` /
- * `zone_place_not_scaffold` / `zone_place_quota` / `zone_reason_required` /
+ * 拒绝码是**稳定词表**（`protected_area` / `job_region_read_only` / `job_region_break_not_allowed` /
+ * `job_region_place_not_scaffold` / `job_region_place_quota` / `job_region_reason_required` /
  * `protected_block_entity`）—— 调用方、日志、夹具都按它归因。
  *
  * <p>⚠️ **一处口径更正（2026-10-01 拆之前实测，别再沿用旧说法）**：结构提案 `§5`/`§2` 说

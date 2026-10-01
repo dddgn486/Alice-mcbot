@@ -165,7 +165,7 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 | D15 | **阶段 3-A / A1 只读配方查询**：右键 `alice:craft_check`（约 1 秒）；电池步 `craft_check` | 自带（夹具自己重置背包） | `craftable_sticks=PASS missing_ingredients=PASS needs_table=PASS machine_only_vanilla=PASS no_recipe=PASS machine_only=PASS/SKIP read_only=PASS verdict=PASS` | `[CraftCheck] SUMMARY …`；`read_only` 是**硬断言**：查询前后背包逐槽一致（只读原语的证据）；`machine_only` 未装 Mekanism 时如实记 `SKIP` |
 | D14 | **K-3 安全点停止**（D-166/D-169）：右键 `alice:k3_stop_check`（DEFER）/ **Shift+右键**（FORCED）；**不在电池里**（会停掉顶层任务=电池自己） | 自带（把 bot 升空） | DEFER：`停止请求延后到安全点：task=K3StopCheckTask` → 请求后仍被 tick → `已到安全点，执行延后的停止`；FORCED：`任务在不安全时刻被强制停止` | `bot_report` → `安全点取消：deferred=1`（DEFER）/ `forcedUnsafe=1`（FORCED）；前提失败报 `fixture_not_airborne`，被嵌套时报 `fixture_not_top_level` |
 | D12 | 电池 `partial_search` / 右键 `alice:partial_search_check`（K-1，约 1 秒，纯规划） | 自带 | `partial_with_prefix=PASS same_goal_reachable_with_budget=PASS no_prefix_for_real_failures=PASS verdict=PASS` | `[PartialSearch] SUMMARY …` |
-| D11 | 电池 `capability_gate` / 右键 `alice:capability_gate_check`（基-8 + K-5，约 1 秒，纯逻辑） | 自带 | `pure_traversal_allowed=PASS capability_unauthorized=PASS zone_protected=PASS no_tool=PASS no_throwaway=PASS no_place_budget=PASS declarations=PASS foreign_break_attribution=PASS safe_cancel_wiring=PASS container_write_record=PASS session_status_no_dead_value=PASS verdict=PASS` | `[CapabilityGate] SUMMARY …`；`session_status_no_dead_value` 是 **K-5** 断言：分类表 + 覆盖率（除 RUNNING/COMPLETED 外每个状态都必须有生产者） |
+| D11 | 电池 `capability_gate` / 右键 `alice:capability_gate_check`（基-8 + K-5，约 1 秒，纯逻辑） | 自带 | `pure_traversal_allowed=PASS capability_unauthorized=PASS region_protected=PASS no_tool=PASS no_throwaway=PASS no_place_budget=PASS declarations=PASS foreign_break_attribution=PASS safe_cancel_wiring=PASS container_write_record=PASS session_status_no_dead_value=PASS verdict=PASS` | `[CapabilityGate] SUMMARY …`；`session_status_no_dead_value` 是 **K-5** 断言：分类表 + 覆盖率（除 RUNNING/COMPLETED 外每个状态都必须有生产者） |
 | D10 | 电池 `tool_supply` / 右键 `alice:tool_supply_check`（基-9，约 2 秒） | 自带（**会临时改写 bot 背包并在收尾复原**） | `tool_swap=PASS worn_no_spare=PASS no_tool_no_conjure=PASS verdict=PASS` | `[ToolSupply] SUMMARY …`；`no_tool_no_conjure` 是**负例**：不许凭空变出工具 |
 | D9 | 电池 `llm_contract` / 右键 `alice:llm_contract_check`（基-5，约 1 秒） | 自带 | `job_failure_reports=PASS product_filter_target=PASS product_filter_default=PASS refusal_readback=PASS verdict=PASS` | `[LlmContract] SUMMARY …`；`refusal_readback` 同时验"进 prompt"与"接受后清掉" |
 | D8 | 电池 `decision_trace` / 右键 `alice:decision_trace_check`（基-4，约 1 秒） | 自带 | `trace_written=PASS trace_memory_tail=PASS state_nbt_roundtrip=PASS restart_semantics=PASS verdict=PASS` | `[DecisionTrace] SUMMARY …`；同时可看 `<config>/alice-decisions.jsonl` 是否新增一行 |
@@ -481,7 +481,7 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
 | **③ 冲突必须如实失败** | 站在场景里 `/alice protect safe claim` → `/alice region start` | 立即 `任务区与**安全区**冲突 ⇒ 拒绝声明` + 聊天 `区域任务失败：task_zone_conflict[safe_zone 1 chunks: 1,12]`；**bot 一步都不动** |
 
 **✅ 2026-09-19 起**：**保护区里 LLM 自起的任务封顶 `L1`**（能清障垫脚、**拆不了你的方块**）⇒ 它再自起
-`region_lumber` 时会**如实失败**（候选期 `zone_break_not_allowed` ⇒ `no_reachable_candidate`），并会回聊天
+`region_lumber` 时会**如实失败**（候选期 `job_region_break_not_allowed` ⇒ `no_reachable_candidate`），并会回聊天
 （带触发原因）。下列"陷阱"仍是判读要点（**谁起的**决定了它有没有权限）：
 
 **⚠️ 判读时的一个陷阱**：任务失败后 **LLM 可能自起一个新区域任务**（`[Goal] decision_action … {"action":"start_job","kind":"region_lumber"}`）

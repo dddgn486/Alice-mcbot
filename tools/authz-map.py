@@ -304,8 +304,8 @@ def check(rows):
     #    刻意**不做**逐码登记：那会新增 ~118 行散文，与本项目"不增散文"的约定冲突（见
     #    `docs/reviews/2026-09-14-项目完成度与优先级审查.md` §4）。
     declared_total, declared_families = declared_code_families(rows)
-    # 排除**拼接前缀**：`CapabilityGate.java:73` 是 `"ZONE_" + reason.toUpperCase(...)`，
-    # `CODE_RE` 会把 `"ZONE_"` 当成一个"码"（长度 5 恰好命中 `[A-Z][A-Z_]{4,}`）。
+    # 排除**拼接前缀**：`CapabilityGate.java:73` 是 `"REGION_" + reason.toUpperCase(...)`，
+    # `CODE_RE` 会把 `"REGION_"` 当成一个"码"（长度 5 恰好命中 `[A-Z][A-Z_]{4,}`）。
     # 判据：**以 `_` 结尾的字面量是片段、不是完整的码**（拼出来的真码在本轮仍不会被断言到，
     # 这一条如实记在 `docs/authz/OVERVIEW.md` 的已知边界里，不假装覆盖）。
     counted = sorted(c for c in code_codes if c not in FAMILY_OK and not c.endswith("_"))

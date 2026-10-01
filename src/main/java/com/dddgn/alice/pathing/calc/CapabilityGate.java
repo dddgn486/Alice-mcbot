@@ -77,7 +77,7 @@ public final class CapabilityGate {
         if (caps.requiresJobRegionAuthorization()) {
             String reason = facts.protectionReason(toFoot, !caps.canBreakBlocks());
             if (reason != null) {
-                return Optional.of("ZONE_" + reason.toUpperCase(Locale.ROOT));
+                return Optional.of("REGION_" + reason.toUpperCase(Locale.ROOT));
             }
         }
         // ③ 消耗品（consumesResources）

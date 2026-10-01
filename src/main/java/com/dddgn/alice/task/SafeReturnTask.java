@@ -158,7 +158,7 @@ public final class SafeReturnTask implements Task {
         // ② 终点：有归位点就用它（跳过区几何），否则用"返程到达集"里最近的一格
         BlockPos entry = home != null ? home.pos() : areas.nearestReturnCell(level, foot);
         if (entry == null) {
-            return fail("return_no_safe_zone", "claims=0 safe=0 dim=" + level.dimension().location()
+            return fail("return_no_safe_region", "claims=0 safe=0 dim=" + level.dimension().location()
                     + " from=" + foot.toShortString());
         }
         entryCell = entry;

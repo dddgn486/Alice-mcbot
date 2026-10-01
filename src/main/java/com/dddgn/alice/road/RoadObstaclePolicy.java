@@ -48,7 +48,7 @@ public final class RoadObstaclePolicy {
      * ⇒ 两边**结论一致**（保护区里都拒），这里只是**先**拒（更便宜）。
      * 若把它"接上阶梯"，方向是**放松**（路线可穿过被任务区覆盖的保护格），还会造出
      * "规划通过、逐块写入被拒"的**半成品路** ⇒ 故**保持零改动**。
-     * 该不变量的可执行断言 = {@code tools/kernel-predicates.py: rule_bulk_write_zone_gate}。
+     * 该不变量的可执行断言 = {@code tools/kernel-predicates.py: rule_bulk_write_job_region_gate}。
      */
     public static boolean exactForbidden(ServerLevel level, BlockPos pos) {
         if (AreaData.get(level.getServer()).protectionReason(level, pos) != null) return true;

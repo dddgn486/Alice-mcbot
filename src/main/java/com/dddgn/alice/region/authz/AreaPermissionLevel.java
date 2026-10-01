@@ -41,7 +41,7 @@ final class AreaPermissionLevel {
             if (!effective.allowsBreak()) {
                 boolean readOnly = effective == WritePolicyMatrix.Level.L0_READ_ONLY;
                 return new AreaPermission.Decision(AreaPermission.Verdict.DENY,
-                        readOnly ? "zone_read_only" : "zone_break_not_allowed",
+                        readOnly ? "job_region_read_only" : "job_region_break_not_allowed",
                         "任务区 " + jobRegion.kind() + " 等级 " + effective.label() + capNote
                                 + (readOnly ? "（只读）" : "（临时脚手架 ⇒ 不许破坏）"));
             }
@@ -50,11 +50,11 @@ final class AreaPermissionLevel {
                             + " ⇒ 放行破坏（理由 " + reason.name() + "）");
         }
         if (!effective.allowsPlace()) {
-            return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "zone_read_only",
+            return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "job_region_read_only",
                     "任务区 " + jobRegion.kind() + " 等级 " + effective.label() + capNote + "（只读）⇒ 不许放置");
         }
         if (effective == WritePolicyMatrix.Level.L1_SCAFFOLD && !reason.temporary()) {
-            return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "zone_place_not_scaffold",
+            return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "job_region_place_not_scaffold",
                     "任务区 " + jobRegion.kind() + " 等级 L1 只许**临时**放置，而 " + reason.name() + " 不是");
         }
         return new AreaPermission.Decision(AreaPermission.Verdict.ALLOW, null,

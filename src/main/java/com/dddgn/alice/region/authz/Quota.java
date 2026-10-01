@@ -67,7 +67,7 @@ public final class Quota {
      * <p>为什么提成常量（而不是散在各处写字面量）：这个码要跨边界传递（内核 `[WRITE-REFUSED]`
      * → 作业终态 → `MineJob.BUDGET_CODES` 归因 → LLM/日志），**拼错一个字母就静默丢归因**；
      * 而且它必须保持**瞬时**语义（"这段额度用完了"，不是"这里到不了"）。
-     * 门禁 `rule_write_budget_zone_and_container_exception` 断言这个字面量**只在本文件**出现。
+     * 门禁 `rule_write_budget_region_and_container_exception` 断言这个字面量**只在本文件**出现。
      */
     public static final String EXHAUSTED_CODE = "write_budget_exhausted";
 
@@ -615,7 +615,7 @@ public final class Quota {
      *
      * <p><b>它回答什么</b>：`L1`（临时脚手架）在**已认领区块内**的放置配额 —— `L1` 的语义就是
      * "临时、少量"，于是同一个 job 区用满 {@link #L1_MAX_PLACES} 次之后**再放就拒**
-     * （码 {@code zone_place_quota}）。⛔ 与"这一格允不允许动"（D 维）、"授权到哪一档"（E 维）
+     * （码 {@code job_region_place_quota}）。⛔ 与"这一格允不允许动"（D 维）、"授权到哪一档"（E 维）
      * 都不是同一个问题 —— 那两维在 {@link AreaPermission} / {@link AreaPermissionLevel}。
      *
      * <p>⚠️ `L2` **故意没有**"每 scopeId 区内放置上限"（2026-09-19 用户裁定，见 `D-343`）——
@@ -641,7 +641,7 @@ public final class Quota {
         if (used < L1_MAX_PLACES) {
             return null;
         }
-        return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "zone_place_quota",
+        return new AreaPermission.Decision(AreaPermission.Verdict.DENY, "job_region_place_quota",
                 "任务区 " + jobRegion.kind() + " 等级 L1 的**区内放置配额**已用尽（" + used + "/"
                         + L1_MAX_PLACES + "）");
     }

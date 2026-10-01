@@ -645,7 +645,7 @@ public final class WorldModLedger extends SavedData {
      * @param baseline 窗口起点的 {@link Population}（用 {@link #populationBaseline} 取）；
      *                 null = 不计算"窗口内发生过什么"（{@code recordedSince=wildSkippedSince=-1}）
      *                 ⚠️ 不许图省事传 {@link Population#ZERO} —— 那会把差值静默变成"自服务器启动累计"，
-     *                 读起来像"本步窗口"、其实是全局（门禁 `rule_ledger_closure_zone_scoped` 钉这条）
+     *                 读起来像"本步窗口"、其实是全局（门禁 `rule_ledger_closure_region_scoped` 钉这条）
      */
     public static Closure closure(ServerLevel level, String scopeId, Population baseline) {
         MinecraftServer server = level.getServer();

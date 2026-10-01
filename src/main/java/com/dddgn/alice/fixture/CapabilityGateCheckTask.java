@@ -26,7 +26,7 @@ import com.dddgn.alice.task.TaskTarget;
  * 这些字段现在**真的能拦人** —— 每个拒绝码各一条负例，外加"全绿时放行"的正例：
  * <ul>
  *   <li>{@code CAPABILITY_UNAUTHORIZED}：会改世界的 Movement 却拿纯通行请求执行；</li>
- *   <li>{@code ZONE_PROTECTED_AREA}：目标落在保护区；</li>
+ *   <li>{@code REGION_PROTECTED_AREA}：目标落在保护区；</li>
  *   <li>{@code NO_REQUIRED_TOOL}：需要工具而手上没有；</li>
  *   <li>{@code NO_THROWAWAY_BLOCKS}：需要消耗一次性方块而没有；</li>
  *   <li>{@code PLACE_BUDGET_EXHAUSTED}：放置预算用尽。</li>
@@ -134,11 +134,11 @@ public class CapabilityGateCheckTask implements Task {
         MovementCapabilities regionAware = new MovementCapabilities(true, Set.of(),
                 false, false, com.dddgn.alice.pathing.calc.IntrinsicReversibility.REVERSIBLE,
                 RecoverabilityLevel.LOCAL_STEP, 0, true, false, false, true, true);
-        expect("zone_protected", CapabilityGate.check(regionAware, MovementType.BREAK_AND_ENTER, pos,
-                new FakeFacts(false, "protected_area", 4, true, true, true)), "ZONE_PROTECTED_AREA");
+        expect("region_protected", CapabilityGate.check(regionAware, MovementType.BREAK_AND_ENTER, pos,
+                new FakeFacts(false, "protected_area", 4, true, true, true)), "REGION_PROTECTED_AREA");
         // 负例 2b：**生产声明**也必须过保护区（防"字段又变装饰"回归）
-        expect("zone_protected_by_declaration", CapabilityGate.check(breaker, MovementType.BREAK_AND_ENTER, pos,
-                new FakeFacts(false, "protected_area", 4, true, true, true)), "ZONE_PROTECTED_AREA");
+        expect("region_protected_by_declaration", CapabilityGate.check(breaker, MovementType.BREAK_AND_ENTER, pos,
+                new FakeFacts(false, "protected_area", 4, true, true, true)), "REGION_PROTECTED_AREA");
         // 负例 3：没有工具
         expect("no_tool", CapabilityGate.check(breaker, MovementType.BREAK_AND_ENTER, pos,
                 new FakeFacts(false, null, 4, true, true, false)), "NO_REQUIRED_TOOL");
@@ -161,8 +161,8 @@ public class CapabilityGateCheckTask implements Task {
 
         String summary = "pure_traversal_allowed=" + verdict("pure_traversal_allowed")
                 + " capability_unauthorized=" + verdict("capability_unauthorized")
-                + " zone_protected=" + verdict("zone_protected")
-                + " zone_by_declaration=" + verdict("zone_protected_by_declaration")
+                + " region_protected=" + verdict("region_protected")
+                + " region_by_declaration=" + verdict("region_protected_by_declaration")
                 + " no_tool=" + verdict("no_tool")
                 + " no_throwaway=" + verdict("no_throwaway")
                 + " no_place_budget=" + verdict("no_place_budget")

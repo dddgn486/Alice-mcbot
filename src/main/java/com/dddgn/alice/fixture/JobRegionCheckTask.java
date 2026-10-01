@@ -508,11 +508,11 @@ public final class JobRegionCheckTask implements Task {
         check("③`L0`：等级由 `WritePolicyMatrix` 解析 = L0（只读），且写入元数据",
                 l0.status() == JobRegionRegistry.Declare.DECLARED
                         && l0.jobRegion().level() == WritePolicyMatrix.Level.L0_READ_ONLY);
-        check("③`L0`：破坏 ⇒ `zone_read_only`",
-                "zone_read_only".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
+        check("③`L0`：破坏 ⇒ `job_region_read_only`",
+                "job_region_read_only".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
-        check("③`L0`：放置 ⇒ `zone_read_only`，且真的没写进世界",
-                "zone_read_only".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
+        check("③`L0`：放置 ⇒ `job_region_read_only`，且真的没写进世界",
+                "job_region_read_only".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.STEP_PLACEMENT))
                         && !placeThroughAction(level, AUTH_INSIDE,
                                 grant("walk-return", WriteReason.STEP_PLACEMENT))
@@ -531,11 +531,11 @@ public final class JobRegionCheckTask implements Task {
         // 同一个作用域换任务 ⇒ 是 REPLACED（不是 DECLARED）；等级仍然由矩阵解析 ⇒ 断言用 active()
         check("④`L1`：等级 = L1（临时脚手架）", l1.active()
                 && l1.jobRegion().level() == WritePolicyMatrix.Level.L1_SCAFFOLD);
-        check("④`L1`：**非临时**放置理由 ⇒ `zone_place_not_scaffold`（如 `REGION_REPLANT` 是计划内永久）",
-                "zone_place_not_scaffold".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
+        check("④`L1`：**非临时**放置理由 ⇒ `job_region_place_not_scaffold`（如 `REGION_REPLANT` 是计划内永久）",
+                "job_region_place_not_scaffold".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.REGION_REPLANT)));
-        check("④`L1`：**破坏** ⇒ `zone_break_not_allowed`（临时脚手架档不许破坏）",
-                "zone_break_not_allowed".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
+        check("④`L1`：**破坏** ⇒ `job_region_break_not_allowed`（临时脚手架档不许破坏）",
+                "job_region_break_not_allowed".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         int quotaPlaced = 0;
         for (int i = 0; i < Quota.L1_MAX_PLACES; i++) {
@@ -552,7 +552,7 @@ public final class JobRegionCheckTask implements Task {
                         + "，拒绝码=" + AreaPermission.placeRefusal(level, owner, new BlockPos(ninthX, FOOT_Y, QUOTA_Z),
                                 WriteReason.STEP_PLACEMENT) + "）",
                 quotaPlaced == Quota.L1_MAX_PLACES && !ninth
-                        && "zone_place_quota".equals(AreaPermission.placeRefusal(level, owner,
+                        && "job_region_place_quota".equals(AreaPermission.placeRefusal(level, owner,
                                 new BlockPos(ninthX, FOOT_Y, QUOTA_Z), WriteReason.STEP_PLACEMENT))
                         && level.getBlockState(new BlockPos(ninthX, FOOT_Y, QUOTA_Z)).isAir());
         check("④`L1`：配额计数落在**任务区**（scope）上，且只数区内放置（count="
@@ -606,7 +606,7 @@ public final class JobRegionCheckTask implements Task {
         // ⑦ ⭐ **第三处消费：候选扫描**（"一个判据三处消费"的第三条腿）—— 在**被认领的区块**里
         // 手搭一棵小树（3 格原木 ≥ `TreeScanner.MIN_LOGS`），直接问**生产候选源**：
         // 没有任务区 ⇒ 候选期就该被保护区拒；`L2` 覆盖 ⇒ 不再以保护区为由拒（"基地里的林场"用法）；
-        // `L0` ⇒ 候选期仍拒（`zone_read_only`；挖矿走同一条路，`MINING` 也是 L0）。
+        // `L0` ⇒ 候选期仍拒（`job_region_read_only`；挖矿走同一条路，`MINING` 也是 L0）。
         for (int dy = 0; dy < 3; dy++) {
             setBlockTracked(level, AUTH_TREE_BASE.above(dy), Blocks.OAK_LOG.defaultBlockState());
         }
@@ -622,9 +622,9 @@ public final class JobRegionCheckTask implements Task {
                 !hasCode(l2Candidates.rejected(), "protected_area"));
         JobRegionRegistry.declare(server, owner, "walk-return", authArea, dimension, false);
         List<String> l0Rejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
-        check("⑨候选扫描：`L0` 任务区覆盖 ⇒ 候选期仍拒，且理由码换成 `zone_read_only`"
+        check("⑨候选扫描：`L0` 任务区覆盖 ⇒ 候选期仍拒，且理由码换成 `job_region_read_only`"
                         + "（与矿侧同一条路：`MINING` 也是 L0）",
-                hasCode(l0Rejected, "zone_read_only") && !hasCode(l0Rejected, "protected_area"));
+                hasCode(l0Rejected, "job_region_read_only") && !hasCode(l0Rejected, "protected_area"));
 
         // ⑧ 日志卫生（**客户端实测逼出来的**）：规划期谓词会反复问同一格 ⇒ 留痕必须去重，否则刷屏
         ModifyAudit.clearAllowAudit();
@@ -654,10 +654,10 @@ public final class JobRegionCheckTask implements Task {
         check("⑨能力闸门：`L1` 允许「垫脚」（临时脚手架）但**不允许破坏类移动**"
                         + "（码=" + AreaPermission.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) + "）",
                 AreaPermission.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null
-                        && "zone_break_not_allowed".equals(AreaPermission.movementRefusal(level, owner,
+                        && "job_region_break_not_allowed".equals(AreaPermission.movementRefusal(level, owner,
                                 AUTH_INSIDE, "protected_area", false)));
         JobRegionRegistry.release(WorldModLedger.currentScope(server, owner));
-        check("⑨能力闸门：**没有任务区**时逐字仍是 `protected_area`（既有失败码/`ZONE_PROTECTED_AREA` 不变）",
+        check("⑨能力闸门：**没有任务区**时逐字仍是 `protected_area`（既有失败码/`REGION_PROTECTED_AREA` 不变）",
                 "protected_area".equals(AreaPermission.movementRefusal(level, owner, AUTH_INSIDE,
                         "protected_area", true)));
         check("⑨能力闸门：**方块/标签黑名单不参与区域授权**（`protected_block` 原样返回）",
@@ -668,15 +668,15 @@ public final class JobRegionCheckTask implements Task {
         //    —— 现场：用户点的一次性砍树被如实拒绝后，LLM 自起 `region_lumber` 把用户保护区里的树砍了（两轮）。
         JobRegionRegistry.declare(server, owner, "region_lumber", authArea, dimension, false);
         String llmBreak = AreaPermission.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET);
-        check("⑪封顶：**LLM 自起**的 `region_lumber`（声明 L2）在保护区内 ⇒ 破坏被拒 **`zone_break_not_allowed`**"
+        check("⑪封顶：**LLM 自起**的 `region_lumber`（声明 L2）在保护区内 ⇒ 破坏被拒 **`job_region_break_not_allowed`**"
                         + "（= 「拆不了玩家的方块」），且**不是** `protected_area`（那是「没有任务区」的码）｜code=" + llmBreak,
-                "zone_break_not_allowed".equals(llmBreak));
+                "job_region_break_not_allowed".equals(llmBreak));
         check("⑪封顶：同一任务区**仍允许临时放置**（「能清障垫脚」）⇒ 只砍掉「拆家」能力",
                 AreaPermission.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null);
         List<String> llmRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
-        check("⑪封顶端到端：LLM 自起的区域任务，保护区里的树在**候选期**就被拒（`:zone_break_not_allowed`）"
+        check("⑪封顶端到端：LLM 自起的区域任务，保护区里的树在**候选期**就被拒（`:job_region_break_not_allowed`）"
                         + "⇒ 不会去砍玩家的树｜rejected=" + llmRejected,
-                hasCode(llmRejected, "zone_break_not_allowed"));
+                hasCode(llmRejected, "job_region_break_not_allowed"));
         // ⚠️ **诚实纠正**（2026-09-19，`D-341`）：这一条以前还写着"⇒ 真任务会**如实失败**（`no_reachable_candidate`）"
         // —— **客户端实测证明那句是错的**：区域作业把"没权限的树"当成"区域里没有树"、走**待机巡查**，
         // 空转到 `maxTicks=24000`（20 分钟）。现在"如实失败"由 `permissionBlock` 保证
@@ -686,13 +686,13 @@ public final class JobRegionCheckTask implements Task {
                 AreaPermission.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
         JobRegionRegistry.declare(server, owner, "road-build", authArea, dimension, false);
         check("⑪封顶：`L3` 类（修路）非玩家发起 ⇒ 先降级 `L2`、保护区内再封顶 `L1`（两级都只收紧）⇒ 破坏仍被拒",
-                "zone_break_not_allowed".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
+                "job_region_break_not_allowed".equals(AreaPermission.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
         JobRegionRegistry.declare(server, owner, "walk-return", authArea, dimension, false);
-        check("⑪封顶**只收紧、不放宽**：`L0`（只读）非玩家发起**仍是 `L0`**，放置照样 `zone_read_only`"
+        check("⑪封顶**只收紧、不放宽**：`L0`（只读）非玩家发起**仍是 `L0`**，放置照样 `job_region_read_only`"
                         + "（不许被「封顶」抬成可临时放置）｜code=" + AreaPermission.placeRefusal(level, owner,
                         AUTH_INSIDE, WriteReason.STEP_PLACEMENT),
-                "zone_read_only".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
+                "job_region_read_only".equals(AreaPermission.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.STEP_PLACEMENT)));
         JobRegionRegistry.declare(server, owner, "region_lumber", authArea, dimension, false);
         check("⑪封顶只作用于**已认领**区块：同一非玩家任务区在**野外**不受影响（`NOT_GATED`，野外写入照旧）",
@@ -703,7 +703,7 @@ public final class JobRegionCheckTask implements Task {
         // ⑫ ⭐ `D-341`：**"无权" ≠ "没有"** —— 候选扫描把没权限的树丢进 `rejected`、`viable` 里根本没有它，
         //    于是区域作业的世界模型变成"区域里没有树" ⇒ 走**待机巡查等生长**分支（那是为树苗生长设计的
         //    正常机制、也是用户要的"等窗口"）。客户端实测（2026-09-19 19:06）：LLM 自起的 `region_lumber`
-        //    在保护区内被封顶 `L1`、5 棵树全 `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` +
+        //    在保护区内被封顶 `L1`、5 棵树全 `zone_break_not_allowed`（⭐ 当时的码名）⇒ `viable=0 inRegion=0` +
         //    `欠树 deficit=5` **空转到 `maxTicks=24000`（20 分钟）**，期间反复唤醒 LLM。
         //    用户口径："任务要如实失败，不能继续跑" ⇒ 作业必须把"树全被**永久**拒绝"判成 `FAILED`。
         List<String> cappedRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
@@ -716,11 +716,11 @@ public final class JobRegionCheckTask implements Task {
                         AUTH_TREE_BASE.getX() + 4, AUTH_TREE_BASE.getZ() + 4),
                 FOOT_Y, 8);
         String blockedMain = RegionLumberJob.permissionBlock(treeRegion, cappedRejected, FOOT_Y + 8);
-        check("⑫无权≠没有：**真扫描**里被封顶拒绝的树（`:zone_break_not_allowed`）⇒ `permissionBlock` 报出**主因**"
+        check("⑫无权≠没有：**真扫描**里被封顶拒绝的树（`:job_region_break_not_allowed`）⇒ `permissionBlock` 报出**主因**"
                         + "（⇒ 区域作业**如实失败** `no_permitted_candidate`，不再当「区域里没树」空转）｜blocked="
                         + blockedMain,
-                hasCode(cappedRejected, "zone_break_not_allowed")
-                        && blockedMain != null && blockedMain.startsWith("zone_break_not_allowed"));
+                hasCode(cappedRejected, "job_region_break_not_allowed")
+                        && blockedMain != null && blockedMain.startsWith("job_region_break_not_allowed"));
         String treeId = "tree@" + AUTH_TREE_BASE.getX() + "," + AUTH_TREE_BASE.getY() + ","
                 + AUTH_TREE_BASE.getZ();
         check("⑫无权≠没有：**搜索性/策略性**理由不算永久拒绝（`trunk_too_tall`（含带括号后缀）/`not_nearest`/"
@@ -737,7 +737,7 @@ public final class JobRegionCheckTask implements Task {
                         List.of("tree@0,-60,0:protected_area"), FOOT_Y + 8) == null);
         check("⑫无权≠没有：**安全区**（退化后与「越界」同码 `protected_area`）与 `L0` 也只读 ⇒ 都算永久拒绝",
                 AreaPermission.permanentDenial("protected_area")
-                        && AreaPermission.permanentDenial("zone_read_only"));
+                        && AreaPermission.permanentDenial("job_region_read_only"));
         // ⑫ ⚠️ **原先这里有一条"跨写法前提"断言**（受理侧 `JobRequest.Kind.name()` vs 终态侧 `Task.taskName()`
         //    必须归一到同一身份）—— `D-342` 修订后**它已废弃**：身份不再跨边界做字符串匹配
         //    （在飞身份只由 LLM 受理侧写入，别人派活由 `BotManager.beginTask` → `clearAttempt` 清掉）

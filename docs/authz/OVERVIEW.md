@@ -55,7 +55,7 @@
 
 | id | 类型 | 闸门 | 触发 | 拒绝码 | 代码位置 | 默认 | 谁能放开 |
 |---|---|---|---|---|---|---|---|
-| `L3-1` | 硬约束 | CapabilityGate 执行期复验（基-8） | 执行前用**当前世界事实**复验 | CAPABILITY_UNAUTHORIZED / ZONE_PROTECTED_AREA·BLOCK·TAG / NO_THROWAWAY_BLOCKS / NO_REQUIRED_TOOL / BREAK_BUDGET_EXHAUSTED / PLACE_BUDGET_EXHAUSTED | `core/CapabilityGate.java` | 会改世界的 Movement 必须过 | 世界事实（保护区/资源/工具/预算） |
+| `L3-1` | 硬约束 | CapabilityGate 执行期复验（基-8） | 执行前用**当前世界事实**复验 | CAPABILITY_UNAUTHORIZED / REGION_PROTECTED_AREA·BLOCK·TAG / NO_THROWAWAY_BLOCKS / NO_REQUIRED_TOOL / BREAK_BUDGET_EXHAUSTED / PLACE_BUDGET_EXHAUSTED | `core/CapabilityGate.java` | 会改世界的 Movement 必须过 | 世界事实（保护区/资源/工具/预算） |
 | `L3-2` | 硬约束 | MovementCapabilities 12 分量（能力声明） | 声明“会改世界/需授权/耗资源/需工具” | — | `core/MovementCapabilities` | 声明即受检 | 无 |
 | `L3-3` | 预算 | WriteBudget（D-106：作用域内写入次数上限） | 累计写入次数（清障是“有多少拆多少”） | WRITE_*（5 码） | `action/WriteBudget.java` | 按 scope 上限 | 调用点 |
 | `L3-4` | 凭证 | WriteAudit（记录“Alice 授权自己做了什么”） | 每次授权写入 | — | `action/WriteAudit.java` | 环形缓冲 + 日志 | — |

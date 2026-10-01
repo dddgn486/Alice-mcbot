@@ -325,7 +325,7 @@ public final class LossyWriteAccountedCheckTask implements Task {
                 new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
                 new BlockPos(ORIGIN.getX() + 6, FLOOR_Y + 4, ORIGIN.getZ() + 2), "region_lumber");
         if (!claim.ok()) {
-            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + claim.describe());
+            failures.add("FIXTURE_CLAIM_PREMISE_FAILED " + claim.describe());
             BotLog.warn("[RC3] 前提未成立：{}", claim.describe());
             return;
         }

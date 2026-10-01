@@ -549,7 +549,7 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
                         ORIGIN.getZ() + FLOOR_DZ),
                 "region_lumber");
         if (!claim.ok()) {
-            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + claim.describe());
+            failures.add("FIXTURE_CLAIM_PREMISE_FAILED " + claim.describe());
             BotLog.warn("[C2] 前提未成立：{}", claim.describe());
             return;
         }

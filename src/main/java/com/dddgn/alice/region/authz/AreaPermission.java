@@ -51,16 +51,16 @@ import java.util.UUID;
  *   <tr><th>码</th><th>含义</th><th>维</th></tr>
  *   <tr><td>{@code protected_area}</td><td>在保护区里、**没有**生效的任务区（或任务区不覆盖这一格）
  *       —— ⚠️ **这是今天的行为，逐字保留**（既有失败码/夹具/文档都按它写）</td><td>D</td></tr>
- *   <tr><td>{@code zone_reason_required}</td><td>调用方**没给理由** ⇒ 不给区域级放行（保守：没有声明就没有授权）</td><td>D</td></tr>
+ *   <tr><td>{@code job_region_reason_required}</td><td>调用方**没给理由** ⇒ 不给区域级放行（保守：没有声明就没有授权）</td><td>D</td></tr>
  *   <tr><td>{@code protected_block_entity}</td><td>⭐ **刀 2「宝贵 → 位置判据」**（`D-565` ⑤）：
  *       这一格在**已认领区块**里、且**这一格是方块实体**（箱子/熔炉/漏斗/刷怪笼/**模组机器**…）
  *       ⇒ **一律不可挖掘**（`Act.BREAK`）。⛔ 与理由无关、⛔ 与等级无关（`L0…L3` 同码）
  *       —— "宝贵"钉在**位置**上，不再是"方块类型"。</td><td>D</td></tr>
- *   <tr><td>{@code zone_read_only}</td><td>任务区等级 = `L0`（只读）</td><td>E</td></tr>
- *   <tr><td>{@code zone_break_not_allowed}</td><td>`L1`（临时脚手架）**不许破坏**</td><td>E</td></tr>
- *   <tr><td>{@code zone_place_not_scaffold}</td><td>`L1` 只许**临时**放置（`WriteReason#temporary()`），
+ *   <tr><td>{@code job_region_read_only}</td><td>任务区等级 = `L0`（只读）</td><td>E</td></tr>
+ *   <tr><td>{@code job_region_break_not_allowed}</td><td>`L1`（临时脚手架）**不许破坏**</td><td>E</td></tr>
+ *   <tr><td>{@code job_region_place_not_scaffold}</td><td>`L1` 只许**临时**放置（`WriteReason#temporary()`），
  *       这一笔不是</td><td>E</td></tr>
- *   <tr><td>{@code zone_place_quota}</td><td>`L1` 的**区内 8 次**放置配额用尽</td><td>F</td></tr>
+ *   <tr><td>{@code job_region_place_quota}</td><td>`L1` 的**区内 8 次**放置配额用尽</td><td>F</td></tr>
  * </table>
  *
  * <p>⛔ **已删除的码**：{@code protected_safe_zone}（2026-10-01 用户逐字「**确实要撤掉，确认有意**」）——
@@ -115,7 +115,7 @@ public final class AreaPermission {
      * <p><b>为什么要区分（"无权" ≠ "没有"）</b>：区域作业 `RegionLumberJob` 的候选扫描把**没权限的树
      * 直接丢进 `rejected`**、不进 `viable` ⇒ 作业的世界模型变成"区域里没有树" ⇒ 走**待机巡查等生长**
      * 分支（那是为树苗生长设计的正常机制）。客户端实测（2026-09-19 19:06）：LLM 自起的 `region_lumber`
-     * 在保护区内被封顶 `L1`、5 棵树全 `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` +
+     * 在保护区内被封顶 `L1`、5 棵树全 `job_region_break_not_allowed` ⇒ `viable=0 inRegion=0` +
      * `欠树 deficit=5 但当前没有可补种的位置`，**每 ~2 s 一行、一直转到 `maxTicks=24000`（20 分钟）**，
      * 期间反复唤醒 LLM。用户口径：**"任务要如实失败，不能继续跑"**。
      *
@@ -123,8 +123,8 @@ public final class AreaPermission {
      * `trunk_too_tall` / `not_nearest` / `no_stand` 这类**搜索性或策略性**理由继续当"暂时没有"（照旧等）。
      *
      * <p><b>收录的码</b>：{@code protected_area}（在保护区里且**没有**生效任务区）/
-     * {@code zone_read_only}（`L0`）/
-     * {@code zone_break_not_allowed}（`L1` 不许破坏）/ {@code zone_place_not_scaffold}（`L1` 只许临时放置）/
+     * {@code job_region_read_only}（`L0`）/
+     * {@code job_region_break_not_allowed}（`L1` 不许破坏）/ {@code job_region_place_not_scaffold}（`L1` 只许临时放置）/
      * {@code protected_block_entity}（⭐ 刀 2：区内方块实体一律不可挖掘 ⇒ **不会**因为再搜一次就变成可挖）/
      * {@code protected_block} / {@code protected_tag}（玩家设的全世界通用黑名单 —— 也不是"等一下就会变"）。
      *
@@ -145,7 +145,7 @@ public final class AreaPermission {
         }
         return switch (head.trim()) {
             case "protected_area", "protected_block", "protected_tag", "protected_block_entity",
-                 "zone_read_only", "zone_break_not_allowed", "zone_place_not_scaffold" -> true;
+                 "job_region_read_only", "job_region_break_not_allowed", "job_region_place_not_scaffold" -> true;
             default -> false;
         };
     }
@@ -179,7 +179,7 @@ public final class AreaPermission {
                             + " jobRegion=" + (jobRegion == null ? "无" : jobRegion.kind() + "/不覆盖此格") + "）");
         }
         if (reason == null) {
-            return new Decision(Verdict.DENY, "zone_reason_required",
+            return new Decision(Verdict.DENY, "job_region_reason_required",
                     "任务区 " + jobRegion.kind() + " 存在，但这次写入**没有声明理由** ⇒ 不给放行");
         }
         if (act == Act.BREAK && level.getBlockState(pos).hasBlockEntity()) {
@@ -258,7 +258,7 @@ public final class AreaPermission {
      * <p>消费者 = {@code CapabilityGate.Facts}（能力闸门在**执行每一条 Movement 之前**复验：
      * "这条会改世界的移动，落点是不是受保护"）。⚠️ **2026-09-19 客户端实测暴露**：这一处此前走的是
      * **裸 `AreaData.protectionReason`** ⇒ 在保护区里连 `L2` 任务区授权的 `PILLAR`
-     * （"垫一格上去"）都被拒（`ZONE_PROTECTED_AREA` ×144，全轮无一次垫脚放置）⇒ **这是第四处消费点，
+     * （"垫一格上去"）都被拒（`REGION_PROTECTED_AREA` ×144，全轮无一次垫脚放置）⇒ **这是第四处消费点，
      * 我上一片漏接了**（当时只接了候选扫描 ×2 / 破坏闸门 / 放置闸门）。
      */
     public static String silentRefusal(ServerLevel level, UUID owner, BlockPos pos, String worldProtection,

@@ -59,7 +59,7 @@
 > 审计挖出**真缺陷** —— 同一个量在 `WriteBudget` 里**还有 4 个读者回退 `Caps.DEFAULT`(64/32)**
 > （含 **A\* 写边谓词** `plannedWritesAllowed`）⇒ 破满 64 次后**计划静默降级为纯通行**。
 > 修法 = 唯一出处 `effectiveCaps`（9 个读者同源）+ 瞬时码常量 + 容器例外结构化（用户裁定保留）；
-> 判据 = `write_budget` 步新增 `ZONE` 臂 + 门禁 `rule_write_budget_zone_and_container_exception`
+> 判据 = `write_budget` 步新增 `ZONE` 臂 + 门禁 `rule_write_budget_region_and_container_exception`
 > （**八条注入臂全红**）⇒ CORE 仍 **41/41 PASS**。
 > ⭐ **`Z4` 已完成（`D-416`，2026-09-23）**：给 `Z1` 那批"空集断言"补上**与区无关的人口读数**
 > （`WriteBudget.writeCount/population`：每一次真实写入都过闸门 ⇒ 野外不是空集）——
@@ -68,7 +68,7 @@
 > 门禁 `rule_vacuous_assertions_carry_population`（**四条注入臂全红**）⇒ CORE 仍 **41/41 PASS**。
 > 残余（已登记 + 复核触发）：野外残留**只在世界里、不在账上** ⇒ 真清理拆不到（读数现在会明说差额）。
 > ⭐ **`Z2` 已完成（`D-414`，2026-09-23）**：闭合口径收窄到**保护区内**（唯一入口 = `WorldModLedger.Closure`）
-> + 门禁 `rule_ledger_closure_zone_scoped`（**八条注入臂全红**）＋ 让"账本空"的三种含义**在日志里分得开**
+> + 门禁 `rule_ledger_closure_region_scoped`（**八条注入臂全红**）＋ 让"账本空"的三种含义**在日志里分得开**
 > （`recorded=+8（记过 8 条、已收干净 ✓）` vs 野外 `recorded=0 wildSkipped=+3（⚠️ 全在区外）`）。
 > ⭐ **`lumber_job` 已查清（`D-409`，2026-09-23）**：连红 35 轮**不是内核缺陷** —— **夹具场景落在玩家自己的
 > FTB 认领里**（母本 `run/world-pristine/ftbchunks/` 有 4 个认领 chunk，覆盖 `z≥208`）⇒ FTB 取消 bot 的破坏
@@ -1745,7 +1745,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - ⛔ **EXECUTE 侧（真放支撑 + 用完即拆）试过两次，都撤回**，两次失败就是结论：
   - **不认领** ⇒ `[Ledger] skip …（区外：D-398 R1/R2 不记账、不恢复）`、`inZone=0 wildSkipped=+1`
     ⇒ 无回收义务（`supportRestored=false`）。
-  - **认领** ⇒ `[WRITE-REFUSED] … reason=protected_area` ⇒ `support_skipped result=ZONE_DENIED`
+  - **认领** ⇒ `[WRITE-REFUSED] … reason=protected_area` ⇒ `support_skipped result=REGION_DENIED`
     ⇒ 随后 `TARGET_NOT_BREAKABLE`（`ZoneAuthority`：保护区内的写入需要**生效的任务区**覆盖该格）。
   - ⭐⭐ **O2 的真正机制由此推翻原先说法**：`RESTORE` 在无头电池里不可达**不是**"没有临时放置"，
     而是**无头世界没有区域上下文**（不认领不记账 / 认领就拒写）。要跑通需**四件一起对**
@@ -5782,7 +5782,7 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 `AreaData.isInReturnZone`→`isInReturnArea` · `SafeReturnTask.zoneKind`→**`regionKind`**（它返 `"protect"/"safe"`＝
 两种**区域类型** ⇒ 这里正好用 `region`）· `Quota.inZonePlaceRefusal`→`inJobRegionPlaceRefusal` ·
 `MineCandidateSource` 局部 `safeZones`→`claims` · `ScopeBuffer` 的 `closure.inZone()`→`inArea()` ·
-日志 `[SafeZone]`→`[Claim]` · `SafeReturn` 的 `zone=`→`region=`。⛔ **不动**：拒绝码 `return_no_safe_zone`（稳定词表）。
+日志 `[SafeZone]`→`[Claim]` · `SafeReturn` 的 `zone=`→`region=`。⛔ **不动**：拒绝码 `return_no_safe_region`（稳定词表）。
 
 **D 存档迁移（他裁"改＋迁移"）**：⭐ 目标名 = **含废词的那几个**：`AreaData.DATA_KEY`
 `alice_safe_zones`→**`alice_regions`** · `LumberAreaState.DATA_KEY` `alice_lumber_regions`→**`alice_lumber_areas`** ·
@@ -5827,21 +5827,32 @@ ledger_zone_scope,write_policy,job_area_grant` ＋ lumber 6 步）· `docs/BARIT
 `check-duplicate-class-names` 若 `WorkingArea` 变唯一则要**撤**旧登记）· 文档（`D-567` 补、`O135` 收口、`TESTING_GUIDE`
 日志前缀、`TEST_MATRIX` 行）· 提交＋推送＋镜像。
 
-### §C ⏳ **下一刀 = `O135` 第 3 段·后半**（对外契约级 `zone` 字面量，⚠️ **等用户裁**）
+### §B⁹ ✅ **`O135` 第 3 段·后半已落地（2026-10-01，用户裁「甲 全改」）** —— 对外词表级 `zone` 字面量清到底
 
-⛔ **不是"忘了做"，是"名字归用户"**（他逐字：「**所以不是要我定名字吗**」）。待裁 5 组（改它 = **一次词表口径变更**：
-`TESTING_GUIDE`／`EXPECTED_REDS`／历史日志引用会**同时失效**）：
+⚠️ **这是一次词表口径变更**（⛔ 纯字面量、零行为风险）：用户裁「**甲 全改**」。⚠️ **旧码从此只活在历史文档里**
+（`AI_DECISIONS.md`／`reviews/*`／`BATTERY_CURATION` 日期行／`AI_TEST_MATRIX` 证据格 ⛔ 逐字不改）⇒ 拿旧码 grep 只能命中历史。
+⭐ 安全网 = `kernel-predicates.py:679` 的**硬写断言元组**（改漏必红）。落地表：
 
-| # | 待裁字面量 | 引用面 | 我的建议名 |
+| # | 已改字面量 | 引用面 | 落地名（＝我的建议名，用户「全套改」） |
 |---|---|---|---|
-| ① | 拒绝码 `zone_read_only` · `zone_break_not_allowed` · `zone_place_not_scaffold` · `zone_place_quota` · `zone_reason_required` | prod 6 文件 · 夹具 2 · `kernel-predicates.py:679`（**硬写断言**）· 现行文档 6 | `job_region_read_only` / `…_break_not_allowed` / `…_place_not_scaffold` / `…_place_quota` / `…_reason_required` |
-| ② | `CapabilityGate` 判决码 `zone_protected` · `zone_protected_by_declaration` | `CapabilityGate` ＋ `CapabilityGateCheckTask` | `region_protected` / `region_protected_by_declaration` |
-| ③ | `SafeReturnTask` 失败码 `return_no_safe_zone` ＋ 诊断标签 `no_zone` | `SafeReturnTask` · `SafeReturnCheckTask` | `return_no_safe_region` / `no_region` |
-| ④ | 夹具码 `zone_premise` · `zone_premise_failed` | `CraftStationCheckTask` · `MineRegressionTask` | `claim_premise` / `claim_premise_failed` |
-| ⑤ | 门禁规则名 `rule_bulk_write_zone_gate` · `rule_ledger_closure_zone_scoped` · `rule_write_budget_zone_and_container_exception` | `kernel-predicates.py` ＋ 4 处源码/文档指针 | `rule_bulk_write_job_region_gate` / `rule_ledger_closure_region_scoped` / `rule_write_budget_region_and_container_exception` |
+| ① | 拒绝码 `job_region_read_only` · `job_region_break_not_allowed` · `job_region_place_not_scaffold` · `job_region_place_quota` · `job_region_reason_required` | prod 6 文件 · 夹具 2 · `kernel-predicates.py:679`（**硬写断言**）· 现行文档 6 | ✅ `job_region_read_only` / `…_break_not_allowed` / `…_place_not_scaffold` / `…_place_quota` / `…_reason_required` |
+| ② | `CapabilityGate` 判决码 `region_protected` · `region_protected_by_declaration` | `CapabilityGate` ＋ `CapabilityGateCheckTask` | ✅ `region_protected` / `region_protected_by_declaration`（判决码 `ZONE_PROTECTED_*`→`REGION_PROTECTED_*`、`ZONE_DENIED`→`REGION_DENIED`） |
+| ③ | `SafeReturnTask` 失败码 `return_no_safe_region` ＋ 诊断标签 `no_region` | `SafeReturnTask` · `SafeReturnCheckTask` | ✅ `return_no_safe_region` / `no_region`（＋ `Phase.NO_ZONE`→`NO_REGION`） |
+| ④ | 夹具码 `claim_premise` · `claim_premise_failed` | `CraftStationCheckTask` · `MineRegressionTask` | ✅ `claim_premise` / `claim_premise_failed`（＋ `FIXTURE_ZONE_PREMISE_FAILED`→`FIXTURE_CLAIM_PREMISE_FAILED`） |
+| ⑤ | 门禁规则名 `rule_bulk_write_job_region_gate` · `rule_ledger_closure_region_scoped` · `rule_write_budget_region_and_container_exception` | `kernel-predicates.py` ＋ 4 处源码/文档指针 | ✅ `rule_bulk_write_job_region_gate` / `rule_ledger_closure_region_scoped` / `rule_write_budget_region_and_container_exception` |
 | — | `protected_safe_zone` | **已是墓碑**（码已删，只剩注释/文档） | ⛔ 不改（历史） |
 
-⭐ **上一轮那条主线（刀 2/3/4）已全部走完**（见 `§B″`/`§B‴`/`§B⁗`/`§B⁵`）：
+**同刀改的同步面**：`kernel-predicates.py:679` 硬写断言元组 · `CapabilityGate.java:80` 前缀构造 `"ZONE_"`→`"REGION_"` ·
+`BlockInteraction.PlaceResult` · `docs/authz/OVERVIEW.md` 的 `L3-1` 行 · `TESTING_GUIDE`/`GLOSSARY`。
+
+⚠️ **仍是历史、逐字不改**：`AI_DECISIONS.md` · `reviews/*` · `BATTERY_CURATION` 日期行 · `AI_TEST_MATRIX` 证据格 · 台账 `Z2`/`Z3` 完成记录。
+⭐ 另有两处**客户端实测引文**（`RegionLumberJob` ＋ `JobRegionCheckTask` 引用 2026-09-19 19:06 那轮日志）**保留当时的码名**并就地加指针
+（「当时的码名；现名 `job_region_break_not_allowed`」）—— **引文可回溯 > 字面统一**。
+
+### §C ⏳ **下一刀 = 候选（⛔ 未裁，按"判断＋代价＋替代＋推荐"另议）**
+
+⚠️ `O135` 已**全部收口**（`zone` 在生产面/工具面/活文档里已无活词；剩下的是历史文档与两处引文，逐字不改）。
+⭐ 上一轮那条主线（刀 2/3/4）**已全部走完**（见 `§B″`/`§B‴`/`§B⁗`/`§B⁵`）：
 
 | 优先 | 刀 | 依据 |
 |---|---|---|---|

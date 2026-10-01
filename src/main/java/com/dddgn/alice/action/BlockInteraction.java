@@ -76,16 +76,16 @@ public final class BlockInteraction {
         NO_ITEM,
         /**
          * ⭐ **区域级授权拒绝**（`D-338` 附注七③）：该格在**保护区**内，而**任务区/等级**不允许放
-         * （代表码见 `AreaPermission`：`protected_area` / `zone_read_only` / `zone_place_quota`…）：
+         * （代表码见 `AreaPermission`：`protected_area` / `job_region_read_only` / `job_region_place_quota`…）：
          * **未写入**、**不消耗物品与预算**。与 `BUDGET_EXHAUSTED` 分开：一个是"额度用尽"，
          * 一个是"这块地没授权" —— 归因完全不同。
          */
-        ZONE_DENIED,
+        REGION_DENIED,
         /**
          * ⭐ **通道层格拒绝**（`I5` 放置面，2026-09-25 用户裁定）：该格是**本作业自己的通道层格**
          * （脚位格 / 头位格）⇒ **未写入**、**不消耗物品与预算**。
          *
-         * <p>与 `ZONE_DENIED` 分开的理由与 `NO_ITEM` 那条一样：病因与归因完全不同 ——
+         * <p>与 `REGION_DENIED` 分开的理由与 `NO_ITEM` 那条一样：病因与归因完全不同 ——
          * 一个是"这块地没授权"（地皮/归属），一个是"**这是我自己要反复走的那条路的格，填了我就回不去**"
          * （作业形状）。代表码 {@link TaskTargetProtection#CHANNEL_CODE}。
          */
@@ -334,7 +334,7 @@ public final class BlockInteraction {
         if (regionRefusal != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
                     placeAt.toShortString(), grant == null ? "-" : grant.describe(), regionRefusal);
-            return PlaceResult.ZONE_DENIED;
+            return PlaceResult.REGION_DENIED;
         }
         // ⭐ `I5` 放置面（2026-09-25）：**最后一道闸门** —— 与破坏侧 `beginBreak` 同一个理由：
         // 不能只指望所有调用点都记得先问 `placementRefusal`（"靠调用点自觉"的守卫迟早漏一处）。
