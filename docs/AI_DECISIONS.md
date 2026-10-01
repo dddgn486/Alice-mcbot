@@ -27739,3 +27739,54 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 `Area` = 统称 · `workingArea` = 实际作业区 · `region_job` = 对外种类名。
 ⏳ **落地映射（改名清单）待用户确认** —— 见 `O135`（`zone` 清理的目标名由这些词决定：`zoneOf`/`Result.zone()`/`[TaskZone]`
 这一族的目标名应是 **`jobRegion*`**，而**不是**我先前按旧「任务区」口径提的 `jobArea*`）。
+
+
+#### `D-567` 落地：⭐ `zone` 清理（`O135`）第 1–2 段 ＋ **`WorkingArea` 合并**（2026-10-01）
+
+**用户的四裁**：① `zone` 清理按我提案表**全套改** ② 存档键**改＋同刀写迁移** ③ 类名 `LumberRegionState` → `LumberAreaState`
+④ ⭐ 他追问「**这两个同名类不能合并吗？本来就是重复的**」（`WorkingArea`）。
+
+**A ⭐ `WorkingArea` 合并（回答他的追问）**：旧定义两份重复 —— `job/lumber/LumberRegionState.Area`
+（水平 4 个 int ＋ `baseY` ＋ `maxHeight`）与 `region/JobAreaRegistry.WorkingArea`（`dimension` ＋ 水平 4 个 int）。
+⇒ 合成**一个顶层** `region/WorkingArea`（**只留水平 footprint** ＋ `center`?/`coverRadius`/`containsHorizontal`/
+`areaXZ`/`chunkCover`/`describe`）；⭐ **`dimension` 搬到 `JobRegion` 上** —— 三条理由：① 维度是「区域」的属性、
+不是 footprint 的属性（唯一读者 `zoneAt` 的跨维度匹配语义逐字不变）② 竖直策略（`baseY`/自适应上限）是**作业侧**的事
+③ ⛔ **这样迁移不必猜维度**（旧档没有维度字段）。`LumberAreaState.Area` 改为**组合** `WorkingArea`
+（`record Area(WorkingArea footprint, int baseY, int maxHeight)` ＋ 转发访问器）⇒ 四个 int 的重复消失；
+`center()`/`contains()` 要用竖直信息 ⇒ 留在 `Area` 上。`declare(...)` 因此多一个 `dimension` 形参（24 个调用点手上有）。
+
+**B/C 改名族 ＋ zone 清理**：`JobAreaRegistry`→**`JobRegionRegistry`** · `JobArea`→**`JobRegion`** ·
+`Result.zone()`→`jobRegion()` · `zoneOf`/`zoneAt`/`zonePlaceCount`/`recordZonePlacement`→`jobRegionOf`/`jobRegionAt`/
+`inJobRegionPlaceCount`/`recordJobRegionPlacement` · `activeZones`→`activeRegions` · `[TaskZone]`→**`[JobRegion]`** ·
+`summary` 的 `task_zones=`→`job_regions=` · `LumberRegionState`→**`LumberAreaState`** ·
+夹具 `JobAreaCheckTask`/`JobAreaGrantCheckTask`→`JobRegionCheckTask`/`JobRegionGrantCheckTask`；
+其余批：`WritePolicyMatrix.zoneLevel`→`areaLevel` · `TenureSource.zoneAt`→`areaAt`（⭐ 并**顺带清掉一个误留旧词**：
+`Row` 的组件 `zone` 其实是 **`Tenure` 地理归属** ⇒ 改名 `tenure`）· `AreaData.isInReturnZone`→`isInReturnArea` ·
+`SafeReturnTask.zoneKind`→`regionKind` · `Quota.inZonePlaceRefusal`→`inJobRegionPlaceRefusal` ·
+`MineCandidateSource` 局部 `safeZones`→`claims` · `WorldModLedger.Closure.inZone`→`inArea` · `[SafeZone]`→`[Claim]`。
+⚠️ **电池步 id 一字未变**（`task_zone`/`job_area_grant`）—— 同"物品 id 不变"的纪律（⛔ 别改用户手上的测试入口）。
+
+**D 存档迁移（"改＋迁移"，⛔ 不许静默丢玩家数据）**：
+| 旧键 | 新键 | 迁移做法 |
+|---|---|---|
+| `alice_safe_zones`（文件 id） | **`alice_regions`** | `get()` 里 `computeIfAbsent(…, LEGACY_DATA_KEY)` 读一次 ＋ `absorbLegacy()` **并集**（安全区仍保 `⊆ 保护区` 不变量，孤儿丢弃计数）＋ `setDirty()` ＋ **响亮 WARN 带条数**；旧文件**保留不删** |
+| `alice_lumber_regions`（文件 id） | **`alice_lumber_areas`** | 同上；同一 owner 两边都有 ⇒ **以新档为准**、旧档那条记 `skipped` 并打进日志 |
+| 内层 `"regions"`/`"region"`（木质作业区） | `"areas"`/`"area"` | **读旧写新**（读取侧两个键都认） |
+| 内层 `"claims"`/`"safe_chunks"`/`"blocks"`/`"tags"` | **不动** | ⛔ 不含废词、且描述准确（如实收窄；已口头告诉用户） |
+
+**E 可复算证据**（用户要求"迁移要有证据"）：`ClaimCheckTask`（CORE 步 `protection_zones`）新增 **3 条判据** ——
+① 键名字面量被钉住（`alice_regions`/`alice_safe_zones`）② **纯合并逻辑** `AreaData.absorbLegacy(...)` 真的并入
+（手工造旧档 ⇒ 断言条数 + 该区块进了认领集）③ 木质作业区**读旧内层键**照样读得回来。
+⇒ `protection_zones` **95 → 98 判据**、`failures=0`（⭐ 判据数是**加**的，⛔ 没有丢断言）。
+
+**验证等级**：`compileJava` 成功 · `check-all` 静态 **`pass=40 warning=1 failed=0`**（首跑红的是 `POLICY_MATRIX.csv`
+陈旧 —— `Row` 组件改名 ⇒ `policy-map.sh` 重生成）· ⭐ **电池 8/8 全 PASS**（`protection_zones`(98/0) · `task_zone`(94/0) ·
+`lumber_job` · `region_sweep` · `region_sweep_e2e` · `region_maintain` · `region_maintain_unmaintainable` ·
+`lumber_failure` ⇒ `passed=8/8 ticks=1301`，日志 `run/headless-logs/20261001-200237-single_protection_zones,….log`）
+⇒ ⭐ **行为零变化** · `docs/BARITONE_ANCHORS.md` 补 9551aa1b 行（引用面扫到 2 个内核文件）。
+
+**⛔ 仍留在 `O135` 的（第 3 段，未做）**：① **拒绝码字面量 `zone_read_only`/`zone_break_not_allowed`/
+`zone_place_not_scaffold`/`zone_place_quota`/`zone_reason_required`/`protected_safe_zone`** —— ⚠️ **它们是稳定词表**
+（日志/夹具/`EXPECTED_REDS`/文档都在引）⇒ **改它是一次数值口径变更**，⛔ 我没有顺手改，**等你裁**；
+② **夹具侧局部名**（`zones`/`zone` 在 8 个夹具文件里）＋ `task/SafeReturnTask` 的 `zones` 局部 ·
+`task/ScaffoldLifecycleTask.zone` —— 纯局部名，机械改但要单独一轮验证。

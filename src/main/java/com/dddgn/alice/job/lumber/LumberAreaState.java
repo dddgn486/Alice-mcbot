@@ -1,4 +1,5 @@
 package com.dddgn.alice.job.lumber;
+import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.region.WorkingArea;
 
 import net.minecraft.core.BlockPos;
@@ -32,7 +33,11 @@ import java.util.UUID;
  */
 public final class LumberAreaState extends SavedData {
 
-    private static final String DATA_KEY = "alice_lumber_regions";
+    /** ⭐ 存档键（`SavedData` 文件 id）：**`alice_lumber_areas`**（2026-10-01 由 `alice_lumber_regions` 改名，`O135`）。 */
+    private static final String DATA_KEY = "alice_lumber_areas";
+
+    /** ⛔ **旧键**（只读一次用于迁移，⛔ 永不写回）。 */
+    private static final String LEGACY_DATA_KEY = "alice_lumber_regions";
 
     /**
      * 玩家用 {@code /alice region set} 划区时的**自适应高度上限**默认值（不是"固定高度"）。
@@ -162,8 +167,42 @@ public final class LumberAreaState extends SavedData {
     private final java.util.Map<UUID, Entry> entries = new java.util.HashMap<>();
 
     public static LumberAreaState get(MinecraftServer server) {
-        return server.overworld().getDataStorage()
-                .computeIfAbsent(LumberAreaState::load, LumberAreaState::new, DATA_KEY);
+        var storage = server.overworld().getDataStorage();
+        LumberAreaState state = storage.computeIfAbsent(LumberAreaState::load, LumberAreaState::new, DATA_KEY);
+        state.migrateLegacyOnce(storage.computeIfAbsent(LumberAreaState::load, LumberAreaState::new,
+                LEGACY_DATA_KEY));
+        return state;
+    }
+
+    /** 是否已试过旧键迁移（每进程一次）。 */
+    private boolean legacyMigrated;
+
+    /**
+     * ⭐⭐ **旧存档键迁移（`alice_lumber_regions` ⇒ `alice_lumber_areas`）** —— 每进程一次、**响亮告警**。
+     *
+     * <p>⚠️ 并集规则**不是无脑合并**：同一 owner 两边都有记录时**保留本档（新键）**、把旧档那条记成
+     * `skipped` 并打进日志 —— 因为"同一个玩家有两套区域状态"只可能来自改名那一刻的复本，
+     * 而**新键代表最近的事实**。⛔ 静默覆盖玩家数据是这条纪律的反面。
+     */
+    private void migrateLegacyOnce(LumberAreaState legacy) {
+        if (legacyMigrated) {
+            return;
+        }
+        legacyMigrated = true;
+        int moved = 0;
+        int skipped = 0;
+        for (var e : legacy.entries.entrySet()) {
+            if (entries.putIfAbsent(e.getKey(), e.getValue()) == null) {
+                moved++;
+            } else {
+                skipped++;
+            }
+        }
+        if (moved > 0 || skipped > 0) {
+            setDirty();
+            BotLog.warn("[LumberArea] 旧存档键 `{}` 已迁移到 `{}`：搬入 {} 个 owner（⛔ 跳过 {} 个**新档已有**的；"
+                            + "同一 owner 以新档为准）", LEGACY_DATA_KEY, DATA_KEY, moved, skipped);
+        }
     }
 
     private Entry entry(UUID owner, boolean create) {
@@ -453,7 +492,11 @@ public final class LumberAreaState extends SavedData {
      */
     public static LumberAreaState load(CompoundTag root) {
         LumberAreaState state = new LumberAreaState();
-        ListTag list = root.getList("regions", Tag.TAG_COMPOUND);
+        // ⭐ 2026-10-01 改名（`O135`）：内层列表键 `"regions"` → `"areas"` —— **读旧写新**。
+        ListTag list = root.getList("areas", Tag.TAG_COMPOUND);
+        if (list.isEmpty()) {
+            list = root.getList("regions", Tag.TAG_COMPOUND);
+        }
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
             UUID owner;
@@ -514,7 +557,7 @@ public final class LumberAreaState extends SavedData {
                 r.putInt("max_z", entry.area.maxZ());
                 r.putInt("base_y", entry.area.baseY());
                 r.putInt("max_h", entry.area.maxHeight());
-                tag.put("region", r);
+                tag.put("area", r);   // ⭐ 新键（旧名 "region" 只在读取侧兼容）
             }
             if (entry.saplingItem != null) {
                 tag.putString("sapling_item", entry.saplingItem);
@@ -544,7 +587,7 @@ public final class LumberAreaState extends SavedData {
             tag.put("replant", replant);
             list.add(tag);
         }
-        root.put("regions", list);
+        root.put("areas", list);   // ⭐ 新键（旧名 "regions" 只在读取侧兼容）
         return root;
     }
 

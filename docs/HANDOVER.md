@@ -5756,7 +5756,7 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 `permissionBlock(region,…)` → `permissionBlock(area,…)`（它断言 `patrol()` 分支的**逐字文本**）。
 ⚠️ 本线**不需要客户端轮次**。
 
-### §B⁷ ⏳ **本刀执行计划（已定，压缩后可照此续）** —— `zone` 清理 ＋ `workingArea`/`job_region` 改名（2026-10-01）
+### §B⁷ ✅ **本刀已落地（2026-10-01，压缩后从这里接）** —— `zone` 清理 ＋ `workingArea`/`job_region` 改名（2026-10-01）
 
 **用户的四裁（逐字要点）**：① `zone` 清理**按我提案表全套改**（生产 API ＋ 日志 ＋ 夹具）② **存档键改＋同刀写迁移**
 （⛔ 不许静默丢数据）③ 类名 `LumberRegionState` → `LumberAreaState` ④ ⭐ **job 三层**（`D-567` 补充）：
@@ -5793,7 +5793,9 @@ PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPE
 **证据**：合并/内层迁移逻辑做成**夹具可喂的纯函数** ＋ 夹具断言；文件键胶水＝代码 ＋ 真存档实验
 （`run/world-pristine` 预置旧名文件 ⇒ 看迁移 WARN 与条数）。
 
-**E 收尾**：`compileJava` · `check-all` 静态 `pass=40 warning=1 failed=0` · 电池（`single:task_zone,protection_zones,
+**✅ 实际结果**：A/B/C/D/E 全落 ＋ `compileJava` 成功 · `check-all` 静态 `pass=40 warning=1 failed=0` · ⭐ 电池 **8/8 全 PASS**（`protection_zones` **98/0** ← 95+3 条迁移判据 · `task_zone` 94/0 · lumber 6 步；`passed=8/8 ticks=1301`）· `BARITONE_ANCHORS` 补 `9551aa1b` 行 · `POLICY_MATRIX.csv` 重生成。⏳ **仍待裁（`O135` 第 3 段）**：ⓐ 拒绝码 `zone_*`/`protected_safe_zone`（**稳定词表**，⛔ 我没顺手改）ⓑ 夹具局部名 `zones`/`zone` 与 `SafeReturnTask.zones`/`ScaffoldLifecycleTask.zone`。
+
+**E 收尾（原计划）**：`compileJava` · `check-all` 静态 `pass=40 warning=1 failed=0` · 电池（`single:task_zone,protection_zones,
 ledger_zone_scope,write_policy,job_area_grant` ＋ lumber 6 步）· `docs/BARITONE_ANCHORS.md`（若扫到内核路径）·
 同步表（`kernel-predicates` 的 `permissionBlock(area,…)`/`zoneOf` 等硬写、`check-layer-direction` 的 `REGION_MOVED`、
 `check-duplicate-class-names` 若 `WorkingArea` 变唯一则要**撤**旧登记）· 文档（`D-567` 补、`O135` 收口、`TESTING_GUIDE`

@@ -50,7 +50,22 @@ import java.util.Set;
  */
 public final class AreaData extends SavedData {
 
-    public static final String DATA_KEY = "alice_safe_zones";
+    /**
+     * ⭐ 存档键（`SavedData` 的文件 id）：**`alice_regions`**。
+     *
+     * <p>⚠️ 2026-10-01 由 `alice_safe_zones` 改名（`O135`/`D-567`；用户逐字「`region` 是项目里的确定概念，
+     * 也就是保护区、任务区等」）—— **⛔ 不是随便改着玩**：旧名把"保护区＋安全区＋方块黑名单"这一坨
+     * 只叫成"安全区"。改名必须**带迁移**（见 {@link #LEGACY_DATA_KEY}），否则等于静默丢掉玩家的认领。
+     */
+    public static final String DATA_KEY = "alice_regions";
+
+    /**
+     * ⛔ **旧键**（2026-10-01 之前）：**只读一次**用于迁移，⛔ **永不写入**。
+     *
+     * <p>为什么旧文件**不删**：迁移是"并集 ＋ 响亮告警"，删文件是不可逆动作 —— 留着它，玩家/我们
+     * 事后还能核对（⛔ 静默丢数据是这条纪律的反面）。
+     */
+    public static final String LEGACY_DATA_KEY = "alice_safe_zones";
 
     /** 持久化格式版本：1 = 旧圆形半径（只读兼容）；2 = 区块认领（当前写入）。 */
     private static final int FORMAT_VERSION = 2;
@@ -73,8 +88,81 @@ public final class AreaData extends SavedData {
     private int droppedOrphanSafeClaims;
 
     public static AreaData get(MinecraftServer server) {
-        return server.overworld().getDataStorage()
-                .computeIfAbsent(AreaData::load, AreaData::new, DATA_KEY);
+        var storage = server.overworld().getDataStorage();
+        AreaData data = storage.computeIfAbsent(AreaData::load, AreaData::new, DATA_KEY);
+        // ⭐ 旧键迁移：每个进程只试一次（`SavedData` 是进程内单例）——
+        //    `computeIfAbsent` 对**不存在的旧文件**只是造一个空实例（不 dirty ⇒ 不会被写回）。
+        data.migrateLegacyOnce(storage.computeIfAbsent(AreaData::load, AreaData::new, LEGACY_DATA_KEY));
+        return data;
+    }
+
+    /** 是否已试过旧键迁移（每进程一次）。 */
+    private boolean legacyMigrated;
+
+    /**
+     * ⭐⭐ **旧存档键迁移（`alice_safe_zones` ⇒ `alice_regions`）** —— 每进程一次、**并集**、**响亮告警**。
+     *
+     * <p>⚠️ 为什么必须"响亮"：旧键里的每一条都是**玩家的认领/安全区标记**，静默丢 = 拆掉他的基地保护。
+     * 并入条数为 0 ⇒ 不打日志（没有旧档时不该刷噪声）。
+     */
+    private void migrateLegacyOnce(AreaData legacy) {
+        if (legacyMigrated) {
+            return;
+        }
+        legacyMigrated = true;
+        int merged = absorbLegacy(legacy);
+        if (merged > 0) {
+            BotLog.warn("[Area] 旧存档键 `{}` 已迁移到 `{}`：**并入 {} 条**（claims / safe / blocks / tags 取并集）"
+                            + " ⇒ 现在 {}。⛔ 旧文件保留不删（只读一次，永不写回）",
+                    LEGACY_DATA_KEY, DATA_KEY, merged, summary());
+        }
+    }
+
+    /**
+     * ⭐ **纯合并逻辑**（夹具可直接喂一个手工构造的旧档来断言迁移，⛔ 不必真造文件）：
+     * 把 `legacy` 并进本实例，返回**并入的条数**（0 = 没有新东西）。
+     *
+     * <p>并集规则：认领集/黑名单直接求并；安全区标记**仍要保持"安全区 ⊆ 保护区"不变量**
+     * （旧档里若出现孤儿标记 ⇒ 按 {@link #load} 的同一纪律**丢弃并计数**）。
+     */
+    public int absorbLegacy(AreaData legacy) {
+        if (legacy == null) {
+            return 0;
+        }
+        int merged = 0;
+        for (Map.Entry<ResourceLocation, Set<Long>> entry : legacy.claimedChunks.entrySet()) {
+            Set<Long> mine = claimedChunks.computeIfAbsent(entry.getKey(), ignored -> new LinkedHashSet<>());
+            for (long key : entry.getValue()) {
+                if (mine.add(key)) {
+                    merged++;
+                }
+            }
+        }
+        for (Map.Entry<ResourceLocation, Set<Long>> entry : legacy.safeChunks.entrySet()) {
+            Set<Long> claimed = claimedChunks.getOrDefault(entry.getKey(), Set.of());
+            Set<Long> mine = safeChunks.computeIfAbsent(entry.getKey(), ignored -> new LinkedHashSet<>());
+            for (long key : entry.getValue()) {
+                if (!claimed.contains(key)) {
+                    droppedOrphanSafeClaims++;
+                } else if (mine.add(key)) {
+                    merged++;
+                }
+            }
+        }
+        for (ResourceLocation id : legacy.protectedBlocks) {
+            if (protectedBlocks.add(id)) {
+                merged++;
+            }
+        }
+        for (ResourceLocation id : legacy.protectedTags) {
+            if (protectedTags.add(id)) {
+                merged++;
+            }
+        }
+        if (merged > 0) {
+            setDirty();
+        }
+        return merged;
     }
 
     /** 从 NBT 读入（SavedData 工厂入口；夹具也用它做**存/读往返**契约测试）。 */

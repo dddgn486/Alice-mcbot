@@ -2,6 +2,7 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.job.lumber.LumberAreaState;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.network.ProtectionActionPacket;
 import com.dddgn.alice.network.ProtectionClaimsPacket;
@@ -318,6 +319,50 @@ public final class ClaimCheckTask implements Task {
 
         BotLog.info("[Protection] 迁移 ✓：旧圆形（r=8）⇒ {} 个区块；坏条目 dropped={}",
                 migrated.claimedChunkCount(), withBad.droppedLegacyAreas());
+
+        // ⭐⭐ 2026-10-01 改名（`O135`/`D-567`）：**文件键**改了（`alice_safe_zones` ⇒ `alice_regions`，
+        // 木质作业区 `alice_lumber_regions` ⇒ `alice_lumber_areas`）⇒ 迁移的**判据必须能被独立断言**
+        //（⛔ 不能只靠"我看过代码"）。两段：① 键名字面量被钉住 ② **纯合并逻辑** `absorbLegacy` 真的并入
+        // ③ 内层键**读旧写新**（旧档 `"regions"`/`"region"` 照样读得回来）。
+        check("文件键改名：新键=" + AreaData.DATA_KEY + " · 旧键（只读一次）=" + AreaData.LEGACY_DATA_KEY,
+                "alice_regions".equals(AreaData.DATA_KEY)
+                        && "alice_safe_zones".equals(AreaData.LEGACY_DATA_KEY));
+        CompoundTag oldKeyTag = new CompoundTag();
+        ListTag oldClaims = new ListTag();
+        CompoundTag oldClaimEntry = new CompoundTag();
+        oldClaimEntry.putString("dimension", "minecraft:overworld");
+        long oldKeyChunk = ChunkPos.asLong(4242, 4242);
+        oldClaimEntry.putLongArray("chunks", new long[]{oldKeyChunk});
+        oldClaims.add(oldClaimEntry);
+        oldKeyTag.put("claims", oldClaims);
+        AreaData fresh = AreaData.load(new CompoundTag());
+        int mergedByKey = fresh.absorbLegacy(AreaData.load(oldKeyTag));
+        check("旧键迁移：`absorbLegacy` 并入 " + mergedByKey + " 条，且该区块真的进了认领集",
+                mergedByKey == 1
+                        && fresh.claims(ResourceLocation.parse("minecraft:overworld")).contains(oldKeyChunk));
+
+        CompoundTag lumberOld = new CompoundTag();
+        ListTag lumberOldList = new ListTag();
+        CompoundTag lumberOne = new CompoundTag();
+        lumberOne.putString("owner", bot.getUUID().toString());
+        CompoundTag oldAreaTag = new CompoundTag();
+        oldAreaTag.putInt("min_x", 11);
+        oldAreaTag.putInt("min_z", 12);
+        oldAreaTag.putInt("max_x", 21);
+        oldAreaTag.putInt("max_z", 22);
+        oldAreaTag.putInt("base_y", 64);
+        oldAreaTag.putInt("max_h", 8);
+        lumberOne.put("region", oldAreaTag);
+        lumberOldList.add(lumberOne);
+        lumberOld.put("regions", lumberOldList);
+        LumberAreaState lumberOldState = LumberAreaState.load(lumberOld);
+        check("作业区状态**读旧键**（内层 `regions`/`region`）⇒ 区域照样读得回来（minX/maxX="
+                        + (lumberOldState.area(bot.getUUID()) == null ? "null"
+                        : lumberOldState.area(bot.getUUID()).minX() + "/"
+                        + lumberOldState.area(bot.getUUID()).maxX()) + "）",
+                lumberOldState.area(bot.getUUID()) != null
+                        && lumberOldState.area(bot.getUUID()).minX() == 11
+                        && lumberOldState.area(bot.getUUID()).maxX() == 21);
         advance(Phase.PROTOCOL);
     }
 
