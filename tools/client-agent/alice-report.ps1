@@ -52,37 +52,64 @@ if (-not $Repo) {
 }
 if (-not $Repo) { Die "没找到 Alice 仓库（找 build.gradle）⇒ 用 -Repo 指定" }
 
-# ---------- 定位最新判决 ----------
-$verdictFile = Join-Path $ServerDir "headless-result.txt"
-if (-not (Test-Path $verdictFile)) {
-    $alt = Get-ChildItem (Join-Path $Repo "run\headless-logs") -Filter "*headless-result.txt" -ErrorAction SilentlyContinue |
-           Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($alt) { $verdictFile = $alt.FullName } else { Die "找不到判决文件（$ServerDir\headless-result.txt 和 run\headless-logs 都没有）⇒ 先跑 client-agent.cmd -Headless core" 3 }
+# ---------- ⭐ 定位"本轮读数源"：**一个文件**里同时拿判决与步级读数 ----------
+# ⚠️ 实测教训（2026-10-02）：判决与 SUMMARY 若从**两个不同文件**读，会产出
+#    「verdict=FAIL 但红集合=无」这种**自相矛盾的回执** —— 正是 `silent-measurement-failure`
+#    那一族（同一个量有多个副本，我读了甲、判定器用乙）。⇒ 一律**单一真相源**。
+$archDir = Join-Path $Repo "run\headless-logs"
+$srcLog = $null
+if (Test-Path $archDir) {
+    foreach ($c in (Get-ChildItem $archDir -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)) {
+        if ($c.Name -like "*-headless-result.txt") { continue }          # 判决文件本身没有 SUMMARY
+        if ($c.Name -like "headless-receipt-*") { continue }             # ⛔ 别读自己写的回执（自指循环！）
+        if (Select-String -LiteralPath $c.FullName -Pattern "Regression\] SUMMARY" -ErrorAction SilentlyContinue) { $srcLog = $c; break }
+    }
 }
-$rawVerdict = (Get-Content -LiteralPath $verdictFile -Raw -Encoding UTF8)
-$verdict = ($rawVerdict -split "`r?`n" | Where-Object { $_ -match '^\s*verdict=' } | Select-Object -First 1)
-if (-not $verdict) { $verdict = ($rawVerdict.Trim() -split "`r?`n")[0] }
-
-# ---------- 步级 SUMMARY（逐字；红集合从它数出来） ----------
-$staleness = ""
-$newest = Get-ChildItem (Join-Path $Repo "run\headless-logs") -Filter "*-latest.log" -ErrorAction SilentlyContinue |
-          Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $summary = ""
-if ($newest) {
-    $m = Select-String -LiteralPath $newest.FullName -Pattern "Regression\] SUMMARY" -ErrorAction SilentlyContinue | Select-Object -Last 1
-    if ($m) { $summary = $m.Line }
-    $staleness = "归档日志：" + $newest.Name + "（" + $newest.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "）"
+if ($srcLog) {
+    $m = Select-String -LiteralPath $srcLog.FullName -Pattern "Regression\] SUMMARY" -ErrorAction SilentlyContinue | Select-Object -Last 1
+    if ($m) {
+        # ⭐ 必须**先剥 ANSI 颜色转义**：Forge 的日志带 `\e[32m…\e[m`，而锚定正则 `^…$`
+        #    在带转义时会**静默匹配不上** ⇒ 实测产出过「verdict=FAIL 但红集合=空」的自相矛盾回执。
+        $summary = ($m.Line -replace "\x1b\[[0-9;]*[A-Za-z]", "") -replace "\x1b\][^\x07]*\x07", ""
+    }
 }
+$verdictSrc = if ($srcLog) { "读数源（判决＋步级同一文件）：归档日志 " + $srcLog.Name + "（" + $srcLog.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "）" }
+              else { "读数源：**无归档日志**" }
+
+# 判决：优先取 SUMMARY 行尾的 `→ PASS|FAIL|DEGRADED`（与步级读数**同源**）
+$verdict = ""
+if ($summary -match "→\s*(PASS|FAIL|DEGRADED)\s*$") { $verdict = "verdict=" + $Matches[1] }
+
+# 独立副本 = 判决文件（`<服务端目录>\headless-result.txt` 或归档里的 `*-headless-result.txt`）；
+# ⛔ 只在两者**不一致**时出声，别静默挑一个。
+$vfile = Join-Path $ServerDir "headless-result.txt"
+if (-not (Test-Path $vfile) -and (Test-Path $archDir)) {
+    $a = Get-ChildItem $archDir -Filter "*headless-result.txt" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($a) { $vfile = $a.FullName }
+}
+$vfileVerdict = ""
+if (Test-Path $vfile) {
+    $raw = Get-Content -LiteralPath $vfile -Raw -Encoding UTF8
+    $vfileVerdict = (($raw -split "`r?`n" | Where-Object { $_ -match '^\s*verdict=' } | Select-Object -First 1)).Trim()
+    if (-not $vfileVerdict) { $vfileVerdict = ($raw.Trim() -split "`r?`n")[0].Trim() }
+}
+$mismatch = ""
+if ($verdict -and $vfileVerdict -and ($vfileVerdict -notmatch [regex]::Escape(($verdict -replace '^verdict=','')))) {
+    $mismatch = "⚠️ **两个副本不一致**：归档 SUMMARY 说 ``$verdict``，判决文件 ``$vfile` 说 ``$vfileVerdict`` ⇒ ⛔ 不要当结论，回去看原始日志"
+}
+if (-not $verdict) { $verdict = if ($vfileVerdict) { $vfileVerdict + "（仅判决文件，没有步级 SUMMARY）" } else { "verdict=<未读到>" } }
+
+# ---------- 步级读数：步数、PASS 数、**红集合**（全部从上面那**同一个** $summary 里数） ----------
 $reds = @()
-if ($summary) {
-    $reds = @(($summary -split " ") | Where-Object { $_ -match "^[a-z_]+=FAIL$" } | ForEach-Object { ($_ -split "=")[0] } | Sort-Object -Unique)
-}
 $passCount = 0; $stepCount = 0
 if ($summary) {
-    $steps = @(($summary -split " ") | Where-Object { $_ -match "^[a-z_]+=[A-Z]+$" -and $_ -notmatch "^PROFILE=" })
-    $stepCount = $steps.Count
-    $passCount = @($steps | Where-Object { $_ -match "=PASS$" }).Count
+    $tokens = @(($summary -split " ") | Where-Object { $_ -match "^[a-z_]+=[A-Z]+$" -and $_ -notmatch "^PROFILE=" })
+    $stepCount = $tokens.Count
+    $passCount = @($tokens | Where-Object { $_ -match "=PASS$" }).Count
+    $reds = @($tokens | Where-Object { $_ -match "=FAIL$" } | ForEach-Object { ($_ -split "=")[0] } | Sort-Object -Unique)
 }
+if ($summary -and $stepCount -eq 0) { Write-Host "[report] ⚠️ 读到 SUMMARY 但数不出任何步 —— ⛔ 别当结论，先查读数源" -ForegroundColor Yellow }
 
 # ---------- 红集合是否 ⊆ 已登记（"红的步必须有主"） ----------
 $registered = @()
@@ -107,9 +134,17 @@ foreach ($cand in @((Join-Path $Repo "build\libs"), (Join-Path $ServerDir "mods"
         break
     }
 }
-$javaLine = "（没找到）"
-$jc = Get-Command java -ErrorAction SilentlyContinue
-if ($jc) { $javaLine = ((& $jc.Source -version 2>&1 | Out-String).Trim() -split "`r?`n")[0] }
+# ⭐ Java 必须从**读数源日志**里取（那是**真跑电池的那个**）；
+#    ⛔ 别用 `Get-Command java` —— 那只是**本机 PATH 上**的 java（实测本机 PATH 是 16，而电池跑的是 17）⇒ 会误导。
+$javaLine = "（日志里没读到）"
+if ($srcLog) {
+    $jm = Select-String -LiteralPath $srcLog.FullName -Pattern 'java version "?([0-9][0-9._]*)"?' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($jm -and $jm.Matches.Count -gt 0) { $javaLine = $jm.Matches[0].Groups[1].Value + "（来自本轮日志，即真跑的那个）" }
+}
+if ($javaLine -eq "（日志里没读到）") {
+    $jc = Get-Command java -ErrorAction SilentlyContinue
+    if ($jc) { $javaLine = ((& $jc.Source -version 2>&1 | Out-String).Trim() -split "`r?`n")[0] + " ⚠️（这是**本机 PATH** 上的，未必是本轮用的）" }
+}
 $redLine = if ($reds.Count -eq 0) { "无（全绿）" } else { ($reds -join " ") }
 
 # ---------- 写信 ----------
@@ -126,12 +161,13 @@ $body += "| **红集合** | ``$redLine`` |"
 $body += "| 红是否⊆已登记 | $(if ($reds.Count -eq 0) { '不适用（无红）' } elseif ($unregistered.Count -eq 0) { '**是**（全部有主）' } else { '**否** —— 未登记：' + ($unregistered -join ' ') }) |"
 $body += "| 用的 jar | $jarLine |"
 $body += "| 用的 Java | ``$javaLine`` |"
-$body += "| $staleness | |"
+$body += "| 读数源 | $verdictSrc |"
+if ($mismatch) { $body += ""; $body += $mismatch }
 $body += ""
 if ($summary) { $body += "## 步级 SUMMARY（逐字，别改）"; $body += ""; $body += '```'; $body += $summary; $body += '```' }
 else { $body += '⚠️ 没读到 SUMMARY 行 ⇒ 这一轮**没有步级读数**，别把它当成"跑过了"。'; }
 $body += ""
-$body += "> 由 ``client-agent.cmd -Report`` 生成（不算 LLM）。原始判决文件：``$verdictFile``"
+$body += "> 由 ``client-agent.cmd -Report`` 生成（不算 LLM）。$verdictSrc"
 $text = ($body -join "`r`n")
 
 $outDir = Join-Path $Repo "run\headless-logs"
