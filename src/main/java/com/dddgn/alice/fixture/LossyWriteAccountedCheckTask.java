@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 
 /**
  * ⭐ `RC3`（`docs/plans/2026-09-22-回收方案.md` §4.1 **C 类 `CANNOT_RECLAIM`**）：
@@ -83,7 +83,7 @@ public final class LossyWriteAccountedCheckTask implements Task {
     private int totalTicks;
     private int checks;
     private String scopeId = "-";
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
     private WorldModLedger.Population baseline;
     private WriteGrant grant;
     private BlockBreakSession session;
@@ -321,7 +321,7 @@ public final class LossyWriteAccountedCheckTask implements Task {
         // ⭐ 前提：保护区 + L2 任务区封套（`D-398`：明文目标策略也要过区域授权）——
         // 顺序必须是"先开作用域、再声明任务区"（见 `RestoreUnderfootSafetyCheckTask.startRestore` 的 A4 教训）。
         scopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "rc3_lossy");
-        zone = FixtureZone.protect(level, bot.getUUID(),
+        zone = FixtureClaim.protect(level, bot.getUUID(),
                 new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
                 new BlockPos(ORIGIN.getX() + 6, FLOOR_Y + 4, ORIGIN.getZ() + 2), "region_lumber");
         if (!zone.ok()) {

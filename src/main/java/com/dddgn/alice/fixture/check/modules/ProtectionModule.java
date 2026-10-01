@@ -1,9 +1,9 @@
 package com.dddgn.alice.fixture.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.fixture.ProtectionZoneCheckTask;
+import com.dddgn.alice.fixture.ClaimCheckTask;
 import com.dddgn.alice.fixture.SafeReturnCheckTask;
-import com.dddgn.alice.fixture.TaskZoneCheckTask;
+import com.dddgn.alice.fixture.JobAreaCheckTask;
 import com.dddgn.alice.fixture.check.CheckContext;
 import com.dddgn.alice.fixture.check.CheckModule;
 import com.dddgn.alice.fixture.check.CheckProfile;
@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * **保护区模块**（设计线保护区的第一个离线门禁，D-313，2026-09-18）。
  *
- * <p>不是 R-2 的搬迁片 —— 这是**新能力**的判据：`SafeZoneData` 从"水平圆形半径"改成
+ * <p>不是 R-2 的搬迁片 —— 这是**新能力**的判据：`AreaData` 从"水平圆形半径"改成
  * **区块级 2D 认领**（忽略 Y、覆盖全高度；D-305 ①′）之后，"认领的区块不许动、没认领就放行、
  * 旧数据不静默丢"这三件事必须**离线可复现**。
  *
@@ -44,7 +44,7 @@ public final class ProtectionModule implements CheckModule {
         var observer = ctx.observer();
         return List.of(
                 CheckStep.of("protection_zones", CheckProfile.MAIN, List.of(), null,
-                        () -> new ProtectionZoneCheckTask(bot, observer), 200),
+                        () -> new ClaimCheckTask(bot, observer), 200),
                 // D-327 机制 B（2026-09-19）：**任务失败后回安全区的兜底** —— EXTRA（走 3 段路 + 封盒，
                 // 耗时较长且会临时认领/声明/还原区域 ⇒ 不进 CORE；改世界的部分夹具自己还原 ✓）。
                 // `D-338` ③（2026-09-19）加了两段路（安全区内部 / 保护区内部）+ 单区块退化 ⇒ 预算 2200 → 3600。
@@ -55,6 +55,6 @@ public final class ProtectionModule implements CheckModule {
                 // 不得覆盖安全区 ⇒ 报错且不裁剪）+ 随 scopeId 生灭 + **真跑一次 RegionLumberJob**。
                 // EXTRA：会临时认领/声明几个孤立区块（收尾按增量还原）并跑一个真实 Job。
                 CheckStep.of("task_zone", CheckProfile.EXTRA, List.of(), null,
-                        () -> new TaskZoneCheckTask(bot, observer, ctx.scope()), 600));
+                        () -> new JobAreaCheckTask(bot, observer, ctx.scope()), 600));
     }
 }

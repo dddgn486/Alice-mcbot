@@ -25,7 +25,7 @@ import java.util.UUID;
  * <ul>
  *   <li>客户端只发 <b>"我想改哪些区块 + 什么动作"</b>（{@code ProtectionActionPacket}），
  *       <b>永远不发维度</b> —— 维度由 {@link #apply} 的调用方用**发送者当前所在维度**裁定；</li>
- *   <li>服务端是唯一写认领清单的地方（{@link SafeZoneData}），写完把**认领元数据**（只有区块坐标，
+ *   <li>服务端是唯一写认领清单的地方（{@link AreaData}），写完把**认领元数据**（只有区块坐标，
  *       没有地形、没有颜色）回推给该玩家（{@link #snapshot}）。</li>
  * </ul>
  *
@@ -82,7 +82,7 @@ public final class ProtectionClaimService {
      * @param keys 区块键（{@link ChunkPos#asLong(int, int)}，可重复、可越界 —— 都会被如实计数）
      */
     public static Report apply(ServerLevel level, boolean claim, long[] keys) {
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         ResourceLocation dimension = level.dimension().location();
         long[] offered = keys == null ? new long[0] : keys;
 
@@ -132,7 +132,7 @@ public final class ProtectionClaimService {
     public static void handleBatch(ServerPlayer actor, boolean claim, long[] keys) {
         ServerLevel level = actor.serverLevel();
         Report report = apply(level, claim, keys);
-        SafeZoneData data = SafeZoneData.get(actor.server);
+        AreaData data = AreaData.get(actor.server);
         BotLog.info("[Protection] batch player={} {} total={} dim={}",
                 actor.getName().getString(), report.summary(), data.claimedChunkCount(),
                 level.dimension().location());
@@ -167,14 +167,14 @@ public final class ProtectionClaimService {
         AliceNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer), packet);
         BotLog.info("[Protection] sync player={} dim={} sent={} truncated={} total={}",
                 viewer.getName().getString(), packet.dimension(), packet.chunkKeys().length, packet.truncated(),
-                SafeZoneData.get(viewer.server).claimedChunkCount());
+                AreaData.get(viewer.server).claimedChunkCount());
     }
 
     /** 组装某玩家的快照（维度 = **他自己的**当前维度；离他最近的先发，超出上限则置 truncated）。 */
     public static ProtectionClaimsPacket snapshot(ServerPlayer viewer) {
         ServerLevel level = viewer.serverLevel();
         ResourceLocation dimension = level.dimension().location();
-        SafeZoneData data = SafeZoneData.get(viewer.server);
+        AreaData data = AreaData.get(viewer.server);
         ChunkPos center = viewer.chunkPosition();
         return selectNearest(dimension, data.claims(dimension), center.x, center.z, MAX_SNAPSHOT_CHUNKS);
     }

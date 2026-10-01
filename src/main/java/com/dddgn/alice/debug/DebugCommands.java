@@ -17,7 +17,7 @@ import com.dddgn.alice.transfer.TransferSelectionSubmission;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -683,11 +683,11 @@ public final class DebugCommands {
         if (region != null) {
             var server = source.getServer();
             var level = source.getLevel();
-            var area = new com.dddgn.alice.protection.TaskZoneRegistry.WorkArea(
+            var area = new com.dddgn.alice.protection.JobAreaRegistry.WorkingArea(
                     level.dimension().location(), region.minX(), region.minZ(),
                     region.maxX(), region.maxZ());
             var chunks = area.chunkCover();
-            var active = com.dddgn.alice.protection.TaskZoneRegistry.zoneOf(server, bot.getUUID());
+            var active = com.dddgn.alice.protection.JobAreaRegistry.zoneOf(server, bot.getUUID());
             source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + area.describe()
                     + " blocks=" + area.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
                     + "（**单向派生**：工作区域 ⇒ 任务区）｜覆盖规则=可覆盖保护区与安全区；"
@@ -897,8 +897,8 @@ public final class DebugCommands {
                 .pendingForOwner(server, bot.getUUID()).size();
         final int pendingAll = com.dddgn.alice.ledger.WorldModLedger.size(server);
         final int tempOpen = BotManager.pendingTemporaryCount(bot);
-        final String zoneSummary = com.dddgn.alice.protection.SafeZoneData.get(server).summary();
-        final String zoneVerdict = com.dddgn.alice.protection.SafeZoneData.get(server)
+        final String zoneSummary = com.dddgn.alice.protection.AreaData.get(server).summary();
+        final String zoneVerdict = com.dddgn.alice.protection.AreaData.get(server)
                 .protectionReason(source.getLevel(), foot);
 
         // 最近一次任务的终态（拒绝码/失败码归因）

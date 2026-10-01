@@ -25,7 +25,7 @@ import java.util.List;
  * <ul>
  *   <li>裁决**不自己发明**：调用 {@link ThirdPartyProtection#refusalReason}，它转发 FTB 自己的
  *       {@code ClaimedChunkManager.shouldPreventInteraction + Protection.EDIT_BLOCK}；</li>
- *   <li>**采样粒度 = 每个区块一次**：第三方保护是按区块的（与我们的 `SafeZoneData` 同形），
+ *   <li>**采样粒度 = 每个区块一次**：第三方保护是按区块的（与我们的 `AreaData` 同形），
  *       同区块内再采样不改变结论。采样点取「盒 ∩ 区块」的最小角（**保证落在盒内**）；</li>
  *   <li>**fail-open**：FTB 不在场 / 桥不可用 ⇒ 返回 `null`（前提成立）。这与 `D-326` 的取舍一致
  *       —— 不许「我们自己的反射失配」把荒野里的夹具全锁死；桥不可用时它自己会打 warn；</li>

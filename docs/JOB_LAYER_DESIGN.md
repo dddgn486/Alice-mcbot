@@ -182,7 +182,7 @@ public final class DecisionTrace {
 | `no_stand` | 周围没有可站立位置 |
 | `trunk_too_tall` | 最高原木超出触及（超出 reach）——**v1 范围限制，非永久结论**，见 §11-① |
 | `los_blocked_permanent` | 视线遮挡且遮挡物不可破坏/超清障预算（§5.4） |
-| `protected` | 落在保护区（`SafeZoneData`，与 `AutoMineDecision` 同口径） |
+| `protected` | 落在保护区（`AreaData`，与 `AutoMineDecision` 同口径） |
 | `too_large` | 超过 `maxLogs`（疑似玩家建筑） |
 | `not_nearest` | 该策略下的排序劣势（**保留在 trace 里，用于解释"为什么不选它"**） |
 

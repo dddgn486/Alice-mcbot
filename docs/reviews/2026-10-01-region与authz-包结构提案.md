@@ -37,17 +37,17 @@
 
 | 今天 | 行 | 生产消费文件 | 落点 | ⚠️ 理由 / 备注 |
 |---|---|---|---|---|
-| `SafeZoneData` | 598 | 16 | ⛔ **拆三份** | ① **认领集 ＋ 安全区集** → `region/AreaData`；② ⭐ **全球方块/标签黑名单** → ⛔ **踢出 `region/`**（它是**方块规则**，与"哪块地"正交 ⇒ 应随 `BlockBreakSafety` 走）；③ `protectionReason()` 的**三态拼装** → ⛔ **解散**（它把"区域"与"规则"揉在一个返回值里） |
-| `TaskZoneRegistry` | 474 | 9 | ⭐ **`region/JobAreaRegistry`** | ⭐ 你已把 **任务区 → job 区** 改名裁了；本类正是 job 区的载体 |
+| `AreaData` | 598 | 16 | ⛔ **拆三份** | ① **认领集 ＋ 安全区集** → `region/AreaData`；② ⭐ **全球方块/标签黑名单** → ⛔ **踢出 `region/`**（它是**方块规则**，与"哪块地"正交 ⇒ 应随 `BlockBreakSafety` 走）；③ `protectionReason()` 的**三态拼装** → ⛔ **解散**（它把"区域"与"规则"揉在一个返回值里） |
+| `JobAreaRegistry` | 474 | 9 | ⭐ **`region/JobAreaRegistry`** | ⭐ 你已把 **任务区 → job 区** 改名裁了；本类正是 job 区的载体 |
 | `ZoneAuthority` | 330 | 8 | ⛔ **拆三份** → `region/authz/` | ⭐ 它内部装 D（区域权限）/ E（档位）/ F（额度）三件事（`A2` §2） |
-| `ProtectionZones` | 68 | **1** | ⛔ **不留在 `region/`** | ⭐ 它只是 `SafeZoneData.isClaimed` 的**别名**，**生产消费者只有 `WorldModLedger`**（§15.2.3 原因 B）⇒ 它是**账本取件口径** ⇒ 搬到 `ledger/`（或与账本的口径合并） |
+| `LedgerScope` | 68 | **1** | ⛔ **不留在 `region/`** | ⭐ 它只是 `AreaData.isClaimed` 的**别名**，**生产消费者只有 `WorldModLedger`**（§15.2.3 原因 B）⇒ 它是**账本取件口径** ⇒ 搬到 `ledger/`（或与账本的口径合并） |
 | `BlockBreakSafety` | 226 | 6 | ⛔ **不进 `region/`** → **`action/`** | ⭐ 它装的是 **C（方块语义）＋ G（自保）**，两个都与"区域"无关；权限那部分（借道 `ZoneAuthority`）**剥掉**。落 `action/` 的理由 = 挨着 `BlockInteraction`（同层、同一调用栈） |
 | `ProtectionClaimService` | 210 | 5 | **`region/ClaimService`** | ✅ 区域管理的**写入口**（认领/取消认领） |
 | `ProtectionMapGeometry` | 230 | 2 | **`region/MapGeometry`** | ✅ 区域的**几何**（像素⇄区块）；⚠️ 若将来客户端/服务端分家，它可能要再挪 |
 | `ReturnPointData` | 138 | 3 | ⛔ **踢出** | ⛔ **它是"返程点"**（`D-327` 机制 B 的"回哪一格"），**另一个概念** ⇒ 归 `pathing/` 或 `bot/`（⚠️ 需你指） |
 | `ThirdPartyProtection` | 64 | 4 | **`region/authz/ExternalVerdict`** | ✅ 外部裁决（问 FTB）—— 它回答的是"允不允许" |
 
-⇒ ⭐ **结果：`protection/` 9 个类里，只有 3 个原样进 `region/`**（`TaskZoneRegistry`/`ProtectionClaimService`/`ProtectionMapGeometry`）。
+⇒ ⭐ **结果：`protection/` 9 个类里，只有 3 个原样进 `region/`**（`JobAreaRegistry`/`ProtectionClaimService`/`ProtectionMapGeometry`）。
 
 ---
 
@@ -57,15 +57,15 @@
 
 | 类 / 成员 | `Zone` 指什么 | ⛔ 问题 | ⭐ 建议名 |
 |---|---|---|---|
-| `protection/ProtectionZones` | **保护区** | ⛔ 名字像"权限判据入口"，实为**账本别名** | **`LedgerScope`**（落 `ledger/`） |
-| `protection/SafeZoneData` | ⛔ **子类（安全区）** 却装**父类** | 词与内容错位 | **`AreaData`**（`region/`） |
-| `protection/TaskZoneRegistry` | **任务区** | ⭐ 你已改：**job 区** | **`JobAreaRegistry`** |
+| `protection/LedgerScope` | **保护区** | ⛔ 名字像"权限判据入口"，实为**账本别名** | **`LedgerScope`**（落 `ledger/`） |
+| `protection/AreaData` | ⛔ **子类（安全区）** 却装**父类** | 词与内容错位 | **`AreaData`**（`region/`） |
+| `protection/JobAreaRegistry` | **任务区** | ⭐ 你已改：**job 区** | **`JobAreaRegistry`** |
 | `protection/ZoneAuthority` | ⛔ 实为**授权** | "Zone" 与 "Authority" 都读不出"授权判据" | 拆后命名（见 §5） |
-| `write/WritePolicyMatrix.Zone` | ⛔ **Alice 的地 / 别人的地** | ⭐ **第三个义**，与"区域"**无关** | **`Tenure`**（归属） |
-| `task/FixtureZone` | 保护区 | 夹具 | `FixtureClaim` |
-| `fixture/TaskZoneCheckTask` | 任务区 | 夹具 | `JobAreaCheckTask` |
-| `fixture/ProtectionZoneCheckTask` | 保护区 | 夹具 | `ClaimCheckTask` |
-| `fixture/LedgerZoneScopeCheckTask` | 保护区 | 夹具 | `LedgerScopeCheckTask` |
+| `write/WritePolicyMatrix.Tenure` | ⛔ **Alice 的地 / 别人的地** | ⭐ **第三个义**，与"区域"**无关** | **`Tenure`**（归属） |
+| `task/FixtureClaim` | 保护区 | 夹具 | `FixtureClaim` |
+| `fixture/JobAreaCheckTask` | 任务区 | 夹具 | `JobAreaCheckTask` |
+| `fixture/ClaimCheckTask` | 保护区 | 夹具 | `ClaimCheckTask` |
+| `fixture/LedgerScopeCheckTask` | 保护区 | 夹具 | `LedgerScopeCheckTask` |
 | `ledger/WorldModLedger`（javadoc 用 "zone"） | 保护区 | ⛔ 文档用词 | 改文案 |
 
 ⭐ **原则：`Zone` 不再作类名构件**（除非真的指一片**几何**区域 —— 而今天没有一个类是这样）。
@@ -131,7 +131,7 @@
 | **0** | ⭐ **先立不变量**（方案草案 §7 的 5 条） | 2/4 提进 CORE ＋ 新增"授权入口唯一"门禁 |
 | **1** | ⭐ **本提案你确认**（§7 六点） | — |
 | **2** | **建两包骨架 ＋ 搬 3 个原样类**（`JobAreaRegistry`/`ClaimService`/`MapGeometry`） | 层序门禁改断言 ＋ 搬包同步表 |
-| **3** | **拆 `SafeZoneData`**（认领集 → `region/`；黑名单 → `action/`） | `check-protection-install-point` 等 8 处硬写路径 |
+| **3** | **拆 `AreaData`**（认领集 → `region/`；黑名单 → `action/`） | `check-protection-install-point` 等 8 处硬写路径 |
 | **4** | **拆 `ZoneAuthority` → 三个谓词**（§5） | `A2` §7 的 5 条不变量**逐条仍绿** |
 | **5** | **搬 `WritePolicyMatrix`/`WriteBudget`/`WriteAudit` → `region/authz/`** | ⭐ **`protection/ → write/` 这条依赖消失** |
 | **6** | **逐个清 `Zone` 类名**（§3 表） | `check-duplicate-class-names` 等 |
@@ -172,7 +172,7 @@
 
 ## §9.2 ⛔ 我**反对**按四问建四个子包（理由：**它们是一个生命周期，不是四种东西**）
 
-- 四问**今天全在同一个函数里**：`TaskZoneRegistry.declare` 建实例（是什么）· `kind`/`owner`（谁声明）·
+- 四问**今天全在同一个函数里**：`JobAreaRegistry.declare` 建实例（是什么）· `kind`/`owner`（谁声明）·
   `safeZoneConflicts`（谁能覆盖谁）· `release`（什么时候消失）。
 - ⇒ 拆成四个子包 = **把一个生命周期劈成四段跨包调用**，而它们**永远一起变**
   （改一个字段必然动其它三处）⇒ ⭐ **制造四份耦合，换不到任何独立性**。

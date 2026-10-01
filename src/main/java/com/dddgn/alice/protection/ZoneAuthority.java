@@ -136,7 +136,7 @@ public final class ZoneAuthority {
         if (level == null || pos == null) {
             return new Decision(Verdict.NOT_GATED, null, "no_level_or_pos");
         }
-        SafeZoneData zones = SafeZoneData.get(level.getServer());
+        AreaData zones = AreaData.get(level.getServer());
         if (!zones.isClaimed(level, pos)) {
             return new Decision(Verdict.NOT_GATED, null,
                     "unclaimed chunk " + (pos.getX() >> 4) + "," + (pos.getZ() >> 4));
@@ -144,7 +144,7 @@ public final class ZoneAuthority {
         // ⛔ 2026-10-01 用户裁定：**撤掉"安全区无条件拒"**（原 `protected_safe_zone` 那一档）——
         // 安全区**退化**为「保护区上的一个标记位」，与保护区**同权限**（专属语义只剩"返程首选目的地"）。
         // ⇒ 安全区内的格子走**与保护区完全相同**的判据（任务区覆盖 ＋ 等级）。
-        TaskZoneRegistry.Zone zone = TaskZoneRegistry.zoneOf(level.getServer(), owner);
+        JobAreaRegistry.JobArea zone = JobAreaRegistry.zoneOf(level.getServer(), owner);
         if (zone == null || !zone.covers(pos)) {
             return new Decision(Verdict.DENY, "protected_area",
                     "保护区内的写入需要**生效的任务区**覆盖这一格（owner=" + shortId(owner)
@@ -181,7 +181,7 @@ public final class ZoneAuthority {
                 return new Decision(Verdict.DENY, "zone_place_not_scaffold",
                         "任务区 " + zone.kind() + " 等级 L1 只许**临时**放置，而 " + reason.name() + " 不是");
             }
-            int used = TaskZoneRegistry.zonePlaceCount(zone.scopeId());
+            int used = JobAreaRegistry.zonePlaceCount(zone.scopeId());
             if (used >= L1_MAX_PLACES) {
                 return new Decision(Verdict.DENY, "zone_place_quota",
                         "任务区 " + zone.kind() + " 等级 L1 的**区内放置配额**已用尽（" + used + "/"
@@ -241,7 +241,7 @@ public final class ZoneAuthority {
      *
      * <p>消费者 = {@code CapabilityGate.Facts}（能力闸门在**执行每一条 Movement 之前**复验：
      * "这条会改世界的移动，落点是不是受保护"）。⚠️ **2026-09-19 客户端实测暴露**：这一处此前走的是
-     * **裸 `SafeZoneData.protectionReason`** ⇒ 在保护区里连 `L2` 任务区授权的 `PILLAR`
+     * **裸 `AreaData.protectionReason`** ⇒ 在保护区里连 `L2` 任务区授权的 `PILLAR`
      * （"垫一格上去"）都被拒（`ZONE_PROTECTED_AREA` ×144，全轮无一次垫脚放置）⇒ **这是第四处消费点，
      * 我上一片漏接了**（当时只接了候选扫描 ×2 / 破坏闸门 / 放置闸门）。
      */

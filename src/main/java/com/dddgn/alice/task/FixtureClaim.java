@@ -2,8 +2,8 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.protection.SafeZoneData;
-import com.dddgn.alice.protection.TaskZoneRegistry;
+import com.dddgn.alice.protection.AreaData;
+import com.dddgn.alice.protection.JobAreaRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -27,7 +27,7 @@ import java.util.UUID;
  * <h2>为什么不给夹具开特权、也不改检测代码</h2>
  * 让 `recordPlacement` 对"自检任务"网开一面，等于**在生产代码里为测试开洞**，而且会让
  * `ledger_zone_scope` 那类判据失去意义（它验的正是"区外一律不记"）。所以走**夹具摆前提**这条正路：
- * 和生产里 `RegionLumberJob` 声明任务区是同一个入口、同一套判据（`TaskZoneRegistry.declare`）。
+ * 和生产里 `RegionLumberJob` 声明任务区是同一个入口、同一套判据（`JobAreaRegistry.declare`）。
  *
  * <h2>诚实标注：这是"借用"一个 L2 工作面封套</h2>
  * 夹具自己的定位是 `DIAGNOSTIC` ⇒ 按阶梯是 `L0`（只读）。所以这里显式传
@@ -37,15 +37,15 @@ import java.util.UUID;
  *
  * <h2>用法（夹具纪律：结束复位）</h2>
  * <pre>{@code
- * zone = FixtureZone.protect(level, bot.getUUID(), min, max, "region_lumber");
+ * zone = FixtureClaim.protect(level, bot.getUUID(), min, max, "region_lumber");
  * check("前提", zone.ok() && zone.describe());
  * ...
  * zone.release();   // 终态路径（含失败路径）必须调用；release 幂等
  * }</pre>
  */
-public final class FixtureZone {
+public final class FixtureClaim {
 
-    private FixtureZone() {
+    private FixtureClaim() {
     }
 
     /**
@@ -61,7 +61,7 @@ public final class FixtureZone {
         }
         var server = level.getServer();
         ResourceLocation dimension = level.dimension().location();
-        SafeZoneData data = SafeZoneData.get(server);
+        AreaData data = AreaData.get(server);
         int minCx = Math.min(cornerA.getX(), cornerB.getX()) >> 4;
         int maxCx = Math.max(cornerA.getX(), cornerB.getX()) >> 4;
         int minCz = Math.min(cornerA.getZ(), cornerB.getZ()) >> 4;
@@ -78,7 +78,7 @@ public final class FixtureZone {
                 }
             }
         }
-        // 任务区必须挂在**打开的作用域**上（`TaskZoneRegistry.declare` 的硬约束：不允许任务之外造授权封套）
+        // 任务区必须挂在**打开的作用域**上（`JobAreaRegistry.declare` 的硬约束：不允许任务之外造授权封套）
         String scopeId = WorldModLedger.currentScope(server, owner);
         boolean ownsScope = false;
         if (scopeId == null) {
@@ -89,11 +89,11 @@ public final class FixtureZone {
         int maxX = Math.max(cornerA.getX(), cornerB.getX());
         int minZ = Math.min(cornerA.getZ(), cornerB.getZ());
         int maxZ = Math.max(cornerA.getZ(), cornerB.getZ());
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension, minX, minZ, maxX, maxZ);
-        TaskZoneRegistry.Result declared = TaskZoneRegistry.declare(server, owner, kind, area, true);
+        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension, minX, minZ, maxX, maxZ);
+        JobAreaRegistry.Result declared = JobAreaRegistry.declare(server, owner, kind, area, true);
         Handle handle = new Handle(level, owner, added, scopeId, ownsScope, declared, area,
                 null);
-        BotLog.info("[FixtureZone] 夹具前提 = 保护区 + {} 任务区 ｜ {} ｜ {}", kind, area.describe(),
+        BotLog.info("[FixtureClaim] 夹具前提 = 保护区 + {} 任务区 ｜ {} ｜ {}", kind, area.describe(),
                 handle.describe());
         return handle;
     }
@@ -106,13 +106,13 @@ public final class FixtureZone {
         private final List<Long> added;
         private final String scopeId;
         private final boolean ownsScope;
-        private final TaskZoneRegistry.Result declared;
-        private final TaskZoneRegistry.WorkArea area;
+        private final JobAreaRegistry.Result declared;
+        private final JobAreaRegistry.WorkingArea area;
         private final String problem;
         private boolean released;
 
         Handle(ServerLevel level, UUID owner, List<Long> added, String scopeId, boolean ownsScope,
-               TaskZoneRegistry.Result declared, TaskZoneRegistry.WorkArea area, String problem) {
+               JobAreaRegistry.Result declared, JobAreaRegistry.WorkingArea area, String problem) {
             this.level = level;
             this.owner = owner;
             this.added = List.copyOf(added);
@@ -129,7 +129,7 @@ public final class FixtureZone {
         }
 
         /** 生效的任务区（`ok()` 为假时可能为 null）——夹具据此断言等级。 */
-        public TaskZoneRegistry.Zone declaredZone() {
+        public JobAreaRegistry.JobArea declaredZone() {
             return declared == null ? null : declared.zone();
         }
 
@@ -157,17 +157,17 @@ public final class FixtureZone {
                 return;
             }
             released = true;
-            SafeZoneData data = SafeZoneData.get(level.getServer());
+            AreaData data = AreaData.get(level.getServer());
             for (long key : added) {
                 data.unclaim(level, ChunkPos.getX(key), ChunkPos.getZ(key));
             }
             if (scopeId != null) {
-                TaskZoneRegistry.release(scopeId);
+                JobAreaRegistry.release(scopeId);
             }
             if (ownsScope) {
                 WorldModLedger.closeScope(level.getServer(), owner);
             }
-            BotLog.info("[FixtureZone] 前提已还原：取消认领 {} 个区块 + 解任务区（scope={}）",
+            BotLog.info("[FixtureClaim] 前提已还原：取消认领 {} 个区块 + 解任务区（scope={}）",
                     added.size(), scopeId);
         }
     }

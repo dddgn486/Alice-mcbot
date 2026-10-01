@@ -12,8 +12,8 @@ import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.protection.SafeZoneData;
-import com.dddgn.alice.protection.TaskZoneRegistry;
+import com.dddgn.alice.protection.AreaData;
+import com.dddgn.alice.protection.JobAreaRegistry;
 import com.dddgn.alice.protection.ZoneAuthority;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -55,7 +55,7 @@ import com.dddgn.alice.task.TaskTarget;
  * </ol>
  *
  * <p><b>本步刻意不做的两件事（不许"顺手"补上）</b>：① **不动任何权限行为** ——
- * 保护区块在 `SafeZoneData.protectionReason` 下**照旧**是 `protected_area`（判据里有这一条，
+ * 保护区块在 `AreaData.protectionReason` 下**照旧**是 `protected_area`（判据里有这一条，
  * 防止"任务区一落地就把闸门放宽了"；接闸门是第 4 件的下一片，且要等**第 5 件权限阶梯**拍板）；
  * ② 不改世界 —— 夹具只做**集合运算 + 一处认领/声明**（收尾按增量还原），
  * 不像素地形、不加载远处区块（`protectionReason` 对已认领区块**不读方块**就返回）。
@@ -65,7 +65,7 @@ import com.dddgn.alice.task.TaskTarget;
  * 第二区块 `35360..35363 / 35360..35363`（区块 2210,2210，1 个区块）、
  * 区外安全区点 = 区块 2215,2215。**所有维度级计数都按增量断言**。
  */
-public final class TaskZoneCheckTask implements Task {
+public final class JobAreaCheckTask implements Task {
 
     // ==================== 工作区域（方块级）====================
 
@@ -161,7 +161,7 @@ public final class TaskZoneCheckTask implements Task {
     /** 授权面用例真的写过世界的格子（原状态快照 ⇒ 收尾逐格还原 + 销账本条目）。 */
     private final Map<BlockPos, BlockState> touched = new LinkedHashMap<>();
 
-    public TaskZoneCheckTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
+    public JobAreaCheckTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
         this.bot = bot;
         this.observer = observer;
         this.scope = scope;
@@ -169,7 +169,7 @@ public final class TaskZoneCheckTask implements Task {
 
     @Override
     public String taskName() {
-        return "TaskZoneCheck";
+        return "JobAreaCheck";
     }
 
     @Override
@@ -197,7 +197,7 @@ public final class TaskZoneCheckTask implements Task {
             return finish();
         }
         ServerLevel level = bot.serverLevel();
-        SafeZoneData zones = SafeZoneData.get(level.getServer());
+        AreaData zones = AreaData.get(level.getServer());
         switch (phase) {
             case PREPARE -> preparePhase(level, zones);
             case GEOMETRY -> geometryPhase(level, zones);
@@ -234,11 +234,11 @@ public final class TaskZoneCheckTask implements Task {
 
     // ==================== 相位 ====================
 
-    private void preparePhase(ServerLevel level, SafeZoneData zones) {
+    private void preparePhase(ServerLevel level, AreaData zones) {
         if (settle == 0) {
             chunksBefore = zones.claimedChunkCount();
             safeBefore = zones.safeChunkCount();
-            activeBefore = TaskZoneRegistry.activeCount(level.getServer());
+            activeBefore = JobAreaRegistry.activeCount(level.getServer());
             entryFoot = bot.blockPosition();
             teleport(bot, AREA_START);
             settle = 1;
@@ -261,26 +261,26 @@ public final class TaskZoneCheckTask implements Task {
         }
         check("前提：三个测试区块（2200..2202,2200）在地图里**未被认领**（否则用例前提不成立）", clean);
         check("前提：本 bot 名下**没有残留任务区**（用例从干净状态开始）",
-                TaskZoneRegistry.zoneOf(level.getServer(), bot.getUUID()) == null);
+                JobAreaRegistry.zoneOf(level.getServer(), bot.getUUID()) == null);
         settle = 0;
         phase = Phase.GEOMETRY;
     }
 
     /** ① 派生几何：工作区域（方块级）⇒ 任务区（区块级最小覆盖），**单向**、Y 无关、纯函数。 */
-    private void geometryPhase(ServerLevel level, SafeZoneData zones) {
+    private void geometryPhase(ServerLevel level, AreaData zones) {
         ResourceLocation dimension = level.dimension().location();
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension,
                 AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
         Set<Long> cover = area.chunkCover();
         // **独立口径**：把工作区域里**每一格方块**列出来，各自映射到区块 —— 这条路径与
-        // `chunkCoverOf(WorkArea)` 的矩形算术完全无关 ⇒ 等式成立才证明"最小覆盖"算对了。
+        // `chunkCoverOf(WorkingArea)` 的矩形算术完全无关 ⇒ 等式成立才证明"最小覆盖"算对了。
         Set<Long> fromBlocks = new LinkedHashSet<>();
         List<BlockPos> blocks = new ArrayList<>();
         for (int x = AREA_MIN_X; x <= AREA_MAX_X; x++) {
             for (int z = AREA_MIN_Z; z <= AREA_MAX_Z; z++) {
                 BlockPos pos = new BlockPos(x, FOOT_Y, z);
                 blocks.add(pos);
-                fromBlocks.add(TaskZoneRegistry.chunkKey(pos));
+                fromBlocks.add(JobAreaRegistry.chunkKey(pos));
             }
         }
         check("几何：矩形工作区域 " + area.describe() + "（" + area.areaXZ() + " 格）的**区块最小覆盖**"
@@ -288,7 +288,7 @@ public final class TaskZoneCheckTask implements Task {
                         + " ⇒ chunks=" + cover.size() + "）",
                 cover.equals(fromBlocks));
         check("几何：集合口径 chunkCoverOf(Collection<BlockPos>) 与矩形口径给出**同一集合**",
-                TaskZoneRegistry.chunkCoverOf(blocks).equals(cover));
+                JobAreaRegistry.chunkCoverOf(blocks).equals(cover));
         check("几何：**最小性**（覆盖里没有多余区块 —— 每个区块都真的被工作区域的方块命中）",
                 fromBlocks.size() == cover.size());
         check("几何：跨区块边界算对了（x " + AREA_MIN_X + ".." + AREA_MAX_X + " ⇒ 区块 "
@@ -299,19 +299,19 @@ public final class TaskZoneCheckTask implements Task {
                         && cover.contains(ChunkPos.asLong(2201, AREA_CHUNK_Z))
                         && cover.contains(ChunkPos.asLong(2202, AREA_CHUNK_Z)));
         check("几何：**忽略 Y**（同一 XZ 上 y=" + FOOT_Y + " 与 y=300 落在同一区块 ⇒ 与保护区同一口径）",
-                TaskZoneRegistry.chunkKey(new BlockPos(AREA_MIN_X, FOOT_Y, AREA_MIN_Z))
-                        == TaskZoneRegistry.chunkKey(new BlockPos(AREA_MIN_X, 300, AREA_MIN_Z)));
-        TaskZoneRegistry.WorkArea reversed = new TaskZoneRegistry.WorkArea(dimension,
+                JobAreaRegistry.chunkKey(new BlockPos(AREA_MIN_X, FOOT_Y, AREA_MIN_Z))
+                        == JobAreaRegistry.chunkKey(new BlockPos(AREA_MIN_X, 300, AREA_MIN_Z)));
+        JobAreaRegistry.WorkingArea reversed = new JobAreaRegistry.WorkingArea(dimension,
                 AREA_MAX_X, AREA_MAX_Z, AREA_MIN_X, AREA_MIN_Z);
         check("几何：两个角**反过来写** ⇒ 同一个区域（`equals` 稳定 ⇒ 「重划同一个区」可判幂等）",
                 reversed.equals(area) && reversed.chunkCover().equals(cover));
-        TaskZoneRegistry.WorkArea single = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.WorkingArea single = new JobAreaRegistry.WorkingArea(dimension,
                 AREA2_MIN_X, AREA2_MIN_Z, AREA2_MAX_X, AREA2_MAX_Z);
         check("几何：1 个区块大小的工作区域 ⇒ 恰好 1 个区块（相区 2 用）", single.chunkCover().size() == 1);
         check("几何：派生是**纯函数**（保护区/安全区计数在几何调用前后未变）",
                 zones.claimedChunkCount() == chunksBefore && zones.safeChunkCount() == safeBefore);
         findings.add("geometry area=" + area.describe() + " blocks=" + area.areaXZ()
-                + " chunks=" + cover.size() + "[" + TaskZoneRegistry.describeChunks(cover) + "]");
+                + " chunks=" + cover.size() + "[" + JobAreaRegistry.describeChunks(cover) + "]");
         phase = Phase.DECLARE;
     }
 
@@ -320,42 +320,42 @@ public final class TaskZoneCheckTask implements Task {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         ResourceLocation dimension = level.dimension().location();
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension,
                 AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
         String scopeId = WorldModLedger.currentScope(server, owner);
-        TaskZoneRegistry.Result declared = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
+        JobAreaRegistry.Result declared = JobAreaRegistry.declare(server, owner, "task_zone_fixture", area, false);
         check("声明：工作区域 ⇒ 任务区 成功（DECLARED，chunks=3）",
-                declared.status() == TaskZoneRegistry.Declare.DECLARED
+                declared.status() == JobAreaRegistry.Declare.DECLARED
                         && declared.zone() != null && declared.zone().chunks().size() == 3);
         check("声明：任务区的 scopeId = **当前任务作用域**（随 scope 生灭的唯一键）",
                 scopeId != null && declared.zone() != null && scopeId.equals(declared.zone().scopeId()));
-        TaskZoneRegistry.Zone zone = TaskZoneRegistry.zoneOf(server, owner);
+        JobAreaRegistry.JobArea zone = JobAreaRegistry.zoneOf(server, owner);
         check("查询：zoneOf(bot) 命中，且 covers 区内格 / 不 covers 区外格（O(1) 区块查表）",
                 zone != null && zone.covers(AREA_START) && !zone.covers(AREA2_START));
         check("查询：zoneAt(level, 区内格) 命中 —— 这就是将来「这一格要不要提权」的查表入口",
-                TaskZoneRegistry.zoneAt(level, AREA_START) != null);
+                JobAreaRegistry.zoneAt(level, AREA_START) != null);
         check("查询：zoneAt(level, 区外格) = null（不越界覆盖）",
-                TaskZoneRegistry.zoneAt(level, OUTSIDE_POS) == null);
-        TaskZoneRegistry.Result again = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
+                JobAreaRegistry.zoneAt(level, OUTSIDE_POS) == null);
+        JobAreaRegistry.Result again = JobAreaRegistry.declare(server, owner, "task_zone_fixture", area, false);
         check("幂等：同一作用域 + 同一工作区域 ⇒ ALREADY，且生效任务区条数不变",
-                again.status() == TaskZoneRegistry.Declare.ALREADY
-                        && TaskZoneRegistry.activeCount(server) == activeBefore + 1);
-        TaskZoneRegistry.WorkArea area2 = new TaskZoneRegistry.WorkArea(dimension,
+                again.status() == JobAreaRegistry.Declare.ALREADY
+                        && JobAreaRegistry.activeCount(server) == activeBefore + 1);
+        JobAreaRegistry.WorkingArea area2 = new JobAreaRegistry.WorkingArea(dimension,
                 AREA2_MIN_X, AREA2_MIN_Z, AREA2_MAX_X, AREA2_MAX_Z);
-        TaskZoneRegistry.Result replaced = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area2, false);
-        TaskZoneRegistry.Zone afterReplace = TaskZoneRegistry.zoneOf(server, owner);
+        JobAreaRegistry.Result replaced = JobAreaRegistry.declare(server, owner, "task_zone_fixture", area2, false);
+        JobAreaRegistry.JobArea afterReplace = JobAreaRegistry.zoneOf(server, owner);
         check("换区：同一任务换工作区域 ⇒ REPLACED，新覆盖 1 区块、**旧区块不再被覆盖**"
                         + "（重派生 ≠ 反向裁剪工作区域）",
-                replaced.status() == TaskZoneRegistry.Declare.REPLACED
+                replaced.status() == JobAreaRegistry.Declare.REPLACED
                         && afterReplace != null && afterReplace.chunks().size() == 1
                         && !afterReplace.covers(AREA_START));
         UUID stranger = UUID.nameUUIDFromBytes("task-zone-fixture-stranger".getBytes());
-        TaskZoneRegistry.Result noScope = TaskZoneRegistry.declare(server, stranger,
+        JobAreaRegistry.Result noScope = JobAreaRegistry.declare(server, stranger,
                 "task_zone_fixture", area, false);
         check("⛔没有任务作用域 ⇒ NO_SCOPE 且**不落库**（不许在任务之外造授权封套）",
-                noScope.status() == TaskZoneRegistry.Declare.NO_SCOPE
-                        && TaskZoneRegistry.zoneOf(server, stranger) == null
-                        && TaskZoneRegistry.activeCount(server) == activeBefore + 1);
+                noScope.status() == JobAreaRegistry.Declare.NO_SCOPE
+                        && JobAreaRegistry.zoneOf(server, stranger) == null
+                        && JobAreaRegistry.activeCount(server) == activeBefore + 1);
         phase = Phase.SCOPE_LIFECYCLE;
     }
 
@@ -364,38 +364,38 @@ public final class TaskZoneCheckTask implements Task {
         var server = level.getServer();
         UUID fake = UUID.nameUUIDFromBytes("task-zone-fixture-owner".getBytes());
         ResourceLocation dimension = level.dimension().location();
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension,
                 AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
         String scopeA = WorldModLedger.openScope(server, fake, "task_zone_fixture");
-        TaskZoneRegistry.Result declared = TaskZoneRegistry.declare(server, fake, "task_zone_fixture", area, false);
+        JobAreaRegistry.Result declared = JobAreaRegistry.declare(server, fake, "task_zone_fixture", area, false);
         check("生命周期：作用域内声明成功（独立 owner，不与本步 bot 的作用域互相干扰）",
-                declared.status() == TaskZoneRegistry.Declare.DECLARED
-                        && TaskZoneRegistry.zoneOf(server, fake) != null);
+                declared.status() == JobAreaRegistry.Declare.DECLARED
+                        && JobAreaRegistry.zoneOf(server, fake) != null);
         WorldModLedger.closeScope(server, fake);
         check("⭐生命周期：**作用域一收尾 ⇒ 任务区权威立即消失**（zoneOf=null；"
                         + "终态/被替换/显式打断都走这条路，不需要任何调用方记得来关）",
-                TaskZoneRegistry.zoneOf(server, fake) == null);
+                JobAreaRegistry.zoneOf(server, fake) == null);
         // ⚠️ 顺序有意为之：**先重开作用域、再问 authority**（中间不做任何会 prune 的事）——
         // 否则"新 scope 无授权"这条可能因为**过期条目被 prune 掉了**而通过（对，但是**侥幸通过**：
         // 它证明不了"新作用域不继承旧任务区"这件事本身）。反向对照（`zoneOf` 退回按 owner 找）
         // 会同时打红上面两条 —— 这就是本条存在的原因。
         String scopeB = WorldModLedger.openScope(server, fake, "task_zone_fixture");
         check("生命周期：重开作用域**不继承**上一个作用域的任务区（旧条目还在表里也不给权威）",
-                !scopeB.equals(scopeA) && TaskZoneRegistry.zoneOf(server, fake) == null);
-        TaskZoneRegistry.Result redeclared = TaskZoneRegistry.declare(server, fake, "task_zone_fixture", area, false);
+                !scopeB.equals(scopeA) && JobAreaRegistry.zoneOf(server, fake) == null);
+        JobAreaRegistry.Result redeclared = JobAreaRegistry.declare(server, fake, "task_zone_fixture", area, false);
         check("生命周期：新作用域里必须**重新声明**（DECLARED，而不是 ALREADY/REPLACED ⇒ 证明旧区没被继承）",
-                redeclared.status() == TaskZoneRegistry.Declare.DECLARED);
+                redeclared.status() == JobAreaRegistry.Declare.DECLARED);
         check("生命周期：**过期条目被 prune 清掉**（进程内表不会无限长：旧 scope 的条目 + 新 scope 的 1 条"
                         + " + 本 bot 自己的 1 条）",
-                TaskZoneRegistry.activeCount(server) == activeBefore + 2);
+                JobAreaRegistry.activeCount(server) == activeBefore + 2);
         WorldModLedger.closeScope(server, fake);
         check("生命周期：收尾后只剩本 bot 自己的那条（fake owner 的两条都已无主 ⇒ 清掉）",
-                TaskZoneRegistry.activeCount(server) == activeBefore + 1);
+                JobAreaRegistry.activeCount(server) == activeBefore + 1);
         phase = Phase.OVERLAY;
     }
 
     /** ④ 覆盖规则：任务区**可以**覆盖保护区**父类**；且**本片不改任何权限行为**。 */
-    private void overlayPhase(ServerLevel level, SafeZoneData zones) {
+    private void overlayPhase(ServerLevel level, AreaData zones) {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         ResourceLocation dimension = level.dimension().location();
@@ -406,14 +406,14 @@ public final class TaskZoneCheckTask implements Task {
             }
         }
         check("覆盖前提：先把三个区块认领为**保护区父类**（本次新增 " + claimed + " 个）", claimed == 3);
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension,
                 AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
-        TaskZoneRegistry.Result declared = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
+        JobAreaRegistry.Result declared = JobAreaRegistry.declare(server, owner, "task_zone_fixture", area, false);
         check("⭐覆盖：任务区**可以覆盖保护区父类**（这些区块全在保护区内，声明照旧成功）",
-                declared.status() == TaskZoneRegistry.Declare.DECLARED
+                declared.status() == JobAreaRegistry.Declare.DECLARED
                         && declared.zone() != null && declared.zone().chunks().size() == 3);
-        TaskZoneRegistry.Zone zone = TaskZoneRegistry.zoneOf(server, owner);
+        JobAreaRegistry.JobArea zone = JobAreaRegistry.zoneOf(server, owner);
         check("⭐覆盖：同一格上「保护区=true」与「任务区覆盖=true」**同时成立**"
                         + "（覆盖 = 对**任务授权**的让步，不是取消保护）",
                 zones.isClaimed(level, AREA_START) && zone != null && zone.covers(AREA_START));
@@ -431,23 +431,23 @@ public final class TaskZoneCheckTask implements Task {
      * ⇒「任务区不得覆盖安全区」这条**失去了立足点**（用户逐字：「**这句话在安全区退化后就没有意义了**」）
      * ⇒ ⭐ 工作区域**压在安全区上照旧声明成功**；覆盖规则今天只剩「**任何区域 → `job` 区 ⛔拒绝**」。
      */
-    private void safeOverlayPhase(ServerLevel level, SafeZoneData zones) {
+    private void safeOverlayPhase(ServerLevel level, AreaData zones) {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         ResourceLocation dimension = level.dimension().location();
-        TaskZoneRegistry.WorkArea area = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.WorkingArea area = new JobAreaRegistry.WorkingArea(dimension,
                 AREA_MIN_X, AREA_MIN_Z, AREA_MAX_X, AREA_MAX_Z);
         check("覆盖规则前提：中间区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z
                         + "）已被声明为**安全区**（保护区上的标记位）",
                 zones.declareSafe(level, CONFLICT_CHUNK_X, AREA_CHUNK_Z)
-                        == SafeZoneData.SafeDeclare.DECLARED);
+                        == AreaData.SafeDeclare.DECLARED);
         int safeNow = zones.safeChunkCount();
         int claimedNow = zones.claimedChunkCount();
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
-        TaskZoneRegistry.Result overlay = TaskZoneRegistry.declare(server, owner, "task_zone_fixture", area, false);
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.Result overlay = JobAreaRegistry.declare(server, owner, "task_zone_fixture", area, false);
         check("⭐覆盖规则：工作区域**压在安全区上照样声明成功**（同权限 ⇒ "
                         + "「任务区不得覆盖安全区」已删除）｜status=" + overlay.status(),
-                overlay.status() == TaskZoneRegistry.Declare.DECLARED && overlay.active());
+                overlay.status() == JobAreaRegistry.Declare.DECLARED && overlay.active());
         check("⭐覆盖规则：生效的任务区**真的覆盖了**那个安全区区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z + "）",
                 overlay.zone() != null
                         && overlay.zone().covers(new BlockPos(CONFLICT_CHUNK_X << 4, FOOT_Y, AREA_CHUNK_Z << 4)));
@@ -462,9 +462,9 @@ public final class TaskZoneCheckTask implements Task {
         check("覆盖规则只看向交集：区外的安全区（" + OUTSIDE_CHUNK_X + "," + OUTSIDE_CHUNK_Z
                         + "）不进任务区（覆盖区块数仍是 " + overlay.zone().chunks().size() + "）",
                 overlay.zone() != null && overlay.zone().chunks().size() == 3);
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         check("相位收尾：本 bot 名下无生效任务区（下面的授权面用例从干净状态开始）",
-                TaskZoneRegistry.zoneOf(server, owner) == null);
+                JobAreaRegistry.zoneOf(server, owner) == null);
         phase = Phase.AUTHORITY;
     }
 
@@ -478,21 +478,21 @@ public final class TaskZoneCheckTask implements Task {
      * ⑤ **越界与安全区**（退化后两者都只是「认领但未被任务区覆盖」）⇒ **同一个码** `protected_area`；
      * ⑥ **野外在 `L0` 期间照旧可写**（L0 冻结野外 = 错）。
      */
-    private void authorityPhase(ServerLevel level, SafeZoneData zones) {
+    private void authorityPhase(ServerLevel level, AreaData zones) {
         var server = level.getServer();
         UUID owner = bot.getUUID();
         ResourceLocation dimension = level.dimension().location();
-        TaskZoneRegistry.WorkArea authArea = new TaskZoneRegistry.WorkArea(dimension,
+        JobAreaRegistry.WorkingArea authArea = new JobAreaRegistry.WorkingArea(dimension,
                 AUTH_MIN_X, AUTH_MIN_Z, AUTH_MAX_X, AUTH_MAX_Z);
         check("授权面前提：四个测试格分属不同区块（区内 2200,2200 / 别的区块 2202,2200 / 安全区 2201,2200 / 野外 2212,2212）",
-                TaskZoneRegistry.chunkKey(AUTH_INSIDE) == ChunkPos.asLong(2200, AREA_CHUNK_Z)
-                        && TaskZoneRegistry.chunkKey(AUTH_OTHER_CHUNK) == ChunkPos.asLong(2202, AREA_CHUNK_Z)
-                        && TaskZoneRegistry.chunkKey(AUTH_SAFE) == ChunkPos.asLong(CONFLICT_CHUNK_X, AREA_CHUNK_Z)
+                JobAreaRegistry.chunkKey(AUTH_INSIDE) == ChunkPos.asLong(2200, AREA_CHUNK_Z)
+                        && JobAreaRegistry.chunkKey(AUTH_OTHER_CHUNK) == ChunkPos.asLong(2202, AREA_CHUNK_Z)
+                        && JobAreaRegistry.chunkKey(AUTH_SAFE) == ChunkPos.asLong(CONFLICT_CHUNK_X, AREA_CHUNK_Z)
                         && zones.isClaimed(level, AUTH_INSIDE) && zones.isClaimed(level, AUTH_OTHER_CHUNK)
                         && zones.isSafe(level, AUTH_SAFE) && !zones.isClaimed(level, AUTH_WILDERNESS));
 
         // ① 无任务区：破坏码**逐字回归** `protected_area`；放置**被拦**（今天这条闸门缺失 ⇒ 本片补上）
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         check("②无任务区：破坏 `EXPECTED_TARGET` ⇒ 拒绝码**逐字仍是 `protected_area`**（既有码/文档/夹具都按它写）",
                 "protected_area".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
@@ -503,9 +503,9 @@ public final class TaskZoneCheckTask implements Task {
                 !placedWithoutZone && level.getBlockState(AUTH_INSIDE).isAir());
 
         // ② L0 只读（`walk-return` ⇒ TRAVERSAL ⇒ L0）
-        TaskZoneRegistry.Result l0 = TaskZoneRegistry.declare(server, owner, "walk-return", authArea, false);
+        JobAreaRegistry.Result l0 = JobAreaRegistry.declare(server, owner, "walk-return", authArea, false);
         check("③`L0`：等级由 `WritePolicyMatrix` 解析 = L0（只读），且写入元数据",
-                l0.status() == TaskZoneRegistry.Declare.DECLARED
+                l0.status() == JobAreaRegistry.Declare.DECLARED
                         && l0.zone().level() == WritePolicyMatrix.Level.L0_READ_ONLY);
         check("③`L0`：破坏 ⇒ `zone_read_only`",
                 "zone_read_only".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
@@ -526,7 +526,7 @@ public final class TaskZoneCheckTask implements Task {
                                 WriteReason.STEP_PLACEMENT) == null);
 
         // ③ L1 临时脚手架（`craft-station` ⇒ CRAFT ⇒ L1）
-        TaskZoneRegistry.Result l1 = TaskZoneRegistry.declare(server, owner, "craft-station", authArea, false);
+        JobAreaRegistry.Result l1 = JobAreaRegistry.declare(server, owner, "craft-station", authArea, false);
         // 同一个作用域换任务 ⇒ 是 REPLACED（不是 DECLARED）；等级仍然由矩阵解析 ⇒ 断言用 active()
         check("④`L1`：等级 = L1（临时脚手架）", l1.active()
                 && l1.zone().level() == WritePolicyMatrix.Level.L1_SCAFFOLD);
@@ -555,12 +555,12 @@ public final class TaskZoneCheckTask implements Task {
                                 new BlockPos(ninthX, FOOT_Y, QUOTA_Z), WriteReason.STEP_PLACEMENT))
                         && level.getBlockState(new BlockPos(ninthX, FOOT_Y, QUOTA_Z)).isAir());
         check("④`L1`：配额计数落在**任务区**（scope）上，且只数区内放置（count="
-                        + TaskZoneRegistry.zonePlaceCount(l1.zone().scopeId()) + "）",
-                TaskZoneRegistry.zonePlaceCount(l1.zone().scopeId()) == ZoneAuthority.L1_MAX_PLACES);
+                        + JobAreaRegistry.zonePlaceCount(l1.zone().scopeId()) + "）",
+                JobAreaRegistry.zonePlaceCount(l1.zone().scopeId()) == ZoneAuthority.L1_MAX_PLACES);
 
         // ④ L2 工作面（`region_lumber` ⇒ LUMBER ⇒ L2）
         // ⭐ `D-338` 附注十四：`region_lumber`(L2) 在保护区内**只对玩家显式发起**生效 ⇒ 这里传 `true`
-        TaskZoneRegistry.Result l2 = TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
+        JobAreaRegistry.Result l2 = JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑤`L2`：等级 = L2（工作面）", l2.active()
                 && l2.zone().level() == WritePolicyMatrix.Level.L2_WORKFACE);
         check("⑤`L2`：**目标内**（`EXPECTED_TARGET`）破坏 ⇒ 放行",
@@ -569,7 +569,7 @@ public final class TaskZoneCheckTask implements Task {
                 ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.PATH_ACCESS) == null);
         check("⑤`L2`：临时放置 ⇒ 放行（且 `L1` 的 8 次配额**不再适用**）",
                 ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null
-                        && TaskZoneRegistry.zonePlaceCount(l2.zone().scopeId()) == 0);
+                        && JobAreaRegistry.zonePlaceCount(l2.zone().scopeId()) == 0);
         boolean placedInZone = placeThroughAction(level, AUTH_INSIDE,
                 grant("region_lumber", WriteReason.STEP_PLACEMENT));
         check("⑤`L2`：**真的写进了世界**（放置成功 + 该格现在是圆石）",
@@ -610,16 +610,16 @@ public final class TaskZoneCheckTask implements Task {
             setBlockTracked(level, AUTH_TREE_BASE.above(dy), Blocks.OAK_LOG.defaultBlockState());
         }
         var treeSpec = JobDeclaration.harvestUnits(AUTH_TREE_BASE, 6, 1, 200);
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         List<String> noZoneRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
         check("⑨候选扫描（第三处消费）：**无任务区** ⇒ 被认领区块里的树在候选期就被拒（`:protected_area`）",
                 hasCode(noZoneRejected, "protected_area"));
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         var l2Candidates = new LumberCandidateSource().candidates(bot, treeSpec);
         check("⑨候选扫描：`L2` 任务区覆盖 ⇒ 同一棵树**不再以保护区为由被拒**（= 保护区里的目标成为合法候选；"
                         + "可达性等其它理由另行判定）｜rejected=" + l2Candidates.rejected(),
                 !hasCode(l2Candidates.rejected(), "protected_area"));
-        TaskZoneRegistry.declare(server, owner, "walk-return", authArea, false);
+        JobAreaRegistry.declare(server, owner, "walk-return", authArea, false);
         List<String> l0Rejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
         check("⑨候选扫描：`L0` 任务区覆盖 ⇒ 候选期仍拒，且理由码换成 `zone_read_only`"
                         + "（与矿侧同一条路：`MINING` 也是 L0）",
@@ -628,7 +628,7 @@ public final class TaskZoneCheckTask implements Task {
         // ⑧ 日志卫生（**客户端实测逼出来的**）：规划期谓词会反复问同一格 ⇒ 留痕必须去重，否则刷屏
         ZoneAuthority.clearAudit();
         int before = ZoneAuthority.auditLoggedCount();
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         boolean allAllowed = true;
         for (int i = 0; i < 100; i++) {
             // 走**动作层那条**（`regionRefusal` 才留痕；`breakRefusal` 是纯判定入口，刻意不打印）
@@ -644,18 +644,18 @@ public final class TaskZoneCheckTask implements Task {
         // ⑨ ⭐ **第四处消费：规划/执行期的能力闸门**（`CapabilityGate.Facts`）——
         //    客户端实测暴露我上一片**漏接了这一处**：保护区里 `PILLAR`（"垫一格上去"）被裸保护区判据拒了
         //    **144 次**、全轮零放置 ⇒ 高树最高一格够不到、直接跳过（离线对照：同一场景无认领时 `places=9`、`7/7`）。
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑨能力闸门（第四处消费）：`L2` 任务区覆盖 ⇒ **放置类移动**（垫脚/`PILLAR`）落点判定放行",
                 ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null);
         check("⑨能力闸门：`L2` 下**破坏类移动**（`PATH_ACCESS` 语义）落点也放行",
                 ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) == null);
-        TaskZoneRegistry.declare(server, owner, "craft-station", authArea, false);
+        JobAreaRegistry.declare(server, owner, "craft-station", authArea, false);
         check("⑨能力闸门：`L1` 允许「垫脚」（临时脚手架）但**不允许破坏类移动**"
                         + "（码=" + ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) + "）",
                 ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null
                         && "zone_break_not_allowed".equals(ZoneAuthority.movementRefusal(level, owner,
                                 AUTH_INSIDE, "protected_area", false)));
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         check("⑨能力闸门：**没有任务区**时逐字仍是 `protected_area`（既有失败码/`ZONE_PROTECTED_AREA` 不变）",
                 "protected_area".equals(ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE,
                         "protected_area", true)));
@@ -665,7 +665,7 @@ public final class TaskZoneCheckTask implements Task {
 
         // ⑩ ⭐ `D-338` 附注十四：**保护区内，非玩家发起（LLM/未归因）封顶 `L1`**
         //    —— 现场：用户点的一次性砍树被如实拒绝后，LLM 自起 `region_lumber` 把用户保护区里的树砍了（两轮）。
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, false);
         String llmBreak = ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET);
         check("⑪封顶：**LLM 自起**的 `region_lumber`（声明 L2）在保护区内 ⇒ 破坏被拒 **`zone_break_not_allowed`**"
                         + "（= 「拆不了玩家的方块」），且**不是** `protected_area`（那是「没有任务区」的码）｜code=" + llmBreak,
@@ -680,20 +680,20 @@ public final class TaskZoneCheckTask implements Task {
         // —— **客户端实测证明那句是错的**：区域作业把"没权限的树"当成"区域里没有树"、走**待机巡查**，
         // 空转到 `maxTicks=24000`（20 分钟）。现在"如实失败"由 `permissionBlock` 保证
         // （码 = `no_permitted_candidate`），由下面 ⑫ 断言。
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑪封顶：**玩家显式发起**（命令/物品）时同一格**照旧放行**破坏（`L2`）⇒ 阶梯对玩家不缩水",
                 ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
-        TaskZoneRegistry.declare(server, owner, "road-build", authArea, false);
+        JobAreaRegistry.declare(server, owner, "road-build", authArea, false);
         check("⑪封顶：`L3` 类（修路）非玩家发起 ⇒ 先降级 `L2`、保护区内再封顶 `L1`（两级都只收紧）⇒ 破坏仍被拒",
                 "zone_break_not_allowed".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.EXPECTED_TARGET)));
-        TaskZoneRegistry.declare(server, owner, "walk-return", authArea, false);
+        JobAreaRegistry.declare(server, owner, "walk-return", authArea, false);
         check("⑪封顶**只收紧、不放宽**：`L0`（只读）非玩家发起**仍是 `L0`**，放置照样 `zone_read_only`"
                         + "（不许被「封顶」抬成可临时放置）｜code=" + ZoneAuthority.placeRefusal(level, owner,
                         AUTH_INSIDE, WriteReason.STEP_PLACEMENT),
                 "zone_read_only".equals(ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE,
                         WriteReason.STEP_PLACEMENT)));
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, false);
         check("⑪封顶只作用于**已认领**区块：同一非玩家任务区在**野外**不受影响（`NOT_GATED`，野外写入照旧）",
                 ZoneAuthority.placeRefusal(level, owner, AUTH_WILDERNESS, WriteReason.STEP_PLACEMENT) == null
                         && ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS,
@@ -744,7 +744,7 @@ public final class TaskZoneCheckTask implements Task {
 
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         phase = Phase.JOB_SETUP;
         settle = 0;
     }
@@ -766,7 +766,7 @@ public final class TaskZoneCheckTask implements Task {
         Task.Status status = job.tick();
         if (!observedZoneMidFlight) {
             observedZoneMidFlight = true;
-            TaskZoneRegistry.Zone zone = TaskZoneRegistry.zoneOf(server, owner);
+            JobAreaRegistry.JobArea zone = JobAreaRegistry.zoneOf(server, owner);
             check("⭐生产接线：常驻区域伐木 Job **首 tick 就解算出任务区**"
                             + "（工作区域 4×4 方块 ⇒ 区块最小覆盖 1 个；zone=" + job.taskZoneStatus() + "）",
                     zone != null && zone.chunks().size() == 1
@@ -788,7 +788,7 @@ public final class TaskZoneCheckTask implements Task {
         }
         check("⭐生产接线：Job 终态后**任务区自动解除**（结束/取消任务 ⇒ 自动解除，玩家无需再点一次；"
                         + "zoneOf=null）",
-                TaskZoneRegistry.zoneOf(server, owner) == null);
+                JobAreaRegistry.zoneOf(server, owner) == null);
         check("生产接线：终态是预算耗尽那条（`goal_timeout`）⇒ 上面观察到的解除确实发生在**任务收尾**，"
                         + "不是别的早退路径",
                 status == Task.Status.FAILED && "goal_timeout".equals(job.terminalReason()));
@@ -816,7 +816,7 @@ public final class TaskZoneCheckTask implements Task {
         check("⭐安全区被覆盖：生产任务**照常解算任务区**（⛔ 不再有 `task_zone_conflict` 失败路径）｜status="
                         + status + " taskZone=" + job.taskZoneStatus(),
                 job.taskZoneStatus().startsWith("DECLARED"));
-        TaskZoneRegistry.Zone active = TaskZoneRegistry.zoneOf(server, owner);
+        JobAreaRegistry.JobArea active = JobAreaRegistry.zoneOf(server, owner);
         check("⭐安全区被覆盖：任务区**真的覆盖了**那个安全区区块（" + CONFLICT_CHUNK_X + "," + AREA_CHUNK_Z
                         + "）｜chunks=" + job.taskZoneChunks(),
                 job.taskZoneChunks() == 3 && active != null
@@ -828,10 +828,10 @@ public final class TaskZoneCheckTask implements Task {
     }
 
     /** ⑨ 收尾：按**增量**还原世界与区域状态，并把 bot 送回进入前的脚位。 */
-    private void cleanupPhase(ServerLevel level, SafeZoneData zones) {
+    private void cleanupPhase(ServerLevel level, AreaData zones) {
         var server = level.getServer();
         UUID owner = bot.getUUID();
-        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        JobAreaRegistry.release(WorldModLedger.currentScope(server, owner));
         zones.clearSafe(level, CONFLICT_CHUNK_X, AREA_CHUNK_Z);
         zones.clearSafe(level, OUTSIDE_CHUNK_X, OUTSIDE_CHUNK_Z);
         for (int chunkX : AREA_CHUNKS_X) {
@@ -848,18 +848,18 @@ public final class TaskZoneCheckTask implements Task {
             WorldModLedger.forget(level, entry.getKey());
         }
         touched.clear();
-        check("收尾：本 bot 名下没有残留任务区（zoneOf=null）", TaskZoneRegistry.zoneOf(server, owner) == null);
+        check("收尾：本 bot 名下没有残留任务区（zoneOf=null）", JobAreaRegistry.zoneOf(server, owner) == null);
         check("收尾：保护区计数回到进入前（增量 0；before=" + chunksBefore + " now="
                         + zones.claimedChunkCount() + "）", zones.claimedChunkCount() == chunksBefore);
         check("收尾：安全区计数回到进入前（增量 0；before=" + safeBefore + " now="
                         + zones.safeChunkCount() + "）", zones.safeChunkCount() == safeBefore);
         check("收尾：生效任务区条数回到进入前（before=" + activeBefore + " now="
-                        + TaskZoneRegistry.activeCount(server) + "）",
-                TaskZoneRegistry.activeCount(server) == activeBefore);
+                        + JobAreaRegistry.activeCount(server) + "）",
+                JobAreaRegistry.activeCount(server) == activeBefore);
         if (timedOut) {
             check("收尾：本步没有发生用例超时", false);
         }
-        TaskZoneRegistry.clearAll();
+        JobAreaRegistry.clearAll();
         ZoneAuthority.clearAudit();
         phase = Phase.DONE;
         finish();

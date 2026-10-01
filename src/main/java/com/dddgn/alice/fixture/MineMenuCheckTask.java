@@ -1008,7 +1008,7 @@ public class MineMenuCheckTask implements Task {
         // **计划层**理由 `outside_work_area` ⇒ 两类理由同时可见、**互不顶替**。
         // ⚠️ 判据要**强**才可红：把**整卷扫描**都罩进保护区 ⇒ 一旦检查顺序反了（先算能不能挖），
         //    区外候选就会全被 `protected_area` 顶替 ⇒ `outsideByPlan` 归零 ⇒ 红。
-        var zones = com.dddgn.alice.protection.SafeZoneData.get(bot.getServer());
+        var zones = com.dddgn.alice.protection.AreaData.get(bot.getServer());
         var dimension = bot.serverLevel().dimension().location();
         var claimsBefore = new java.util.HashSet<>(zones.claims(dimension));
         zones.claimCircle(bot.serverLevel(), center, 5);

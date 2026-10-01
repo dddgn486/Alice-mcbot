@@ -59,7 +59,7 @@ public final class BlockBreakSafety {
         if (!level.getBlockState(target).getFluidState().isEmpty()) {
             return "fluid_block";
         }
-        String worldProtection = SafeZoneData.get(level.getServer()).protectionReason(level, target);
+        String worldProtection = AreaData.get(level.getServer()).protectionReason(level, target);
         String zoneRefusal = ZoneAuthority.regionRefusal(level, bot.getUUID(), target, worldProtection,
                 reason, ZoneAuthority.Act.BREAK);
         if (zoneRefusal != null) {

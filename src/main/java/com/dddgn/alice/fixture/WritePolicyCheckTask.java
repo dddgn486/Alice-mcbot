@@ -42,7 +42,7 @@ import com.dddgn.alice.task.TaskTarget;
  *
  * <p>八条例（全部纯计算 + 两次注定被拒的规划尝试，不动世界）：
  * <ol>
- *   <li>A <b>表是全的</b>：{@code Zone × Task} 全枚举、每个 {@code WriteReason} 都有行登记、
+ *   <li>A <b>表是全的</b>：{@code Tenure × Task} 全枚举、每个 {@code WriteReason} 都有行登记、
  *       显式义务与该行理由不矛盾；</li>
  *   <li>B <b>闸门是活的</b>（负例）：纯通行任务（{@code walk-to}）要求
  *       {@code withWorldModification} 的移动集 ⇒ **必须抛 {@code WRITE_POLICY_MOVEMENT_DENIED}**；
@@ -230,9 +230,9 @@ public class WritePolicyCheckTask implements Task {
         check("table_total", structural.isEmpty(), "problems=" + structural);
         check("table_shape",
                 WritePolicyMatrix.ROWS.size()
-                        == WritePolicyMatrix.Zone.values().length * WritePolicyMatrix.Task.values().length,
+                        == WritePolicyMatrix.Tenure.values().length * WritePolicyMatrix.Task.values().length,
                 "rows=" + WritePolicyMatrix.ROWS.size() + "（期望 "
-                        + WritePolicyMatrix.Zone.values().length * WritePolicyMatrix.Task.values().length + "）");
+                        + WritePolicyMatrix.Tenure.values().length * WritePolicyMatrix.Task.values().length + "）");
 
         // B 闸门是活的（负例 + 正例）
         BlockPos from = bot.blockPosition();
@@ -371,26 +371,26 @@ public class WritePolicyCheckTask implements Task {
 
         // F 义务解析
         boolean obligationOk =
-                WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.TRAVERSAL, WriteReason.STEP_PLACEMENT)
                         == WritePolicyMatrix.Obligation.TEMP
-                        && WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                        && WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.LUMBER, WriteReason.REGION_REPLANT)
                         == WritePolicyMatrix.Obligation.KEEP
-                        && WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                        && WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.BUILD, WriteReason.BULK_EDIT)
                         == WritePolicyMatrix.Obligation.KEEP
-                        && WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                        && WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.CRAFT, WriteReason.CRAFT_STATION_PLACE)
                         == WritePolicyMatrix.Obligation.TEMP;
         check("obligation", obligationOk,
-                "traversal+step=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                "traversal+step=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.TRAVERSAL, WriteReason.STEP_PLACEMENT)
-                        + " lumber+replant=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                        + " lumber+replant=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.LUMBER, WriteReason.REGION_REPLANT)
-                        + " build+bulk=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                        + " build+bulk=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.BUILD, WriteReason.BULK_EDIT)
-                        + " craft+station=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
+                        + " craft+station=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Tenure.EXTERNAL,
                         WritePolicyMatrix.Task.CRAFT, WriteReason.CRAFT_STATION_PLACE));
 
         // B3 容器写入闸门（R1 收口，2026-09-14）：**已登记但未声明 ⇒ 拒**；登记缺口 ⇒ 不拒（只留痕）。

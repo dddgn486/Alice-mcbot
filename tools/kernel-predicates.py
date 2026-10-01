@@ -668,7 +668,7 @@ def rule_no_permitted_candidate():
         body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
         body = re.sub(r"//[^\n]*", "", body)
         # ⛔ 2026-10-01：`"protected_safe_zone"` **已从人口里移除** —— 用户裁定「**确实要撤掉，确认有意**」，
-        # 该码**连发射点一起删除**（`ZoneAuthority.authorize` 的安全区分支 ＋ `TaskZoneRegistry.declare`
+        # 该码**连发射点一起删除**（`ZoneAuthority.authorize` 的安全区分支 ＋ `JobAreaRegistry.declare`
         # 的 `CONFLICT_SUBZONE`）⇒ 安全区格今天走与保护区**完全相同**的 `protected_area`。
         # ⚠️ 继续断言它 = 断言一个**已删除的行为**（死规则），故本规则人口同步收窄。
         for code in ('"zone_break_not_allowed"', '"protected_area"',
@@ -1224,7 +1224,7 @@ def rule_search_limit_not_unreachable():
         problems.append("扫完的收尾里没有 `not_found` 归因 ⇒ 失去『真的找遍了也没有』这一态")
 
     vis = method_body(src, "private void visit(ServerLevel level, ServerPlayer bot, "
-                           "SafeZoneData safeZones, BlockPos pos) {")
+                           "AreaData safeZones, BlockPos pos) {")
     if vis and "not_found" in vis:
         problems.append("逐格 `visit()` 里写了 `not_found`"
                         " ⇒ **没扫完**也会被记成『没有』（S3 禁止：未扫 ≠ 没矿）")
@@ -1719,7 +1719,7 @@ def rule_intent_before_viability():
         problems.append("`JobDeclaration` 的**记录头**里没有意图组件（组件不在 ⇒ 意图只能靠散装字段传，迟早漂）")
 
     for signature, label in [
-        ("private void visit(ServerLevel level, ServerPlayer bot, SafeZoneData safeZones, BlockPos pos) {", "visit"),
+        ("private void visit(ServerLevel level, ServerPlayer bot, AreaData safeZones, BlockPos pos) {", "visit"),
         ("public CandidateSet revalidate(ServerPlayer bot, int targetIndex) {", "revalidate"),
     ]:
         body = method_body(src, signature)
@@ -1757,7 +1757,7 @@ def rule_cluster_is_pure_geometry():
         return ["`TargetClusters` 不在了（本规则要跟着改）"]
     text = path.read_text(encoding="utf-8")
     for banned in ["ZoneAuthority", "breakable", "WriteBudget", "MineScanMemoryData",
-                   "getBlockState", "SafeZoneData"]:
+                   "getBlockState", "AreaData"]:
         if banned in text:
             problems.append("`TargetClusters` 里出现了 `%s` ⇒ 簇判定**不再纯粹是几何**"
                             "（授权/可破性/记忆都会过期；见本规则头部）" % banned)
@@ -4040,7 +4040,7 @@ def rule_ledger_closure_zone_scoped():
        恢复入口，不得再拿裸 `pendingTemporary(` / `pendingForOwner(` 当"待收义务"的口径
        （裸视图含区外条目 ⇒ 拿它判红就是拿无主区域的事判我方的错，`D-398` R1/R2）；
     ② **区内判据只有一个出处**：`closure` 的 `inZone` 必须来自 `pendingTemporaryProtected`，
-       而后者必须问 `ProtectionZones.isProtected`（不许各写一遍 ⇒ 消费漏接一处就是 D-338 那类事故）；
+       而后者必须问 `LedgerScope.isProtected`（不许各写一遍 ⇒ 消费漏接一处就是 D-338 那类事故）；
     ③ **空集必须可见**：闭合点要印人口（`Closure.describe()`），否则「账本空」=「世界干净」这个
        误读会静默复活（`Z2` 的唯一产出就是让这个误读**看得见**）；
     ④ ⭐ `RC1`（2026-09-24）：**对账路径不许替未加载区块开图** —— `dropStale` 读方块之前必须先判
@@ -4123,9 +4123,9 @@ def rule_ledger_closure_zone_scoped():
         problems.append("`recordPlacement` 没有递增 `recorded` 计数器 ⇒ `Closure.recordedSince` 恒 0 "
                         "⇒ 会把「写了又收干净」误报成「压根没写」")
     protected_body = method_body(led, "public static List<Entry> pendingTemporaryProtected(")
-    if "ProtectionZones.isProtected" not in protected_body:
-        problems.append("`pendingTemporaryProtected` 不再问 `ProtectionZones.isProtected` ⇒ "
-                        "保护区判据被绕开（`ProtectionZones` 是 `D-398` 的唯一判据入口）")
+    if "LedgerScope.isProtected" not in protected_body:
+        problems.append("`pendingTemporaryProtected` 不再问 `LedgerScope.isProtected` ⇒ "
+                        "保护区判据被绕开（`LedgerScope` 是 `D-398` 的唯一判据入口）")
 
     # ---- 臂③ 空集必须可见 ----
     # ⚠️ 必须钉**人口行本身**：`endStep` 的"泄漏判红"分支里也有 `closure.describe()` ⇒
@@ -5231,7 +5231,7 @@ def rule_write_budget_zone_and_container_exception():
         problems.append("`WriteBudget.EXHAUSTED_CODE` 不在了（瞬时码失去唯一出处）")
 
     # ---- 判据本身还在（不是退化成注释）----
-    if "ProtectionZones.isWild" not in fixture:
+    if "LedgerScope.isWild" not in fixture:
         problems.append("`WriteBudgetCheckTask` 没有**野外前提自证** ⇒ 「区外无额度」这条判据会退化成一句注释")
     if "capForEscape(" not in fixture:
         problems.append("`WriteBudgetCheckTask` 没有 `capForEscape` 对比臂 ⇒ 「显式装订照旧强制」这半没判据")

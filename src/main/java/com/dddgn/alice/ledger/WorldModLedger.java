@@ -47,7 +47,7 @@ import java.util.UUID;
  * </ul>
  * ⚠️ **后果**：区外的垫脚方块不再被收尾拆回（野外会留下圆石、并净消耗一次性方块）—— 这是
  * "区外一定不恢复"的推论，不是遗漏；口径与判据统一在
- * {@link com.dddgn.alice.protection.ProtectionZones}。
+ * {@link com.dddgn.alice.protection.LedgerScope}。
  * ⚠️ **第二个后果（`Z2` 实测抓到）**：既然区外**不记账**，那么"**用账本证明我没写世界**"的判据
  * 在野外就是**空集真**（CORE 实测：8 条记账全来自自认领的 `scaffold` 步，13 次放置全 `skip`）
  * ⇒ 这一族断言必须**同时报出人口**才可信（{@link Closure}），未接人口的旧读数在
@@ -154,7 +154,7 @@ public final class WorldModLedger extends SavedData {
      *
      * <p>⭐⭐ <b>`D-398`（用户 2026-09-22 决定性断言）：账本只记"保护区及其子区域"内的放置。</b>
      * 无主区域（区外）的修改**不负任何责任**（R1/R2）⇒ 既不进账本、也不会产生任何恢复动作。
-     * 判据口径与"为什么任务区不算保护区"见 {@link com.dddgn.alice.protection.ProtectionZones}。
+     * 判据口径与"为什么任务区不算保护区"见 {@link com.dddgn.alice.protection.LedgerScope}。
      *
      * <p>这条过滤是**真机事故的直接修复**（`D-406` §二）：玩家在野外指派挖矿 ⇒ 内核 `PILLAR` 在
      * 无主区域放了 7 格垫脚石 ⇒ 全部进账 ⇒ 任务收尾的自动拆除把 bot **正踩着的那格**拆了 ⇒ bot 坠落。
@@ -178,7 +178,7 @@ public final class WorldModLedger extends SavedData {
         }
         WorldModLedger ledger = get(server);
         // ⭐ `D-398` R1/R2/R4：区外不记账（= 不承担恢复责任 = 不产生回收义务）。
-        if (com.dddgn.alice.protection.ProtectionZones.isWild(level, pos)) {
+        if (com.dddgn.alice.protection.LedgerScope.isWild(level, pos)) {
             ledger.outsideSkips++;
             ledger.setDirty();
             BotLog.info("[Ledger] skip {} place={} by={}（区外：D-398 R1/R2 不记账、不恢复；累计 {} 次）",
@@ -229,7 +229,7 @@ public final class WorldModLedger extends SavedData {
         while (it.hasNext()) {
             Entry entry = it.next().getValue();
             // 先判区域归属（纯认领集查询，不读方块）：区外条目**无论现场是什么**都不该在账本里。
-            if (com.dddgn.alice.protection.ProtectionZones.isWild(level, entry.pos())) {
+            if (com.dddgn.alice.protection.LedgerScope.isWild(level, entry.pos())) {
                 outside.add(entry.describe());
                 it.remove();
                 continue;
@@ -547,7 +547,7 @@ public final class WorldModLedger extends SavedData {
             if (scopeId != null && !entry.scopeId().equals(scopeId)) {
                 continue;
             }
-            if (com.dddgn.alice.protection.ProtectionZones.isProtected(level, entry.pos())) {
+            if (com.dddgn.alice.protection.LedgerScope.isProtected(level, entry.pos())) {
                 result.add(entry);
             }
         }

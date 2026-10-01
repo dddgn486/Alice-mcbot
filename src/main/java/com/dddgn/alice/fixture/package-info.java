@@ -37,7 +37,7 @@
  * <h2>夹具纪律（既有，别在这里放松）</h2>
  * <ul>
  *   <li><b>夹具自己把 bot 传送到场景起点</b>，不依赖电池 provision；**结束要复位**（失败路径同样走）；</li>
- *   <li><b>夹具自证前提</b>（`FixturePremise` / `FixtureZone`），前提不成立要**响亮**失败而不是静默跳过；</li>
+ *   <li><b>夹具自证前提</b>（`FixturePremise` / `FixtureClaim`），前提不成立要**响亮**失败而不是静默跳过；</li>
  *   <li><b>失败必须传播到终态</b>（`tools/fixture-hygiene.py`：不许把假红吞成静默绿）；</li>
  *   <li><b>夹具断次数、时间只进日志</b>（`D-476` 的 `P4/A` 铁律 —— 时间不可复现）。</li>
  * </ul>

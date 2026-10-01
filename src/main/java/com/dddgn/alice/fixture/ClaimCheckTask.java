@@ -8,7 +8,7 @@ import com.dddgn.alice.network.ProtectionClaimsPacket;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.protection.ProtectionClaimService;
 import com.dddgn.alice.protection.ProtectionMapGeometry;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.core.BlockPos;
@@ -75,7 +75,7 @@ import com.dddgn.alice.task.TaskTarget;
  * "区块未加载"顺手把世界生成出去，也不会读到虚空。Y 方向的断言用同一区块的极值高度（认领命中在
  * 读方块之前返回 ⇒ 不需要那两处已加载）。
  */
-public final class ProtectionZoneCheckTask implements Task {
+public final class ClaimCheckTask implements Task {
 
     /** 单次加载的自定义 `SavedData` 上做往返，不需要世界 tick；留一点余量给日志。 */
     private static final int BUDGET_TICKS = 150;
@@ -115,14 +115,14 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 安全区用例是否已经认领了那片 3×3（失败路径要把它们拆掉）。 */
     private boolean safeZoneClaimed;
 
-    public ProtectionZoneCheckTask(BotPlayer bot, net.minecraft.server.level.ServerPlayer observer) {
+    public ClaimCheckTask(BotPlayer bot, net.minecraft.server.level.ServerPlayer observer) {
         this.bot = bot;
         this.observer = observer;
     }
 
     @Override
     public String taskName() {
-        return "ProtectionZoneCheck";
+        return "ClaimCheck";
     }
 
     @Override
@@ -171,7 +171,7 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 认领 bot 所在区块 ⇒ 该区块全高度拒绝、相邻区块不受影响、单一安全入口看得到。 */
     private void zonePhase() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         BlockPos here = bot.blockPosition();
         dimension = level.dimension().location();
         hereChunkX = here.getX() >> 4;
@@ -228,7 +228,7 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 取消认领 ⇒ 同一位置立刻放行（"取消即时生效"）。 */
     private void releasePhase() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         BlockPos here = bot.blockPosition();
         long hereKey = ChunkPos.asLong(hereChunkX, hereChunkZ);
 
@@ -246,7 +246,7 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 持久化契约：`save → load` 后认领与黑名单逐字回来（格式版本 2）。 */
     private void persistPhase() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         BlockPos here = bot.blockPosition();
         BlockPos support = supportPos();
         ResourceLocation supportId = blockId(level, support);
@@ -258,7 +258,7 @@ public final class ProtectionZoneCheckTask implements Task {
         boolean blockAdded = supportId != null && data.addBlock(supportId);
         addedBlockRule = blockAdded;
         CompoundTag saved = data.save(new CompoundTag());
-        SafeZoneData reloaded = SafeZoneData.load(saved);
+        AreaData reloaded = AreaData.load(saved);
 
         check("存/读往返：认领的区块条数一致（写 " + data.claimedChunkCount() + " / 读 "
                         + reloaded.claimedChunkCount() + "）",
@@ -295,7 +295,7 @@ public final class ProtectionZoneCheckTask implements Task {
             }
         }
         CompoundTag legacy = legacyTag("minecraft:overworld", 0, 64, 0, 8);
-        SafeZoneData migrated = SafeZoneData.load(legacy);
+        AreaData migrated = AreaData.load(legacy);
 
         check("旧格式必须被迁移（migrated=" + migrated.migratedLegacyAreas() + "）",
                 migrated.migratedLegacyAreas() == 1);
@@ -312,7 +312,7 @@ public final class ProtectionZoneCheckTask implements Task {
 
         // 坏条目：不能静默丢（维度解析失败 ⇒ 计数 + 告警）
         CompoundTag bad = legacyTag("这不是一个合法的维度 id", 0, 64, 0, 8);
-        SafeZoneData withBad = SafeZoneData.load(bad);
+        AreaData withBad = AreaData.load(bad);
         check("坏旧条目必须**计数上报**而不是静默丢（dropped=" + withBad.droppedLegacyAreas() + "）",
                 withBad.droppedLegacyAreas() == 1 && withBad.claimedChunkCount() == 0);
 
@@ -330,7 +330,7 @@ public final class ProtectionZoneCheckTask implements Task {
      */
     private void protocolPhase() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         ResourceLocation dimension = level.dimension().location();
         ResourceLocation nether = ResourceLocation.parse("minecraft:the_nether");
         int probeX = hereChunkX + 8;
@@ -631,7 +631,7 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 黑名单语义**不变**（回归）：方块 ID 与标签两条规则仍然命中，且可取消。 */
     private void blacklistPhase() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         BlockPos support = supportPos();
         supportBlockId = blockId(level, support);
         supportTag = firstTag(level, support);
@@ -680,7 +680,7 @@ public final class ProtectionZoneCheckTask implements Task {
      */
     private void safePhase() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         ResourceLocation dimension = level.dimension().location();
         int baseX = SAFE_BASE_CHUNK_X;
         int baseZ = SAFE_BASE_CHUNK_Z;
@@ -701,9 +701,9 @@ public final class ProtectionZoneCheckTask implements Task {
         check("前提：安全区用例的 3×3 区块块进入前**未被认领**（chunk " + baseX + ", " + baseZ + " 起）", clean);
 
         // ① 不变量（安全区 ⊆ 保护区）：未认领区块必须**拒绝**声明，且**不留半个声明**
-        SafeZoneData.SafeDeclare refused = data.declareSafe(level, baseX, baseZ);
+        AreaData.SafeDeclare refused = data.declareSafe(level, baseX, baseZ);
         check("**安全区 ⊆ 保护区**：未认领区块声明安全区必须被拒（实际 " + refused + "）",
-                refused == SafeZoneData.SafeDeclare.NOT_PROTECTED);
+                refused == AreaData.SafeDeclare.NOT_PROTECTED);
         check("被拒时安全区计数**不变**（" + safeBefore + " = " + data.safeChunkCount() + "）",
                 data.safeChunkCount() == safeBefore);
 
@@ -726,29 +726,29 @@ public final class ProtectionZoneCheckTask implements Task {
         Set<Long> square = new LinkedHashSet<>(List.of(
                 ChunkPos.asLong(0, 0), ChunkPos.asLong(1, 0),
                 ChunkPos.asLong(0, 1), ChunkPos.asLong(1, 1)));
-        check("退化：2×2 区域**没有**内部区块（实际 " + SafeZoneData.internalChunks(square).size()
+        check("退化：2×2 区域**没有**内部区块（实际 " + AreaData.internalChunks(square).size()
                         + "）⇒ 消费方按「进区即到」处理",
-                SafeZoneData.internalChunks(square).isEmpty());
+                AreaData.internalChunks(square).isEmpty());
         check("退化：单区块区域也没有内部区块（实际 "
-                        + SafeZoneData.internalChunks(Set.of(ChunkPos.asLong(7, 7))).size() + "）",
-                SafeZoneData.internalChunks(Set.of(ChunkPos.asLong(7, 7))).isEmpty());
+                        + AreaData.internalChunks(Set.of(ChunkPos.asLong(7, 7))).size() + "）",
+                AreaData.internalChunks(Set.of(ChunkPos.asLong(7, 7))).isEmpty());
         check("内部区块是**派生视图**：腐蚀不原地改入参（实际入参仍 " + square.size() + " = 4）",
                 square.size() == 4);
 
         // ④ 声明中心区块 ⇒ 安全区：**同区块任意 Y** 都成立（与认领同一口径）、幂等、且只是**子集**
-        SafeZoneData.SafeDeclare declared = data.declareSafe(level, baseX + 1, baseZ + 1);
+        AreaData.SafeDeclare declared = data.declareSafe(level, baseX + 1, baseZ + 1);
         check("声明中心区块为安全区（实际 " + declared + "）",
-                declared == SafeZoneData.SafeDeclare.DECLARED);
+                declared == AreaData.SafeDeclare.DECLARED);
         int centreX = (baseX + 1) << 4;
         int centreZ = (baseZ + 1) << 4;
         check("isSafe：中心区块**最低处**为真（y=" + level.getMinBuildHeight() + "）",
                 data.isSafe(level, new BlockPos(centreX, level.getMinBuildHeight(), centreZ)));
         check("isSafe：中心区块**最高处**也为真（y=" + (level.getMaxBuildHeight() - 1) + " ⇒ 与认领同一 Y 无关口径）",
                 data.isSafe(level, new BlockPos(centreX + 15, level.getMaxBuildHeight() - 1, centreZ + 15)));
-        SafeZoneData.SafeDeclare repeated = data.declareSafe(level, baseX + 1, baseZ + 1);
+        AreaData.SafeDeclare repeated = data.declareSafe(level, baseX + 1, baseZ + 1);
         check("幂等：重复声明 = ALREADY 且计数不变（实际 " + repeated + " / "
                         + data.safeChunkCount() + " = " + (safeBefore + 1) + "）",
-                repeated == SafeZoneData.SafeDeclare.ALREADY && data.safeChunkCount() == safeBefore + 1);
+                repeated == AreaData.SafeDeclare.ALREADY && data.safeChunkCount() == safeBefore + 1);
         check("安全区是**子集**不是整片保护区：相邻**已认领但未声明**的区块 isSafe=false",
                 !data.isSafe(level, new BlockPos(centreX + 16, 64, centreZ)));
         Set<Long> internalSafeInArea = intersect(data.internalSafeClaims(dimension), area);
@@ -778,7 +778,7 @@ public final class ProtectionZoneCheckTask implements Task {
 
         // ⑦ 持久化：新 NBT 键 `safe_chunks` 的存/读往返 + 派生视图随数据回来
         CompoundTag saved = data.save(new CompoundTag());
-        SafeZoneData reloaded = SafeZoneData.load(saved);
+        AreaData reloaded = AreaData.load(saved);
         check("存/读往返：安全区集合逐字回来（写 " + data.safeChunkCount() + " / 读 "
                         + reloaded.safeChunkCount() + "）",
                 reloaded.safeChunkCount() == data.safeChunkCount()
@@ -788,7 +788,7 @@ public final class ProtectionZoneCheckTask implements Task {
 
         // ⑧ 孤儿安全区标记（外部改档 / 未来版本）：**丢掉 + 计数 + 人能看见**，不静默留
         long orphan = ChunkPos.asLong(baseX + 40, baseZ + 40);
-        SafeZoneData fixed = SafeZoneData.load(orphanSafeTag(dimension, centre, orphan));
+        AreaData fixed = AreaData.load(orphanSafeTag(dimension, centre, orphan));
         check("孤儿安全区标记必须被**丢掉**（合法 1 个保留 / 孤儿 1 个丢弃；实际 safe="
                         + fixed.safeChunkCount() + "）",
                 fixed.safeChunkCount() == 1 && fixed.safeClaims(dimension).contains(centre)
@@ -842,7 +842,7 @@ public final class ProtectionZoneCheckTask implements Task {
 
     private Task.Status finish() {
         ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
+        AreaData data = AreaData.get(level.getServer());
         // 失败路径同样走这里：把本夹具造过的东西全部拆掉，并**断言**回到进入前的状态
         data.unclaim(level, hereChunkX, hereChunkZ);
         if (probeChunkX != Integer.MIN_VALUE) {

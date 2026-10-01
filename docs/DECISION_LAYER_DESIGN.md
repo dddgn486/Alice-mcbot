@@ -186,7 +186,7 @@ S4 决定**什么时候该开口**；S5/S6 才是"复杂物品"的执行能力 �
 | 提案需要的能力 | 今天已有的东西 |
 |---|---|
 | 请示玩家（有界选项 / 期限 / 默认） | `PermissionGate`（S3/D-140）：`AUTO/NOTIFY/ASK/IGNORE`、**超时=拒绝**、**LLM 只能请求不能批准**、`PermissionService` 答复来源可归因 |
-| 目标/队列**持久化** | `SavedData` 家族（`LumberRegionState` 键 `alice_lumber_regions`、`WorldModLedger`、`SafeZoneData`）——同一套路 |
+| 目标/队列**持久化** | `SavedData` 家族（`LumberRegionState` 键 `alice_lumber_regions`、`WorldModLedger`、`AreaData`）——同一套路 |
 | **历史不遗忘** | `DecisionTrace` **JSONL 追加**（`<config>/alice-decisions.jsonl`，含 trigger/action/outcome/detail/latency，带轮转）+ `BotEventLog` 事件环（NBT 往返、只报一次） |
 | **不变量破裂**触发 | `EventThresholds`：`TOOL_LOW`（耐久滞回）/`STUCK`（200 tick 有意图不动）/`NO_PROGRESS`（长作业无可观测进度）/`DANGER`（掉血）+ 低频 `PROGRESS` 事件 |
 | 任务条目的**类型化 + 校验** | `GoalAction.parseStartJob`（必须命中菜单 id）+ `JobLauncher.refusalReason`（构造前拒绝）+ `CandidateMenu`（选项由确定性层算） |

@@ -191,7 +191,7 @@ public final class WriteBudgetCheckTask implements Task {
     /**
      * ⭐ `Z3`（2026-09-23）：**"区外无格数额度" + "显式装订照旧强制"** 两半的判据。
      *
-     * <p><b>前提自证</b>：本臂要在**区外**（无主区域）成立 —— 样本格必须 `ProtectionZones.isWild`；
+     * <p><b>前提自证</b>：本臂要在**区外**（无主区域）成立 —— 样本格必须 `LedgerScope.isWild`；
      * 不是区外就**如实判红**（不许默默换个说法继续，`Z2` 的教训：夹具得自己声明前提）。
      *
      * <p><b>臂①「无装订 ⇒ 不设格数额度」</b>：把生效上限装成 {@link WriteBudget.Caps#UNBOUNDED}
@@ -209,7 +209,7 @@ public final class WriteBudgetCheckTask implements Task {
     private Task.Status assertZoneArms() {
         ServerLevel level = bot.serverLevel();
         String scope = WriteBudget.scopeOf(bot);
-        boolean wild = com.dddgn.alice.protection.ProtectionZones.isWild(level, START_FOOT);
+        boolean wild = com.dddgn.alice.protection.LedgerScope.isWild(level, START_FOOT);
         if (!wild) {
             failure = "ZONE_PREMISE_NOT_WILD start=" + START_FOOT.toShortString()
                     + "（本臂只在区外成立；场景/认领变了就要先修前提）";

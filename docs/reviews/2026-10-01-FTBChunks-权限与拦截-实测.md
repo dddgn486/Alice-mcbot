@@ -356,7 +356,7 @@ but necessary — [FTB-Mods-Issues#1752]」。
 
 | 维度 | FTB Chunks | Alice 今天 |
 |---|---|---|
-| 区域定义 | `ClaimedChunk`（**只有区块级**） | `SafeZoneData` 认领集（区块级、忽略 Y） ＋ ⭐ 任务区封套（区块 hull） |
+| 区域定义 | `ClaimedChunk`（**只有区块级**） | `AreaData` 认领集（区块级、忽略 Y） ＋ ⭐ 任务区封套（区块 hull） |
 | 子区域 | ⛔ 无 | ✅ 安全区（`safeClaims`） |
 | 归属主体 | **队伍**（personal/party） | **单个 UUID**（owner） |
 | 身份档位 | `PrivacyMode` 三档（PUBLIC/ALLIES/PRIVATE） | `WritePolicyMatrix.Level` 四档（L0–L3，**按任务类别**给） |
@@ -552,12 +552,12 @@ but necessary — [FTB-Mods-Issues#1752]」。
 - **bot 权限** = 「**我**要不要做这件事」（有主体 · 有意图 · 有理由）
 - **世界保护** = 「**别人 / 环境**能不能改这块地」（无主体 · 无意图 · 无理由，只有"是不是这块地"）
 
-⚠️ **Alice 今天只有第一条线**：`SafeZoneData` 是**对 bot 的约束**；`D-326` 的 `ThirdPartyProtection`
+⚠️ **Alice 今天只有第一条线**：`AreaData` 是**对 bot 的约束**；`D-326` 的 `ThirdPartyProtection`
 问的也是「**FTB 允不允许 bot**」。
 ⛔ **「别的模组的爆炸把玩家基地炸了」我们完全没有防线。**
 
 ⇒ ⭐ **问题：新方案要不要覆盖第二条线？** 我的倾向 = **不覆盖**（"只对 bot 生效"逐字就是这个意思），
-但 ⚠️ **必须显式写下来** —— 否则将来会有人以为 `SafeZoneData` 保护了玩家的建筑。
+但 ⚠️ **必须显式写下来** —— 否则将来会有人以为 `AreaData` 保护了玩家的建筑。
 
 ## §9.5 §7 表在"主体唯一"下的**修正版**（⭐ 取代 §7）
 

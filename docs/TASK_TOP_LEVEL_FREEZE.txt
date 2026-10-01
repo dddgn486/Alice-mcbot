@@ -1,7 +1,7 @@
 src/main/java/com/dddgn/alice/task/CollectDropsTask.java
 src/main/java/com/dddgn/alice/task/FarWalkTask.java
+src/main/java/com/dddgn/alice/task/FixtureClaim.java
 src/main/java/com/dddgn/alice/task/FixtureScript.java
-src/main/java/com/dddgn/alice/task/FixtureZone.java
 src/main/java/com/dddgn/alice/task/FollowTask.java
 src/main/java/com/dddgn/alice/task/MineTask.java
 src/main/java/com/dddgn/alice/task/PermissionDemoTask.java

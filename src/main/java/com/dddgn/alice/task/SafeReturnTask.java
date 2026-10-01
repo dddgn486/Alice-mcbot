@@ -7,7 +7,7 @@ import com.dddgn.alice.pathing.calc.FarTravelHop;
 import com.dddgn.alice.pathing.calc.PathRequest;
 import com.dddgn.alice.pathing.path.PathExecutionResult;
 import com.dddgn.alice.protection.ReturnPointData;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
@@ -19,7 +19,7 @@ import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /**
  * **机制 B：任务失败后"回安全区"的兜底**（`D-327` ①，2026-09-19 用户裁定执行）：
- * 任务失败条件达成后把 bot 送回**保护区（`SafeZoneData` 认领区块）里面**。
+ * 任务失败条件达成后把 bot 送回**保护区（`AreaData` 认领区块）里面**。
  *
  * <p><b>与机制 A 的分工（`D-327` 明确拆分，术语不许混）</b>：
  * <ul>
@@ -37,7 +37,7 @@ import com.dddgn.alice.pathing.path.PathRetryRunner;
  * **到达判据 = 脚位落在"返程到达集"里** = 目标区的**内部区块**（自身及四邻都已认领 ⇒ "向区域中心靠"），
  * 内部集为空（1 区块 / 条带 / ≤3×2）⇒ **退化为目标区本身**（"进区即到"）。
  * ⚠️ 旧口径是"进认领区块即到"（`isClaimed`）—— 它会让 bot **贴着边界停下**，且**看不见安全区**。
- * 全部判据都在 {@link SafeZoneData}（`isInReturnZone` / `nearestReturnCell`，纯集合查询、不读方块）。
+ * 全部判据都在 {@link AreaData}（`isInReturnZone` / `nearestReturnCell`，纯集合查询、不读方块）。
  *
  * <p><b>兜底语义（用户 2026-09-19 重新声明）</b>：**"就地固守"不是兜底** —— 它是"避免死亡的最保守行为"，
  * 勘测侧意见是**现在不做**（那等于把责任转接给玩家）。因此本任务**不新造固守行为**：
@@ -105,7 +105,7 @@ public final class SafeReturnTask implements Task {
      * @return true = 调用方应启动 {@link SafeReturnTask}
      */
     public static boolean shouldStart(ServerLevel level, UUID botId, BlockPos foot) {
-        SafeZoneData zones = SafeZoneData.get(level.getServer());
+        AreaData zones = AreaData.get(level.getServer());
         if (arrivedAtHome(level, botId, foot)) {
             return false;   // 已经在归位点 ⇒ 不启动
         }
@@ -145,7 +145,7 @@ public final class SafeReturnTask implements Task {
             return fail("return_tick_limit", "total=" + totalTicks + " rounds=" + rounds);
         }
         ServerLevel level = bot.serverLevel();
-        SafeZoneData zones = SafeZoneData.get(level.getServer());
+        AreaData zones = AreaData.get(level.getServer());
         BlockPos foot = MovementHelper.footCell(level, bot);
         ReturnPointData.Point home = homeOf(level, bot.getUUID());
         // ① 到达判据（优先级链最前）：**归位点 > 安全区内部 > 保护区内部**
@@ -303,7 +303,7 @@ public final class SafeReturnTask implements Task {
     }
 
     /** 到达判据（`D-338` ③ + 附注四①）：**归位点 > 安全区内部 > 保护区内部**。 */
-    private static boolean arrived(ServerLevel level, SafeZoneData zones, ReturnPointData.Point home,
+    private static boolean arrived(ServerLevel level, AreaData zones, ReturnPointData.Point home,
                                    BlockPos foot) {
         if (home != null) {
             return FarWalkTask.distanceXZ(foot, home.pos()) <= home.radius();
@@ -312,7 +312,7 @@ public final class SafeReturnTask implements Task {
     }
 
     /** 目标区种类（日志/诊断用）：归位点 ⇒ `home`；有安全区 ⇒ `safe`；否则 ⇒ `protect`。 */
-    private static String zoneKind(SafeZoneData zones, ServerLevel level, ReturnPointData.Point home) {
+    private static String zoneKind(AreaData zones, ServerLevel level, ReturnPointData.Point home) {
         if (home != null) {
             return "home";
         }

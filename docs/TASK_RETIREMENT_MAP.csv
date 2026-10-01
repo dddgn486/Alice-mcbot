@@ -4,8 +4,8 @@ CollectDropsTask,src/main/java/com/dddgn/alice/task/CollectDropsTask.java,生产
 CollectStep,src/main/java/com/dddgn/alice/task/collecting/CollectStep.java,step,step:implements Step
 CraftStation,src/main/java/com/dddgn/alice/task/craft/CraftStation.java,生产,生产:refs=debug,decision,item,job/craft
 FarWalkTask,src/main/java/com/dddgn/alice/task/FarWalkTask.java,生产,生产:refs=bot,task
+FixtureClaim,src/main/java/com/dddgn/alice/task/FixtureClaim.java,生产,生产:有标记但被生产引用(ScaffoldLifecycleTask)
 FixtureScript,src/main/java/com/dddgn/alice/task/FixtureScript.java,fixture,fixture:命名标记+外部引用(debug)
-FixtureZone,src/main/java/com/dddgn/alice/task/FixtureZone.java,生产,生产:有标记但被生产引用(ScaffoldLifecycleTask)
 FollowTask,src/main/java/com/dddgn/alice/task/FollowTask.java,生产,生产:refs=bot,client/render
 FurnaceStation,src/main/java/com/dddgn/alice/task/craft/FurnaceStation.java,生产,生产:refs=job/craft
 GainStepRunner,src/main/java/com/dddgn/alice/task/mining/GainStepRunner.java,生产,生产:refs=task,task/collecting

@@ -890,7 +890,7 @@ public class SurvivalExitCheckTask implements Task {
             //    而"不会被自动回收"这一点由上面那条**世界事实**断言守着（它才是防逃生循环的那半边）。
             // ⚠️ 旧版把"必须有条目"写成无条件 ⇒ `Z1` 落地后本步在区外**如实变红**（2026-09-22 实测）。
             // 那不是回归，而是 `D-245` 的"记账"口径被 `D-398` 的**地理范围**收窄了：区外的修改不再记账。
-            boolean pillarProtected = com.dddgn.alice.protection.ProtectionZones.isProtected(
+            boolean pillarProtected = com.dddgn.alice.protection.LedgerScope.isProtected(
                     bot.serverLevel(), pillar);
             check("逃生不自动回收（D-245 × D-398）："
                             + (pillarProtected ? "区内 ⇒ 账本里**仍记着这笔待拆**" : "区外 ⇒ 按裁定**账本无条目**")

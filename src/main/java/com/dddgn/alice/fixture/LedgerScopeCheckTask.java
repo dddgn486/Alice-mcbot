@@ -8,9 +8,9 @@ import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.protection.ProtectionZones;
-import com.dddgn.alice.protection.SafeZoneData;
-import com.dddgn.alice.protection.TaskZoneRegistry;
+import com.dddgn.alice.protection.LedgerScope;
+import com.dddgn.alice.protection.AreaData;
+import com.dddgn.alice.protection.JobAreaRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -27,7 +27,7 @@ import java.util.Map;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 
 /**
  * ⭐ `Z1` 的判据（`D-398` 落地）：**账本与恢复的地理范围 = "保护区及其子区域"**。
@@ -54,7 +54,7 @@ import com.dddgn.alice.task.FixtureZone;
  * <h2>⚠️ 为什么要"借"一个 `L2` 任务区封套（诚实标注）</h2>
  * 保护区里的写入要过 `ZoneAuthority`，而**自检夹具的定位是 `DIAGNOSTIC` ⇒ `L0`（只读）**
  * （`D-338` 附注七③：未登记任务与自检夹具**不该**拿到区内写入权）。于是"在区内写字"这件事，
- * 夹具**必须**自己摆出前提：本步按 `TaskZoneCheckTask` 的同一做法声明一个
+ * 夹具**必须**自己摆出前提：本步按 `JobAreaCheckTask` 的同一做法声明一个
  * `region_lumber`（`LUMBER ⇒ L2 工作面`）+ `playerDriven=true` 的封套 —— 它**不是**在验权限阶梯
  * （那是 `task_zone` 的活），而是**让闸门放行**，否则根本测不到"区内记账 / 回收"这半边。
  * 反过来这也顺带证明了那条阶梯是活的：**不声明封套 ⇒ 区内放置被拒 `protected_area`**
@@ -65,7 +65,7 @@ import com.dddgn.alice.task.FixtureZone;
  * 三个目标格都在**同一个区块**里（4199/4200/4201 ⇒ chunk 262,162）⇒ 一次 claim 就够。
  * 收尾把地形与认领状态**全部还原**（认领状态按"进来时是不是已认领"还原）。
  */
-public final class LedgerZoneScopeCheckTask implements Task {
+public final class LedgerScopeCheckTask implements Task {
 
     /** 孤立原点（避开其它夹具的坐标段）。 */
     private static final BlockPos ORIGIN = new BlockPos(4200, 100, 2600);
@@ -95,7 +95,7 @@ public final class LedgerZoneScopeCheckTask implements Task {
     private String scopeId;
     private boolean ownsScope;
     /** ⭐ 夹具自摆的"保护区 + L2 任务区"前提（结束复位）。 */
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
     private RestoreScopeTask restore;
     private String wildTerminal = "-";
     private String zoneTerminal = "-";
@@ -107,14 +107,14 @@ public final class LedgerZoneScopeCheckTask implements Task {
     private int purgeDropped;
     private boolean reported;
 
-    public LedgerZoneScopeCheckTask(BotPlayer bot, ServerPlayer observer) {
+    public LedgerScopeCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
         this.observer = observer;
     }
 
     @Override
     public String taskName() {
-        return "LedgerZoneScopeCheck";
+        return "LedgerScopeCheck";
     }
 
     @Override
@@ -196,8 +196,8 @@ public final class LedgerZoneScopeCheckTask implements Task {
                         + chunkOf(WILD_TARGET) + " zone=" + chunkOf(ZONE_TARGET)
                         + " purge=" + chunkOf(PURGE_TARGET) + "）",
                 chunkOf(WILD_TARGET) == chunkOf(ZONE_TARGET) && chunkOf(ZONE_TARGET) == chunkOf(PURGE_TARGET));
-        check("前提：起点未认领（否则「区外」这一半无从谈起）", ProtectionZones.isWild(level, WILD_TARGET));
-        if (!ProtectionZones.isWild(level, ZONE_TARGET)) {
+        check("前提：起点未认领（否则「区外」这一半无从谈起）", LedgerScope.isWild(level, WILD_TARGET));
+        if (!LedgerScope.isWild(level, ZONE_TARGET)) {
             failures.add("前提被破坏：目标格已在保护区内（夹具无法测「区外」臂）");
             phase = Phase.DONE;
             return;
@@ -262,19 +262,19 @@ public final class LedgerZoneScopeCheckTask implements Task {
         }
         // **门禁是活的**：还没有认领/封套时，先证明这道闸门不是恒假（"未认领 ⇒ 不拦"也是其中一半）
         check("臂③ 前提：起点未认领 ⇒ 闸门不拦（NOT_GATED）",
-                ProtectionZones.isWild(level, ZONE_TARGET)
+                LedgerScope.isWild(level, ZONE_TARGET)
                         && com.dddgn.alice.protection.ZoneAuthority.placeRefusal(level, bot.getUUID(),
                                 ZONE_TARGET, WriteReason.STEP_PLACEMENT) == null);
         // 夹具自己摆前提：认领区块 + 声明 L2 任务区（夹具自己的任务是 DIAGNOSTIC ⇒ L0，见类注释）
-        zone = FixtureZone.protect(level, bot.getUUID(),
+        zone = FixtureClaim.protect(level, bot.getUUID(),
                 ORIGIN.offset(-3, -2, -3), ORIGIN.offset(3, 2, 3), "region_lumber");
         check("臂③ 前提：保护区 + 任务区前提成立（" + zone.describe() + "）", zone.ok());
         if (!zone.ok()) {
             phase = Phase.DONE;
             return;
         }
-        check("臂③ 前提：现在被判为保护区内（`ProtectionZones.isProtected`）",
-                ProtectionZones.isProtected(level, ZONE_TARGET));
+        check("臂③ 前提：现在被判为保护区内（`LedgerScope.isProtected`）",
+                LedgerScope.isProtected(level, ZONE_TARGET));
         check("臂③ 前提：封套等级 = L2 工作面（拆/放都放行）",
                 zone.declaredZone() != null && zone.declaredZone().level()
                         == com.dddgn.alice.write.WritePolicyMatrix.Level.L2_WORKFACE);
@@ -335,10 +335,10 @@ public final class LedgerZoneScopeCheckTask implements Task {
                     result == BlockInteraction.PlaceResult.PLACED
                             && WorldModLedger.at(level.getServer(), PURGE_TARGET) != null);
             // 取消认领 ⇒ 这片地变回无主区域 ⇒ 按 `D-398` 不再有恢复义务
-            boolean removed = SafeZoneData.get(level.getServer())
+            boolean removed = AreaData.get(level.getServer())
                     .unclaim(level, PURGE_TARGET.getX() >> 4, PURGE_TARGET.getZ() >> 4);   // 模拟"玩家取消认领"
             check("臂④ 取消认领成功（chunk=" + chunkOf(PURGE_TARGET) + "）", removed);
-            check("臂④ 取消后该格不再是保护区内", ProtectionZones.isWild(level, PURGE_TARGET));
+            check("臂④ 取消后该格不再是保护区内", LedgerScope.isWild(level, PURGE_TARGET));
             purgeDropped = WorldModLedger.dropStale(level);
             check("臂④ `dropStale` 把区外条目销掉（本次共销 " + purgeDropped + " 条）",
                     purgeDropped >= 1 && WorldModLedger.at(level.getServer(), PURGE_TARGET) == null);
@@ -420,7 +420,7 @@ public final class LedgerZoneScopeCheckTask implements Task {
             level.setBlock(entry.getKey(), entry.getValue(), 3);
         }
         touched.clear();
-        // ②③ 还认领状态 + 解任务区封套（`FixtureZone` 只还**它自己加的**区块，不乱动别人的区）
+        // ②③ 还认领状态 + 解任务区封套（`FixtureClaim` 只还**它自己加的**区块，不乱动别人的区）
         if (zone != null) {
             zone.release();
         }

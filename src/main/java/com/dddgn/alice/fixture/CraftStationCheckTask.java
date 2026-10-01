@@ -19,7 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
@@ -81,7 +81,7 @@ public class CraftStationCheckTask implements Task {
     /** 失败路径的清理尝试过没有（防 `finish()` ↔ `CLEANUP` 互相递归）。 */
     private boolean cleanupAttempted;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
 
     public CraftStationCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -140,8 +140,8 @@ public class CraftStationCheckTask implements Task {
         // ⭐ `D-398`/`Z1`（2026-09-22）：**本夹具验的是"保护区内"的建拆同权**（放工作站 → 拆干净）。
         // 区外按裁定**不记账、不回收** ⇒ 不摆前提就会实测成 `write_accounted=FAIL / teardown_clean=FAIL`
         // （台子留在世界里）——那不是缺陷，是"这片地本来就不该记"。所以这里认领场景区块 +
-        // 声明 L2 任务区封套（理由与生产一致性见 `FixtureZone` 的类注释）。
-        zone = FixtureZone.protect(bot.serverLevel(), bot.getUUID(),
+        // 声明 L2 任务区封套（理由与生产一致性见 `FixtureClaim` 的类注释）。
+        zone = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
                 start.offset(-6, -8, -6), start.offset(6, 8, 6), "region_lumber");
         check("zone_premise", zone.ok(), zone.describe());
         if (!zone.ok()) {

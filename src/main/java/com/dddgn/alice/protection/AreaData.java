@@ -48,7 +48,7 @@ import java.util.Set;
  * "向区域中心靠但不要求到中心"）；内部区块为空（1 区块 / 条带 / 2×2）⇒ 消费方按**退化**处理
  * （等价"进区即到"），这正是小区域的正确行为。
  */
-public final class SafeZoneData extends SavedData {
+public final class AreaData extends SavedData {
 
     public static final String DATA_KEY = "alice_safe_zones";
 
@@ -72,14 +72,14 @@ public final class SafeZoneData extends SavedData {
     /** 加载期丢掉的**孤儿安全区**（不在认领集合里的安全区标记）—— 同样计数 + 告警。 */
     private int droppedOrphanSafeClaims;
 
-    public static SafeZoneData get(MinecraftServer server) {
+    public static AreaData get(MinecraftServer server) {
         return server.overworld().getDataStorage()
-                .computeIfAbsent(SafeZoneData::load, SafeZoneData::new, DATA_KEY);
+                .computeIfAbsent(AreaData::load, AreaData::new, DATA_KEY);
     }
 
     /** 从 NBT 读入（SavedData 工厂入口；夹具也用它做**存/读往返**契约测试）。 */
-    public static SafeZoneData load(CompoundTag root) {
-        SafeZoneData data = new SafeZoneData();
+    public static AreaData load(CompoundTag root) {
+        AreaData data = new AreaData();
         // ① 当前格式：区块认领
         for (Tag entry : root.getList("claims", Tag.TAG_COMPOUND)) {
             CompoundTag tag = (CompoundTag) entry;

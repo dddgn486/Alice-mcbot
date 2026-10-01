@@ -761,7 +761,7 @@ public final class PathSession {
                 // "高树最高一格够不到、没搭柱子、直接跳过"（该轮 144 次 ZONE_PROTECTED_AREA、零放置）。
                 // 没有任务区时返回码**逐字**仍是 `protected_area` ⇒ 既有行为/失败码不变。
                 var serverLevel = (net.minecraft.server.level.ServerLevel) level;
-                String raw = com.dddgn.alice.protection.SafeZoneData.get(bot.getServer())
+                String raw = com.dddgn.alice.protection.AreaData.get(bot.getServer())
                         .protectionReason(serverLevel, pos);
                 return com.dddgn.alice.protection.ZoneAuthority.movementRefusal(
                         serverLevel, bot.getUUID(), pos, raw, placing);

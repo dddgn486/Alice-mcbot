@@ -27,7 +27,7 @@ import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 
 /**
  * 挖掘专项串联回归（{@code alice:mine_regression}，批次 5）：一次右键跑完挖掘链路的全部必要复测项。
@@ -177,7 +177,7 @@ public final class MineRegressionTask implements Task {
      * {@code tools/test-scenes/alice_test/data/alice_test/functions/support_course_terrain.mcfunction}
      * 里那个孤立盒子逐字一致：`x 17..31, y 44..76, z 205..223`）。
      *
-     * <p>认领按**区块**生效（`SafeZoneData` 是区块级、**不分高度**，`D-313`）⇒ 这两个角只决定
+     * <p>认领按**区块**生效（`AreaData` 是区块级、**不分高度**，`D-313`）⇒ 这两个角只决定
      * 认领哪几个区块（实测 = `cx=1`、`cz=12..13`），**不会**碰到别的用例（它们的 z 都在 190 以下）。
      */
     private static final BlockPos SUPPORT_MIN = new BlockPos(17, 44, 205);
@@ -239,7 +239,7 @@ public final class MineRegressionTask implements Task {
             // ⛔ 执行侧（`exec_support`）第一次试过并撤回：不认领 ⇒ `D-398` 判"区外"不记账（无回收义务）；
             //    认领 ⇒ `ZoneAuthority` 判 `protected_area` **拒写**（保护区内的写入需要"生效的任务区"覆盖该格）
             // ⭐ `D-467`（2026-09-27）：**两件一起对**之后 EXECUTE 侧落地 —— 用现成的夹具助手
-            //    `FixtureZone.protect(...)`（认领区块 + 声明 L2 任务区封套 + **幂等 release**，
+            //    `FixtureClaim.protect(...)`（认领区块 + 声明 L2 任务区封套 + **幂等 release**，
             //    仓里已有 6 个夹具在用）⇒ 见下面的 `exec_support`。
             // `support_plan` 只到 PLAN 侧：断言规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
             // 与 `exec_floating` 的区别：那条的竖井 **1 格深** ⇒ 掉落物捡得回 ⇒ 断言"**不垫**"（`D-364` 口径）。
@@ -318,7 +318,7 @@ public final class MineRegressionTask implements Task {
     private boolean prepared;
     private MineTask mineTask;
     /**
-     * ⭐ `D-467`（2026-09-27）：**密封的"保护区 + 任务区"前提**（`FixtureZone`），只在
+     * ⭐ `D-467`（2026-09-27）：**密封的"保护区 + 任务区"前提**（`FixtureClaim`），只在
      * {@code expectSupport=true} 的 **EXECUTE** 用例上摆，并在 {@link #finishCase()} 里**幂等还原**。
      *
      * <p>为什么必须摆：`D-398` 把写入责任收窄到保护区 —— **区外不记账 ⇒ 无回收义务**
@@ -326,7 +326,7 @@ public final class MineRegressionTask implements Task {
      * 而**只认领不声明任务区**会被 `ZoneAuthority` 判 `protected_area` 拒写
      * （尝试② 实测 `support_skipped result=ZONE_DENIED`）⇒ **两件一起对**才谈得上"真放支撑 + 用完即拆"。
      */
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
     private Item expectedItem;
     private int inventoryBefore;
     /**
@@ -414,11 +414,11 @@ public final class MineRegressionTask implements Task {
                 return index >= CASES.size() ? finish() : Status.RUNNING;
             }
             scope.begin(current.target(), 16, bot.getUUID());
-            // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `TaskZoneRegistry.declare`
+            // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `JobAreaRegistry.declare`
             // 的硬约束是"任务区必须挂在**打开的作用域**上"（不许在任务之外造授权封套），
-            // 所以 `FixtureZone` 只有在作用域已开时才**借**用现成 scope（不会另开一个、也不会替我们关）。
+            // 所以 `FixtureClaim` 只有在作用域已开时才**借**用现成 scope（不会另开一个、也不会替我们关）。
             if (current.expectSupport() && assertsLikeExecute(current.kind())) {
-                zone = FixtureZone.protect(bot.serverLevel(), bot.getUUID(),
+                zone = FixtureClaim.protect(bot.serverLevel(), bot.getUUID(),
                         SUPPORT_MIN, SUPPORT_MAX, "region_lumber");
                 if (!zone.ok()) {
                     // 前提没摆成 ⇒ **如实判红**，别默默继续（那会把"前提缺失"伪装成"支撑没垫"）

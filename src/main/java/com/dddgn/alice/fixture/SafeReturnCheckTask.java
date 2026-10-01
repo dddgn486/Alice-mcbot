@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.protection.ReturnPointData;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -158,7 +158,7 @@ public final class SafeReturnCheckTask implements Task {
             return finish();
         }
         ServerLevel level = bot.serverLevel();
-        SafeZoneData zones = SafeZoneData.get(level.getServer());
+        AreaData zones = AreaData.get(level.getServer());
         switch (phase) {
             case PREPARE -> {
                 if (settle == 0) {
@@ -531,7 +531,7 @@ public final class SafeReturnCheckTask implements Task {
     // ==================== 工具 ====================
 
     /** 认领/取消一个 (2·half+1)² 的区块环；返回发生变化（新增/移除）的区块数。 */
-    private static int ring(SafeZoneData zones, ServerLevel level, int centreChunkX, int centreChunkZ,
+    private static int ring(AreaData zones, ServerLevel level, int centreChunkX, int centreChunkZ,
                             int half, boolean claim) {
         int changed = 0;
         for (int dx = -half; dx <= half; dx++) {
@@ -548,14 +548,14 @@ public final class SafeReturnCheckTask implements Task {
     }
 
     /** 声明/取消一个 (2·half+1)² 的安全区；返回发生变化的安全区块数。 */
-    private static int ringSafe(SafeZoneData zones, ServerLevel level, int centreChunkX, int centreChunkZ,
+    private static int ringSafe(AreaData zones, ServerLevel level, int centreChunkX, int centreChunkZ,
                                 int half, boolean declare) {
         int changed = 0;
         for (int dx = -half; dx <= half; dx++) {
             for (int dz = -half; dz <= half; dz++) {
                 if (declare) {
                     if (zones.declareSafe(level, centreChunkX + dx, centreChunkZ + dz)
-                            == SafeZoneData.SafeDeclare.DECLARED) {
+                            == AreaData.SafeDeclare.DECLARED) {
                         changed++;
                     }
                 } else if (zones.clearSafe(level, centreChunkX + dx, centreChunkZ + dz)) {

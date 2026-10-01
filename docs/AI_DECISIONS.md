@@ -5816,7 +5816,7 @@ task_execution_terminal kind=ToolSupplyCheckTask … terminal=COMPLETED
 **做了什么**
 1. `CapabilityGate`（新，**纯函数**）：执行期复验，五类拒绝码 + 一个放行：
    - `CAPABILITY_UNAUTHORIZED`：**会改世界**的 Movement 却拿**纯通行请求**执行（声明与授权不符）；
-   - `ZONE_PROTECTED_AREA` / `ZONE_PROTECTED_BLOCK` / `ZONE_PROTECTED_TAG`：目标落在保护区（读 `SafeZoneData`）；
+   - `ZONE_PROTECTED_AREA` / `ZONE_PROTECTED_BLOCK` / `ZONE_PROTECTED_TAG`：目标落在保护区（读 `AreaData`）；
    - `NO_REQUIRED_TOOL`：需要工具而快捷栏没有（生产路径只从快捷栏选 ⇒ 白挖）；
    - `NO_THROWAWAY_BLOCKS`：需要消耗一次性方块而没有；
    - `BREAK_BUDGET_EXHAUSTED` / `PLACE_BUDGET_EXHAUSTED`：写入预算用尽（读 `WriteBudget`）。
@@ -8635,7 +8635,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 - **解释 A（用户选定）**：矩阵只管**回收义务**，上层显式授权（`BULK_EDIT`/`MANUAL`）**不受默认区约束**；
   明确**不做**"默认区除白名单外一律拒写"——那会让道路施工/玩家命令在默认区被拒，误拆风险比现状更大。
 - **区域只有两层归属**：`EXTERNAL`（默认，不是 Alice 的地）/ `WORKSPACE`（Alice 的地，来源 = 已划区域）；
-  **保护区不是第三层**，它是优先级更高的**独立闸门**（`SafeZoneData` 命中即禁止破坏），与"归属"正交。
+  **保护区不是第三层**，它是优先级更高的**独立闸门**（`AreaData` 命中即禁止破坏），与"归属"正交。
   早前提案的三处术语错误已纠正：`PROTECTED` 与既有"保护区"**同名反义**（默认区允许破坏）；
   `TRANSIT` 把"通行"（`PathRequest` 的属性，D-076）当成了"地块的属性"；`WILD` 把"场合"当成了"能力"。
 - **移动集词表 = `PathRequest` 的工厂名**（`of`/`pureTraversal`/`miningApproach`/`scaffoldRemoval`/
@@ -11867,11 +11867,11 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 | 2 | **D-2-b 无主地三处语义**（报告标"风险极大"） | **三条都按主线推荐**：① `WorldModLedger` **继续记账、不分区域**；② `RestoreScopeTask` **照常按任务触发、不加区域门**；③ `RecoverabilityReport` **不重定义、只分名** | ⭐ **②-1 的关键区分（主线复算）**：作者原话"自由采集区…**绝对不需要归因到方块**"针对的是**别人的痕迹**（`WriteAudit`/`ForeignBreak` = 只读记账）**的天花板**，**不是"我方放置要不要记账"**。`WorldModLedger` 记的是**我方放置**，是**配对拆除的唯一依据**（`Policy.TEMP` 不变量；电池 `endStep` 靠 `pendingTemporary(scope)` 判红）⇒ 无主地关账本 = bot 学到"出区可以把活干脏"，**降的是我们自己的可观测性**。<br>**②-2 的核实**：`RestoreScopeTask` 今天**按任务显式触发，区域零参与** —— `task/MineTask.java:452`、`job/lumber/LumberJob.java:503`、`task/ScaffoldLifecycleTask.java:343`、`task/CraftStationCheckTask.java:222`、`bot/BotManager.java:687`、`:1172`。"无主地是否启动" = "要不要给这 6 处加区域门" ⇒ **不加**：D-245 是**逃生档专属**（自动回收会把 bot 关回坑里），推广会把**位置维度**混进**任务维度**；野外 KEEP 建造已由 `Policy.KEEP` 管。<br>⚠️ **②-3 报告没说全**：`pathing/core/RecoverabilityReport.java` **自己内部就是两条轴**（第一条 = 逐 Movement 的等级 `record()`，转换点 `PlannedMovementSpecs.toSpec`；第二条 = 残留 `recordResidue()`），且文件头把"可回收性"定义为"bot 干完活能干净地离开" ⇒ **"一词两义"比报告所述更严重（类自己的定义里就混着）**。⇒ 解法 = **分名而非重定义**（今天两轴叫回程/残留，语义一字不改）；作者要的"bot 能否回来"是**第三个、今天不存在的东西**（= 缺口②"回家"）⇒ 独立命名，**不塞进本类**。⚠️ 若重定义，`task/RestoreScopeTask.java:440` 与电池 `pendingTemporary` 的语义会被**偷偷改掉** |
 | 3 | **B-1 形状 + B-2 区外通道** | **采用「两个区域 + 换档」模型**：世界上每一点**恰好属于一个区域**（已声明的保护区 / **默认的无主地**）；**实际权限 = 需求 ∩ 上限**；**出区 = 上限换档**（既不归零、也不用申请）；**申请只在"上限不允许但任务必须做"时用**；无主地默认档 = 挖**受既有预算 + 谓词（D-095）**、放**必须记账**、掉落物**不自动捡**（今天即如此） | ⭐ 报告 B-1 **自身三处不一致**（标题"不取交集" / 公式"= 需求 ∩ 上限" / 理由行"取交集 ⇒ 出区归零"）⇒ 主线读法：**交集是必需且正确**；"不取交集"指的是**别把区域当笼子**。⭐ 该模型正对应用户原话"**除了未声明的自由采集区**，其他应该都以保护区为统一基地"（⇒ 无主地 = 默认区域，不是"无区域"）。<br>**今天代码实况**：`pathing/core/WriteEnvelopes.java:41` 是**任务级布尔、与位置无关** ⇒ "出区归零"今天不会发生，但也意味着**"保护区"今天对写入权限零影响**。<br>**挂点只有两个**（A-2，同意）：`WriteEnvelopes.had(botId)`（`:41`）与 `decision/DropPolicy.java:65` 的 `effectiveProvenance` ⇒ ⚠️ **只在已有判定点挂、不新增判定点**（否则长成"到处是红线"= `survey/02` 病灶）。<br>**B-2 顺手补的缺口**：`PermissionGate.request(..., defaultOption=deny, timeoutTicks)` 已现成 + 拒绝走"如实失败 + 待机" ⇒ 正好补报告缺口②"回家"：8 格脱险 → **走路回去（长距离、无紧预算）**→ 走不动 ⇒ **显式申请搭路** |
 
-| 4 | **B-3 紧急提权的"挖"**（搭路上限**已有** = 8 放置，`survival/SurvivalSystem.java:184-185`） | **不做"挖掘黑名单"**（⚠️ **已经有了**，见 `D-306`）· **挖保留** + **小预算** + **套既有闸门**（`BlockBreakSafety.refusal` → `SafeZoneData.protectionReason` + `hasBlockEntity` 不可清障） | ⚠️ **修正报告 B-3 的论证**：它说"挖**不可记账** ⇒ 只放不挖才安全"，但**真实的安全来源不是记账、是既有闸门** —— 记账管不到挖，**闸门能拦住挖** ⇒ 给"挖"提权的风险**比报告所述低**。<br>⚠️ **现状与用户心智模型相反（本轮复算）**：`bot/BotManager.java:2198` 是 `escapeWrites = WriteEnvelopes.had(...)`，而 `pathing/core/WriteEnvelopes.java:32-37` 的 `note()` **只在本任务移动集含"改世界"动作时**才置真 ⇒ **准备金只发给"本来就有写权"的任务**（挖掘/收集）；**纯走路任务 `had=false` ⇒ 连 8/8 都不发 ⇒ 被埋时只能纯通行，做不到就 `exit=none` 停下等干预** ⇒ 用户要的"**保护区内被埋要有提权通道**"正是**今天真缺的那一块**，且**已由第 3 条（③）的裁定覆盖** ✓ |
-| **1′** | **⚠️ ①重开：保护区的载体与形状**（第 1 行的裁定**作废**） | **载体改为 `protection/SafeZoneData`**（不是 `CollectGrants`）；形状 = ⭐ **按区块划分**（FTB Chunks 那种：**忽略 Y、全高度、区块级 2D 认领**），**不用圆形半径**；`CollectGrants` **保持独立**（它是"授权区"，语义方向与"保护区"相反 —— 既符合 `D-207 ①`"两个概念不该挤在同一列"，也守住 `survey/18` 的"同一语义不要两份副本"） | ⚠️ **作废理由**：第 1 行的裁定建立在 `survey/20 §2.3` 的遗漏之上（复算证据见 `D-306`）。⚠️ 环境核实：客户端 **18 个 mod 里没有 FTB Chunks**（Create / Mekanism / RefinedStorage / Sophisticated / Thermal / ExtendedCrafting / JEI / worldedit…）⇒ "按区块划分"是**形状**（区块级认领），**不涉及与 FTB 的数据对接**（`D-219` 需求驱动：不为未装的模组适配）<br>⚠️ **形状变更的代价（待定，见下条）**：`SafeZoneData.Area` 今天是 `record Area(dimension, center, radius)`（圆形 + `contains` 内积比较）⇒ 改成区块集合 = **持久化格式变** + `/alice` 加区域命令的参数变 + 需要一个**零参数游戏内物品**（今天只有命令）|
+| 4 | **B-3 紧急提权的"挖"**（搭路上限**已有** = 8 放置，`survival/SurvivalSystem.java:184-185`） | **不做"挖掘黑名单"**（⚠️ **已经有了**，见 `D-306`）· **挖保留** + **小预算** + **套既有闸门**（`BlockBreakSafety.refusal` → `AreaData.protectionReason` + `hasBlockEntity` 不可清障） | ⚠️ **修正报告 B-3 的论证**：它说"挖**不可记账** ⇒ 只放不挖才安全"，但**真实的安全来源不是记账、是既有闸门** —— 记账管不到挖，**闸门能拦住挖** ⇒ 给"挖"提权的风险**比报告所述低**。<br>⚠️ **现状与用户心智模型相反（本轮复算）**：`bot/BotManager.java:2198` 是 `escapeWrites = WriteEnvelopes.had(...)`，而 `pathing/core/WriteEnvelopes.java:32-37` 的 `note()` **只在本任务移动集含"改世界"动作时**才置真 ⇒ **准备金只发给"本来就有写权"的任务**（挖掘/收集）；**纯走路任务 `had=false` ⇒ 连 8/8 都不发 ⇒ 被埋时只能纯通行，做不到就 `exit=none` 停下等干预** ⇒ 用户要的"**保护区内被埋要有提权通道**"正是**今天真缺的那一块**，且**已由第 3 条（③）的裁定覆盖** ✓ |
+| **1′** | **⚠️ ①重开：保护区的载体与形状**（第 1 行的裁定**作废**） | **载体改为 `protection/AreaData`**（不是 `CollectGrants`）；形状 = ⭐ **按区块划分**（FTB Chunks 那种：**忽略 Y、全高度、区块级 2D 认领**），**不用圆形半径**；`CollectGrants` **保持独立**（它是"授权区"，语义方向与"保护区"相反 —— 既符合 `D-207 ①`"两个概念不该挤在同一列"，也守住 `survey/18` 的"同一语义不要两份副本"） | ⚠️ **作废理由**：第 1 行的裁定建立在 `survey/20 §2.3` 的遗漏之上（复算证据见 `D-306`）。⚠️ 环境核实：客户端 **18 个 mod 里没有 FTB Chunks**（Create / Mekanism / RefinedStorage / Sophisticated / Thermal / ExtendedCrafting / JEI / worldedit…）⇒ "按区块划分"是**形状**（区块级认领），**不涉及与 FTB 的数据对接**（`D-219` 需求驱动：不为未装的模组适配）<br>⚠️ **形状变更的代价（待定，见下条）**：`AreaData.Area` 今天是 `record Area(dimension, center, radius)`（圆形 + `contains` 内积比较）⇒ 改成区块集合 = **持久化格式变** + `/alice` 加区域命令的参数变 + 需要一个**零参数游戏内物品**（今天只有命令）|
 | 5 | **B-4 紧急提权默认档** | **同意 = `Policy.NOTIFY`**（免批准 + 事后一行提醒），并把触发条件**钉死在"必须放弃任务、立刻保活"**；**暂不加次数硬上限**（先观察） | ✅ **护栏已有三条**：`Policy.NOTIFY`（`decision/PermissionGate.java:39`）· "每次危险事件最多升档 1 次"（落地形状 = 预检缓存按『危险类型 + 脚位』，`survival/SurvivalSystem.java:211-231`、`:275-284`）· 逃生放置 `TEMP` 必拆（`WritePolicyMatrix` P-23）+ 逃生不自动回收（D-245 负向门禁）。⚠️ **缺口**：今天的触发条件是"纯通行不可达 + 信封有写权"，**没有**"必须放弃任务"这一层显式限定 ⇒ 需补 |
 | 6 | **B-5 恢复延后队列** | **A**：**队列 = 账本查询（不新建表）** + **三档触发**（① 任务正常结束 = 已有 ② **玩家在场且 bot 空闲** = 新增 ③ 玩家命令 = 已有）+ **三条前提同时成立**（玩家在场 · bot 无紧急状态 · 目标点**无危险且已加载**）；**逃生档仍只走玩家入口**（D-245 不变） | ⭐ **关键架构判断**：**队列不需要新建数据结构** —— `ledger/WorldModLedger.java:38` **本身就是 `SavedData`**（`entries` + `openScopes` 都有 NBT 读写）⇒ 欠账**跨重启保留**，`pendingTemporary(server, scopeId)`（`:234`，`scopeId=null` ⇒ 全部）就是那张表；新建 `RestoreQueue` = **同一语义的第二份副本**（`survey/18` 病灶）。<br>⚠️ **必须点出的风险**：加"空闲期自动回收"等于**把 D-245 刚禁掉的"自动回收"从后门放回来** —— 区别只在判据；D-245 的循环成因是"回收把 bot 关回危险里"⇒ 故前提里必须钉住"**目标点无危险**"。<br>现状：恢复按任务结束时触发（`task/MineTask.java:452`、`job/lumber/LumberJob.java:503`、`task/ScaffoldLifecycleTask.java:343`、`task/CraftStationCheckTask.java:222`、`bot/BotManager.java:687`、`:1172`）+ 玩家入口 `/alice restore`；**"延后"今天不存在**，但 D-245 已证明它必需 |
-| 7 | **D-1 非挖掘目标要恢复** | **β = 确实不做，登记将来形态** —— 但 ⭐ **使用场景必须写清**（用户 2026-09-18 原话，逐字留档）：<br>「一些**任务区域（由任务划分的保护区子区域）**，会**默认提权到任务需要的等级**，但**保护区一定要记账**。按区域伐木任务来理解：**树和树叶之类的，是挖掘目标，不记账或者直接记成破坏 `KEEP`**；而这个区域的**泥土、围栏之类的，不是任务目标，是区域本身的地形**，某些情况需要放置方块或者挖掘方块，**垫柱子就是一种表现，这种必须记账，并且恢复**」 | ⭐ **映射到既有概念（全部已核实）**：<br>① **目标破坏**（树/树叶 = 挖掘目标）⇒ 今天走 `WriteReason.Policy.EXPLICIT_TARGET`（`action/WriteReason.java:20-30`：`EXPECTED_TARGET`/`DESCEND_FOOT`/`BULK_EDIT`）⇒ **今天就不记账** ✓ 与用户"不记账或记 `KEEP`"**一致**<br>② **非目标放置**（垫柱子 = `SUPPORT_PLACEMENT`/`STEP_PLACEMENT`）⇒ 今天**已记账 `TEMP` + 必拆** ✓ 与用户"必须记账并恢复"**一致**<br>③ ⚠️ **非目标破坏**（`LINE_OF_SIGHT`/`STANDING_SPACE`/`PATH_ACCESS` = `Policy.CLEARING`）⇒ **今天不记账** ✗ ⇒ **这就是将来形态要补的那一块**<br>④ ⭐ **作者要的"区分目标 vs 非目标"已存在**：`action/WriteReason.java:100-104` 的 `Policy{.EXPLICIT_TARGET, .CLEARING}`，分派点 = `protection/BlockBreakSafety.refusal:32-37`（**D-082**）⇒ 不需要新机制，只需要给 `CLEARING` 那一路加记账<br>⑤ ⚠️ **触发面今天为零**：`SafeZoneData.protectionReason` 对保护区内**任何**方块都返回 `protected_area` ⇒ `BlockBreakSafety.explicitTargetRefusal:47-50` 直接拒绝；候选源阶段也过滤（`job/mine/MineCandidateSource.java:139`）⇒ 保护区内**挖不动**（与用户自评"现在的设计几乎没什么能让他挖掘保护区方块"吻合 ✓）<br>⚠️ **与今天的语义差异（将来实现时必须注意）**：今天保护区 = **禁止**（拒绝一切破坏）；用户模型 = **保护区子区域可"提权到任务需要的等级"** ⇒ 即"**允许但必须记账 + 恢复**"这一档**今天不存在**，需要新增一档策略分派。✓ 好消息：`ledger/WorldModLedger.java:49` 的 `Entry.previous` 字段**已存在**（只是只有放置才写）⇒ 改动面比想象小<br>⚠️ **与 `D-207 ①` 的关系**："保护区不是第三层"说的是**归属**（`Zone.EXTERNAL/WORKSPACE`）与**保护闸门**正交；此处是**保护区内部**的父子层级（保护区 → 任务子区域），**两者不冲突**（主线判定，非用户原话）|
+| 7 | **D-1 非挖掘目标要恢复** | **β = 确实不做，登记将来形态** —— 但 ⭐ **使用场景必须写清**（用户 2026-09-18 原话，逐字留档）：<br>「一些**任务区域（由任务划分的保护区子区域）**，会**默认提权到任务需要的等级**，但**保护区一定要记账**。按区域伐木任务来理解：**树和树叶之类的，是挖掘目标，不记账或者直接记成破坏 `KEEP`**；而这个区域的**泥土、围栏之类的，不是任务目标，是区域本身的地形**，某些情况需要放置方块或者挖掘方块，**垫柱子就是一种表现，这种必须记账，并且恢复**」 | ⭐ **映射到既有概念（全部已核实）**：<br>① **目标破坏**（树/树叶 = 挖掘目标）⇒ 今天走 `WriteReason.Policy.EXPLICIT_TARGET`（`action/WriteReason.java:20-30`：`EXPECTED_TARGET`/`DESCEND_FOOT`/`BULK_EDIT`）⇒ **今天就不记账** ✓ 与用户"不记账或记 `KEEP`"**一致**<br>② **非目标放置**（垫柱子 = `SUPPORT_PLACEMENT`/`STEP_PLACEMENT`）⇒ 今天**已记账 `TEMP` + 必拆** ✓ 与用户"必须记账并恢复"**一致**<br>③ ⚠️ **非目标破坏**（`LINE_OF_SIGHT`/`STANDING_SPACE`/`PATH_ACCESS` = `Policy.CLEARING`）⇒ **今天不记账** ✗ ⇒ **这就是将来形态要补的那一块**<br>④ ⭐ **作者要的"区分目标 vs 非目标"已存在**：`action/WriteReason.java:100-104` 的 `Policy{.EXPLICIT_TARGET, .CLEARING}`，分派点 = `protection/BlockBreakSafety.refusal:32-37`（**D-082**）⇒ 不需要新机制，只需要给 `CLEARING` 那一路加记账<br>⑤ ⚠️ **触发面今天为零**：`AreaData.protectionReason` 对保护区内**任何**方块都返回 `protected_area` ⇒ `BlockBreakSafety.explicitTargetRefusal:47-50` 直接拒绝；候选源阶段也过滤（`job/mine/MineCandidateSource.java:139`）⇒ 保护区内**挖不动**（与用户自评"现在的设计几乎没什么能让他挖掘保护区方块"吻合 ✓）<br>⚠️ **与今天的语义差异（将来实现时必须注意）**：今天保护区 = **禁止**（拒绝一切破坏）；用户模型 = **保护区子区域可"提权到任务需要的等级"** ⇒ 即"**允许但必须记账 + 恢复**"这一档**今天不存在**，需要新增一档策略分派。✓ 好消息：`ledger/WorldModLedger.java:49` 的 `Entry.previous` 字段**已存在**（只是只有放置才写）⇒ 改动面比想象小<br>⚠️ **与 `D-207 ①` 的关系**："保护区不是第三层"说的是**归属**（`Zone.EXTERNAL/WORKSPACE`）与**保护闸门**正交；此处是**保护区内部**的父子层级（保护区 → 任务子区域），**两者不冲突**（主线判定，非用户原话）|
 
 ### D-306：⚠️ `survey/20 §2.3` 的实质性遗漏 —— 保护区/黑名单/区域两层**早已存在**（2026-09-18 复算）
 
@@ -11879,7 +11879,7 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 
 | 已有的东西 | 内容（逐条复算） | 位置 |
 |---|---|---|
-| `protection/SafeZoneData` | `SavedData`（key `alice_safe_zones`）：**区域**（按维度隔离 · 水平圆形半径 · **覆盖该维度所有高度**）+ ⭐ **方块 ID 黑名单** + ⭐ **标签黑名单**（全世界通用） | `protection/SafeZoneData.java:22-24`、`:137-153` |
+| `protection/AreaData` | `SavedData`（key `alice_safe_zones`）：**区域**（按维度隔离 · 水平圆形半径 · **覆盖该维度所有高度**）+ ⭐ **方块 ID 黑名单** + ⭐ **标签黑名单**（全世界通用） | `protection/AreaData.java:22-24`、`:137-153` |
 | 保护区声明入口 | `/alice` 命令：加区域 `BotCommand.java:163` · 移除 `:173` · **增删方块/标签黑名单** `:301`（`changeBlockRule`）· 汇报 `:331` | `command/BotCommand.java` |
 | 已接在**破坏闸门**上（非装饰） | `BlockInteraction.java:462`（读 `protectionReason`）· `protection/BlockBreakSafety.java:47` · `pathing/core/CapabilityGate.java:69-74`（② 保护区分支 → `ZONE_*` 拒绝码）· `pathing/core/MovementCapabilities.java:51-53`（`requiresZoneAuthorization=true`，2026-09-12 修，注释写明"此前 false ⇒ 分支**永不触发**、字段退化成装饰"） | 多处 |
 | 已接在**候选源**上 | `job/mine/MineCandidateSource.java:139` · `job/lumber/LumberCandidateSource.java:68` · `road/RoadObstaclePolicy.java:54（`exactForbidden`）` · `pathing/core/session/PathSession.java:746` | 多处 |
@@ -11888,8 +11888,8 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 
 ⚠️ **范围限制**：`hasBlockEntity` 那条**只作用于清障策略**（`LINE_OF_SIGHT`/`STANDING_SPACE`/`PATH_ACCESS`）；**玩家明确指定的目标**（`EXPECTED_TARGET`）不受它限制。逃生 `BREAK_*` 走的正是 `PATH_ACCESS` ⇒ **自动受管**。
 
-⭐ **`WritePolicyMatrix.Zone` 已在 2026-09-14 拍过"区域两层"**（`action/WritePolicyMatrix.java:30-35` 原文）：
-> **区域归属只有两层**：`Zone#EXTERNAL`（默认，不是 Alice 的地）与 `Zone#WORKSPACE`（Alice 的地，来源 = 玩家已划定的区域）。**保护区不是第三层**：它是**优先级更高的独立闸门**（`SafeZoneData` 命中即禁止破坏），与"归属"**正交**，两个概念不该挤在同一列（旧提案的 `PROTECTED` 与既有"保护区"同名反义）。
+⭐ **`WritePolicyMatrix.Tenure` 已在 2026-09-14 拍过"区域两层"**（`action/WritePolicyMatrix.java:30-35` 原文）：
+> **区域归属只有两层**：`Zone#EXTERNAL`（默认，不是 Alice 的地）与 `Zone#WORKSPACE`（Alice 的地，来源 = 玩家已划定的区域）。**保护区不是第三层**：它是**优先级更高的独立闸门**（`AreaData` 命中即禁止破坏），与"归属"**正交**，两个概念不该挤在同一列（旧提案的 `PROTECTED` 与既有"保护区"同名反义）。
 
 ⇒ ⚠️ **与报告 B-1 有张力**：B-1 想把区域收成一个父类并把保护区塞进去；D-207 ① 明确说"**保护区不是第三层**、两个概念**不该挤在同一列**"。**报告没读到 `WritePolicyMatrix`。**
 
@@ -11909,7 +11909,7 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 | 4 | ⭐ **勾选 = 一个 C2S 批量包**：`RequestChunkChangePacket(ChunkChangeOp action, Set<XZ> chunks)` —— **一次提交一批区块 + 一个动作枚举**，服务端回 `ChunkChangeResponsePacket`；GUI 侧在 `client/gui/ChunkScreen.java` 构造并 `sendToServer()` | `net/RequestChunkChangePacket.java:20-45`、`client/gui/ChunkScreen.java:14,42` |
 
 **⇒ 选定分工（与 FTB Chunks 同构，也与 Alice 既有形状一致）**：
-- **服务端**：只维护**认领清单**（= `SafeZoneData` 区块集合）+ 下发小包 + 收**批量动作包**（`Set<chunkXZ> + action`）⇒ ⭐ **属主由服务端裁定**（server-authoritative：不接受客户端"这块地是谁的"的说法）
+- **服务端**：只维护**认领清单**（= `AreaData` 区块集合）+ 下发小包 + 收**批量动作包**（`Set<chunkXZ> + action`）⇒ ⭐ **属主由服务端裁定**（server-authoritative：不接受客户端"这块地是谁的"的说法）
 - **客户端**：自绘 Screen（区块网格 + 可点选）+ 地形色从 `ClientLevel` 采（第一版可只画**已加载区块**，未加载区留空/灰）；**不引入任何新模组依赖**
 - **落点**：Alice 已有现成的客户端形状可套 —— `client/gui/{ClientMenuScreens,BotInventoryScreen,BotInventoryMenuScreen}` + `client/render/*` + `network/` 9 个包（S2C 状态 → 客户端状态类 → Screen；C2S 动作包）
 
@@ -12090,11 +12090,11 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 一次实验拿结论；③ **探针必须临时**：本次探针（自标定 + A/C 两组对照）取证后**已整块删除**，只留终态日志与前提判据；
 ④ 夹具的前提若不写成判据，就会以"神秘丢事件"的形式回归 ⇒ 前提自证（D-252 同族纪律）。
 
-### D-313：设计线 · 保护区（1/2）—— `SafeZoneData` 改**区块级 2D 认领** + 旧格式迁移 + 离线门禁 2026-09-18
+### D-313：设计线 · 保护区（1/2）—— `AreaData` 改**区块级 2D 认领** + 旧格式迁移 + 离线门禁 2026-09-18
 
 **五行任务卡（动手前写的）**
 ```
-目标：区块级认领的**服务端真相**（SafeZoneData 形状变更 + 旧圆形迁移 + 响亮提示）
+目标：区块级认领的**服务端真相**（AreaData 形状变更 + 旧圆形迁移 + 响亮提示）
 不改变：protectionReason 签名/语义方向 · 保护区仍是"独立闸门"（不是 WritePolicyMatrix 的第三层）
         · block/tag 黑名单语义 · CollectGrants 独立 · 不引任何模组依赖
 最小闭环：claim(chunkX,chunkZ) → 该区块**任意 Y** 破坏被拒(protected_area) → 相邻未认领可破 → 存/读往返一致
@@ -12106,11 +12106,11 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 
 | 面 | 变更 | 关键口径 |
 |---|---|---|
-| 数据 | `SafeZoneData.Area(dimension,center,radius)`（圆形内积）→ **`Map<维度, Set<Long>>`**（键 = `ChunkPos.asLong`） | 忽略 Y ⇒ **覆盖全高度**；判定从 O(区域数) 内积变成 **O(1) 查键**（`MineCandidateSource` 对半径³ 的每个方块都要问一次 ⇒ 这是热路径） |
+| 数据 | `AreaData.Area(dimension,center,radius)`（圆形内积）→ **`Map<维度, Set<Long>>`**（键 = `ChunkPos.asLong`） | 忽略 Y ⇒ **覆盖全高度**；判定从 O(区域数) 内积变成 **O(1) 查键**（`MineCandidateSource` 对半径³ 的每个方块都要问一次 ⇒ 这是热路径） |
 | 持久化 | 格式 **v2**：`version=2` + `claims=[{dimension, chunks:[long…]}]`（黑名单两条不变） | 旧 **v1**（`areas=[{dimension,x,y,z,radius}]`）加载时自动迁移；`load()` 公开 ⇒ 夹具可做**存/读往返契约测试** |
 | 迁移 | 规则 = **与该圆相交即认领**（一个函数 `claimCircle`，命令与迁移共用 ⇒ 不会两套算法） | 保守方向的理由：漏保护会让 bot 挖进用户想保护的地方；多保护只多拦一次（点一下即可取消）。**计数进 `summary()`** + 加载期 `BotLog.warn` ⇒ 不静默丢（坏条目单独计数 `dropped_legacy`） |
 | 命令 | `add-area` 语义 = "认领该圆所及区块"；`remove-area` = 取消**包含该坐标的那个区块**；**新增** `claim <chunkX> <chunkZ>` / `unclaim …`（管理员诊断/精确复现） | 面向用户的**主入口仍是地图式勾选**（`D-307`）；命令是补充 |
-| 门禁 | 新夹具 `ProtectionZoneCheckTask` + 新模块 `ProtectionModule`（注册表 **19** 个）+ 新步 `protection_zones`（**MAIN**） | 按 `BATTERY_CURATION.md` **规则 1**（新能力默认进 MAIN）⇒ 进 CORE；且它**安全相关**（认领区块禁破坏）⇒ 值得每轮覆盖 |
+| 门禁 | 新夹具 `ClaimCheckTask` + 新模块 `ProtectionModule`（注册表 **19** 个）+ 新步 `protection_zones`（**MAIN**） | 按 `BATTERY_CURATION.md` **规则 1**（新能力默认进 MAIN）⇒ 进 CORE；且它**安全相关**（认领区块禁破坏）⇒ 值得每轮覆盖 |
 
 **夹具断言什么（32 条，全在**纯查询**上做 —— 不建地形、不写方块、不传送 ⇒ 不可能污染别的步）**
 ①**全高度**：认领 bot 所在区块 ⇒ 同区块 `y=minBuildHeight` 与 `y=maxBuildHeight-1` 都是 `protected_area`；
@@ -12141,7 +12141,7 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 **五行任务卡（动手前写的）**
 ```
 目标：零参数游戏内物品 → 以玩家为中心的 N×N **区块网格** → 左键认领 / 右键取消 → 一次性批量提交 → 服务端权威落库
-不改变：SafeZoneData 形状与语义（1/2 已是区块级）· protectionReason 签名 · 视觉不进执行路径 · 服务端是唯一真相
+不改变：AreaData 形状与语义（1/2 已是区块级）· protectionReason 签名 · 视觉不进执行路径 · 服务端是唯一真相
         · 零模组依赖 · 不复用原版地图渲染器（D-307）
 最小闭环：右键物品 → 网格 → 左键点中心格 → 关闭提交 → 重开显示「已认领」→ 该区块破坏被拒（1/2 已证）
 成功条件：夹具逐条 PASS（协议编解码 / 权威应用 / 几何映射 / 越界与超量拒绝）+ 客户端轮次里人眼看得见网格与认领态
@@ -12179,10 +12179,10 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 用 `onClose()` 会把用户的选择静默丢掉。）
 
 **顺手修的两处**（都在本片路径上，不是另开战线）
-1. `SafeZoneData.unclaim` 收尾时清掉**空维度集合**：否则 `summary()` 会报「`dims=2`、`chunks=0`」这种把人看糊涂的
+1. `AreaData.unclaim` 收尾时清掉**空维度集合**：否则 `summary()` 会报「`dims=2`、`chunks=0`」这种把人看糊涂的
    计数（夹具实测确实如此）⇒ 现在收尾是 `dims=0`。诊断字符串是给人读的 ⇒ 它自己必须先诚实。
 2. ⚠️ `tools/module-selftest.sh --changed` 的**静默假阴性**（本次实测）：改动落在**夹具本体**
-  （`task/ProtectionZoneCheckTask.java`）时，它原有的两条映射规则都不命中 ⇒ 打印「没有检测到受影响的模块（只改了
+  （`task/ClaimCheckTask.java`）时，它原有的两条映射规则都不命中 ⇒ 打印「没有检测到受影响的模块（只改了
    文档 / 工具？）⇒ **无事可做 ✓**」并**跑 0 个**；而该文件头承诺的正是「绝不静默跑 0 个 ✗」。
    **修法**：非模块 Java 源按「**哪个模块构造/强引用它**」（`new X(` / `X::` / `X.class`）归属；判不出来 ⇒
    **跑全部**（失败安全）。纯文档 / 工具改动仍是「无事可做 ✓」。
@@ -12343,7 +12343,7 @@ ArrayIndexOutOfBoundsException: Index 2484 out of bounds for length 289
 三条出路都在 FTB 侧（结盟 / 改 `block_edit_mode` / 给 bot 队开 `bypass_protection`）；
 **要不要让 Alice 自己去调这些**（FTB 有公开 API `getBypassProtection`/`setBypassProtection`）**待用户拍板** —— 那是写语义，默认只读。
 
-**判据**：`ProtectionZoneCheckTask` **76 → 66 条**（删掉外部认领源那 10 条；`D-317` 的 3 条崩溃门禁保留）。
+**判据**：`ClaimCheckTask` **76 → 66 条**（删掉外部认领源那 10 条；`D-317` 的 3 条崩溃门禁保留）。
 回撤后 `module:protection` 1/1 PASS（`checks=66 failures=0`）· CORE 49/49（`ticks=4732`）· `ALICE_HEADLESS=1 check-all.sh` **17 PASS + 0 FAIL**（doc 预算 1475/1476）。
 
 **登记（未实现）：Xaero 世界地图联动三项**（用户 2026-09-18 追加）—— ① 我们的认领/保护区**叠加到 Xaero 地图**；
@@ -12731,7 +12731,7 @@ CORE 多轮只作为辅助回归。
   对这三条路径完全不可见**。
 - 门禁**实测**（`break_refused` 步，FTB 认领内、非同队假人）：收口前 `placeBulkEdit` 返回 `true` 且方块**真的变成 Dirt**、
   `breakForBulkEdit` 返回 `true` 且方块**真的被清成 Air** ⇒ 别人的地确实被改了（这就是**先红**证据）。
-- 自方闸门当时是有效的（`WriteBudget` + `SafeZoneData` + 账本）—— 缺的只是**第三方的**那一层。
+- 自方闸门当时是有效的（`WriteBudget` + `AreaData` + 账本）—— 缺的只是**第三方的**那一层。
 
 **收口做法（问 FTB 它自己那条裁决，不自己发明规则）**：
 - 新增 `compat/ftbchunks/FtbChunksBridge`（**只读**反射桥）：`FTBChunksAPI.api()` → `API.isManagerLoaded()/getManager()` →
@@ -12794,7 +12794,7 @@ CORE 多轮只作为辅助回归。
 1. **回程/逃生是路径级性质，逐边成本替代不了** ⇒ 必须留一个位置：至少要有"**就地固守**"兜底（`survey/20 §1.4` 的逃生③，
    唯一不移动的逃生）；
 2. **野外保留只读审计**（用户："可以保留只读审计，但建议降低记录粗细度，或者先按你的来"）；
-3. **保护区外的"他人的东西"**：无主 ≠ 无财产 ⇒ `SafeZoneData` + `D-326` 第三方预检（FTB 认领）这两道闸门**必须保留**。
+3. **保护区外的"他人的东西"**：无主 ≠ 无财产 ⇒ `AreaData` + `D-326` 第三方预检（FTB 认领）这两道闸门**必须保留**。
 
 **逃生语义修正（用户 2026-09-18，明确拆分两种机制）**：
 
@@ -12820,9 +12820,9 @@ CORE 多轮只作为辅助回归。
 ⇒ 本轮**只做「回安全区」这一条**：不新造「就地固守」行为；返程本身失败时 bot 就**站定不动**（= 今天已有的行为，**临时**兜底）。
 
 **落地（4 处 + 1 门禁）**：
-1. `SafeZoneData.isClaimed(level,pos)`：**纯认领集查询**（不读方块 ⇒ 零副作用；`protectionReason` 会读方块，
+1. `AreaData.isClaimed(level,pos)`：**纯认领集查询**（不读方块 ⇒ 零副作用；`protectionReason` 会读方块，
    不能用于每 tick 的到达判据）；
-2. ⭐ `SafeZoneData.nearestClaimedCell(level,from)`：**回程终点定案**（回答 `survey/22 §5.2` 挂账的「回哪一格」）=
+2. ⭐ `AreaData.nearestClaimedCell(level,from)`：**回程终点定案**（回答 `survey/22 §5.2` 挂账的「回哪一格」）=
    **离 bot 最近的认领区块里、离它最近的那一格**（XZ；不读方块 ⇒ 远处未加载也能定方向）。
    理由：目的是回到保护区**里面**、多区时取最近（少走路）、没有区内格时返回 `null`（= 没有安全区）。
    ⚠️ 这是**主线的选择**（用户把该问题挂账，本轮执行时定案）；要改成「固定集合点」只需换这一处；
@@ -13380,10 +13380,10 @@ CORE/全量独有、别的档给不了的东西只有一件 = **跨模块回归*
 | 保护区内**放置**无权限 | ❌ 没有区域级放置闸门 | 缺 |
 | "区域 → 权限等级"授予面 | ❌ 今天的授予全是**动作级**（`PathRequest` 工厂 / `WriteGrant` / `WriteReason` / `WriteEnvelopes`） | 缺（任务区的核心新面） |
 | 账本 | `Policy.TEMP/KEEP` + `previousState` + `scopeId` + `owner` 已有；**只记我方放置** | 缺 break 条目 |
-| 区域模型 | `SafeZoneData` = 每维度**认领区块集合**（chunk 粒度 + 上限 + 勾选 UI + `ProtectionClaimsPacket` 下发）；**无类型字段** | 缺"保护区 / 安全区"两态 + `internalChunks()` |
+| 区域模型 | `AreaData` = 每维度**认领区块集合**（chunk 粒度 + 上限 + 勾选 UI + `ProtectionClaimsPacket` 下发）；**无类型字段** | 缺"保护区 / 安全区"两态 + `internalChunks()` |
 | 恢复 | `RestoreScopeTask` + `/alice restore`（玩家显式）已有；任务收尾也会自动起恢复（`MineTask:452` / `LumberJob:503` / `ScaffoldLifecycleTask:343`） | 按 ⑥ 划边界即可 |
 
-**待落地的增量（本决策未实现）**：① `SafeZoneData`：安全区子集 + `internalChunks()`（四邻腐蚀，只读内存）；
+**待落地的增量（本决策未实现）**：① `AreaData`：安全区子集 + `internalChunks()`（四邻腐蚀，只读内存）；
 ② 返程目标链（归位点 > 安全区内部 > 保护区内部）+ `SafeReturnTask` 终点与到达判据切换；
 ③ `WorldModLedger` break 条目（限保护区）；④ 区域级权限 / 预算授予面 + 任务区声明；⑤ 玩家文案统一。
 **权限等级阶梯**（我提案 `L0 只读 / L1 临时脚手架(≤8 放置) / L2 工作面(目标内 KEEP + 目标外逐块提权) /
@@ -13401,12 +13401,12 @@ L3 全权(仅玩家显式)`）**未拍板** ⇒ 登记在台账（§5.12 第 5 �
 按 `D-332` 该单独一片（先红后绿）。
 
 **落地（3 处 + 1 门禁）**：
-1. `SafeZoneData`：新增 **`safeChunks`**（维度 → 安全区区块键，NBT 键 `safe_chunks`）+ `SafeDeclare` 枚举
+1. `AreaData`：新增 **`safeChunks`**（维度 → 安全区区块键，NBT 键 `safe_chunks`）+ `SafeDeclare` 枚举
    （`DECLARED` / `ALREADY` / **`NOT_PROTECTED`**）+ `declareSafe` / `clearSafe` / `isSafe` / `safeClaims` /
    `safeChunkCount`。**不变量"安全区 ⊆ 保护区"三条路都堵**：① 未认领 ⇒ 拒绝声明（**不顺手认领** —— 那等于
    静默扩大资产保护范围）；② `unclaim`（取消保护区）**连带**清安全区标记；③ `load` 丢掉**孤儿**安全区标记
    并**计数 + WARN + `summary()` 里 `safe_orphans=N`**（与旧格式迁移同一套"不静默丢"纪律）。
-2. ⭐ `SafeZoneData.internalChunks(Set<Long>)`（**纯静态函数**：自身及**四邻**都在集合里）+ `internalClaims` /
+2. ⭐ `AreaData.internalChunks(Set<Long>)`（**纯静态函数**：自身及**四邻**都在集合里）+ `internalClaims` /
    `internalSafeClaims`（维度级生产入口）= `D-338` ③ 的"**自适应安全范围**"。**退化是正确行为**：
    1 区块 / 条带 / **2×2** 都没有内部区块（空集）⇒ 消费方按"进区即到"（= 今天口径）。
    对角**不计**（四邻口径）。零方块读取、零区块加载 ⇒ 每 tick 问得起。
@@ -13485,7 +13485,7 @@ L3 全权(仅玩家显式)`）**未拍板** ⇒ 登记在台账（§5.12 第 5 �
 （有安全区也只会回到最近的保护区区块）。
 
 **落地（3 处）**：
-1. `SafeZoneData`：新增 ⭐ `returnZoneChunks(dim)`（**有安全区 ⇒ 安全区，否则 ⇒ 保护区**）、
+1. `AreaData`：新增 ⭐ `returnZoneChunks(dim)`（**有安全区 ⇒ 安全区，否则 ⇒ 保护区**）、
    ⭐ `returnArrivalChunks(dim)`（目标区的内部区块，空则退化）、`isInReturnZone(level,pos)`（**每 tick 的到达判据**，
    纯集合查询、不读方块）、`nearestReturnCell(level,from)`（终点）；`nearestClaimedCell` 保留但改为委托
    `nearestCellIn(Set,from)`（同一套"区块内夹取"算法，一处口径）。
@@ -13536,9 +13536,9 @@ L3 全权(仅玩家显式)`）**未拍板** ⇒ 登记在台账（§5.12 第 5 �
 | 粒度 | **方块级**（任务语义：林场范围 / 蓝图 footprint / 目标簇） | **区块级** = 工作区域**所占区块的最小覆盖**（hull，不扩边） |
 | 谁定 | **任务**（+ 玩家给的意图/参数） | **由工作区域派生**（**单向**：工作区域 ⇒ 任务区） |
 | 用途 | 选目标、判"目标内/目标外"、记账归因、恢复范围 | **授权封套**：破坏/放置闸门、覆盖判定、锁定、玩家不可手改 |
-| 存哪 | 任务 scope（随任务生灭） | `SafeZoneData` 的区块集合（与保护区同一形状）+ 任务锁定元数据 |
+| 存哪 | 任务 scope（随任务生灭） | `AreaData` 的区块集合（与保护区同一形状）+ 任务锁定元数据 |
 
-**为什么这个分层是对的（我的评估）**：① 保护闸门与候选扫描是**逐方块热路径**，而 `SafeZoneData` 是
+**为什么这个分层是对的（我的评估）**：① 保护闸门与候选扫描是**逐方块热路径**，而 `AreaData` 是
 **区块级 O(1) 查表** ⇒ 授权层必须留在区块级，否则每格都要做几何判定；② 任务真正需要精度的东西
 （目标集、目标内/目标外、记账、恢复）**本来就在任务手里**；③ **单向派生**让"工作区域不必对齐区块"，
 也不存在"任务区反过来裁剪工作区域"的隐患；④ 覆盖范围取**最小覆盖** ⇒ 覆盖冲突面最小。
@@ -13596,13 +13596,13 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
 原样不动；把任务区当**授权封套**接进闸门（目标内 `KEEP` / 目标外 `TEMP` + 预算）留到**第 5 件拍板之后**。
 
 **落地（1 个新类 + 3 处接线 + 1 道门禁 + 2 个只读面）**：
-1. ⭐ 新 `protection/TaskZoneRegistry`：`WorkArea`（**方块级**水平矩形；两角**规范化** ⇒ 重划同区可判幂等）·
+1. ⭐ 新 `protection/JobAreaRegistry`：`WorkArea`（**方块级**水平矩形；两角**规范化** ⇒ 重划同区可判幂等）·
    `Zone`（派生出的区块集合 + 归属元数据 `scopeId`/`owner`/`kind`/面积/声明时刻）·
    `Declare{DECLARED, ALREADY, REPLACED, NO_SCOPE, EMPTY_AREA, CONFLICT_SUBZONE}` ·
    纯函数 `chunkCoverOf(WorkArea)` / `chunkCoverOf(Collection<BlockPos>)`（两条派生路径**必须同结果**）·
    `safeZoneConflicts`（**只查子类声明**：与安全区求交，稳定排序 ⇒ 报错可复现）·
    `declare` / `release` / `zoneOf` / `zoneAt` / `activeCount` / `prune` / `summary`。
-   ⚠️ **故意不持久化**（与 `SafeZoneData`/`ReturnPointData` 的 `SavedData` 不同）：任务树本身不跨重启存活，
+   ⚠️ **故意不持久化**（与 `AreaData`/`ReturnPointData` 的 `SavedData` 不同）：任务树本身不跨重启存活，
    任务区若活下来就是一个**没有任务对应的授权封套**（= 静默留权）⇒ 重启后世界回到"没有任务区"（保守方向）。
 2. `job/lumber/RegionLumberJob`（**实验载体，生产 Job 类**）：首 tick 解算任务区 ——
    工作区域 = **玩家的林场矩形**（`LumberRegionState.Region`，`D-338` 附注四② 的第一个真实实例）
@@ -13610,7 +13610,7 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
    （失败事实带冲突区块，提示退路 = 先 `safe unclaim` 显式退化再重启）；
    `finish()` 里 `release(scopeId)`（**取消/结束任务 ⇒ 自动解除**）；`SUMMARY`/`failureReport` 带 `zone=`。
 3. 作用域收尾钩子两处：`BotManager.clearTask` 与 `RegressionBatteryTask.endStep`
-   在 `WriteBudget.closeScope` 旁 `TaskZoneRegistry.release(closedScope)`
+   在 `WriteBudget.closeScope` 旁 `JobAreaRegistry.release(closedScope)`
    （`/alice region stop` 那条路**不经过** `finish()` ⇒ 必须有这一处）。
 4. 只读消费面（**玩家看得见**）：`/alice protect list` 打印"当前位置三态（保护区/安全区/**任务区**）"
    + 全服任务区摘要；`/alice region info` 打印**任务区预检**（工作区域 blocks ⇒ 派生 chunks /
@@ -13619,7 +13619,7 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
 **口径（全部对齐用户 2026-09-19 的裁定，无自创）**：ⓐ 任务区**可以覆盖保护区父类**（也可在野外独立划分）；
 ⓑ ⛔ **不得覆盖子类声明**（今天 = 安全区）⇒ **拒绝声明 + 报错**，**不裁剪、不静默降级**，
 且**不替玩家剥离子类**（要走这条路必须**显式退化**）；ⓒ **锁定是结构性的**：唯一写入者是
-`TaskZoneRegistry.declare`（命令层没有写入口）⇒ 任务存续期内玩家**改不了**；
+`JobAreaRegistry.declare`（命令层没有写入口）⇒ 任务存续期内玩家**改不了**；
 ⓓ **随 `scopeId` 生灭**：`zoneOf` 每次都拿 `WorldModLedger.currentScope` 复核 ⇒ 作用域一收尾
 （终态 / 被替换 / 显式打断）**权威立刻消失**，**不靠任何调用方记得来关**；没有打开的作用域 ⇒ `NO_SCOPE`；
 ⓔ 任务区**不回答**"目标内/目标外"（那要目标集，只有任务有）—— 它只回答"这里的写入要不要提权"。
@@ -13711,7 +13711,7 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
    建筑任务会更糟，但它拿不到 `L3` 的额度）。**不由调用点自报等级**（那是"静默提权"的口子）。
 2. ⭐ 新 `protection/ZoneAuthority`（**一个判据**）：`authorize(level, owner, pos, reason, Act)` →
    `NOT_GATED`（未认领 ⇒ 野外不管）/ `ALLOW` / `DENY(code)`；`regionRefusal(...)` 把
-   `SafeZoneData.protectionReason` 的结果分流：`protected_block`/`protected_tag`（**全世界通用**的玩家规则）
+   `AreaData.protectionReason` 的结果分流：`protected_block`/`protected_tag`（**全世界通用**的玩家规则）
    **原样拒**，`protected_area`（区块认领）**才**问授权面。拒绝码 = 稳定词表
    （`protected_area` / `protected_safe_zone` / `zone_read_only` / `zone_break_not_allowed` /
    `zone_place_not_scaffold` / `zone_place_quota` / `zone_reason_required`）。
@@ -13720,9 +13720,9 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
       `LumberCandidateSource`（`LUMBER`⇒`L2` ⇒ 基地里的树**成为合法候选**，这正是"玩家在自己地盘划林场"的用法）；
    ⒝ **破坏闸门** —— `BlockBreakSafety`（`refusal`/`explicitTargetRefusal`/`clearingRefusal` 三条都带上理由）；
    ⒞ **放置闸门** —— ⚠️ **`BlockInteraction.placeAt` 今天完全没有保护区检查**（`D-338` 核对表里的缺口）
-      ⇒ 本片补上；`placeBulkEdit` 改走同一判据；两者成功后 `TaskZoneRegistry.recordZonePlacement` 计数。
+      ⇒ 本片补上；`placeBulkEdit` 改走同一判据；两者成功后 `JobAreaRegistry.recordZonePlacement` 计数。
       **`PlaceResult` 新增 `ZONE_DENIED`**（与 `BUDGET_EXHAUSTED` 分开：一个是"额度用尽"、一个是"这块地没授权"）。
-4. **`L1` 的"≤8 次"= 区内配额**（`TaskZoneRegistry.ZONE_PLACES`，按 scopeId 计数、随声明重置/`release` 清）——
+4. **`L1` 的"≤8 次"= 区内配额**（`JobAreaRegistry.ZONE_PLACES`，按 scopeId 计数、随声明重置/`release` 清）——
    ⛔ **刻意不做成 `WriteBudget` 的 caps**：caps 是**作用域级**的，会把任务在**野外**的放置一起清零
    （一个 `L0` 的区就让整条任务失去野外写入权 = 错）。判据里专门有一条"野外在 `L0` 期间照旧可写"钉住这一点。
 5. 任务区元数据加 `level`（**锁定**：任务存续期内玩家改不了、任务自己也不改），日志/summary/失败报告带 `level=…`；
@@ -13817,7 +13817,7 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
   `[Ledger] place 28, 64, 208 minecraft:cobblestone` + 终态 `writes breaks=41 **places=9**` ⇒ **同一场景它会垫一格**。
   A/B 的唯一差别 = "那片区块被认领了" ⇒ **根因锁定在我们的判据**。
 - **根因**：`CapabilityGate`（执行每条 Movement **之前**的能力复验）的 `Facts.protectionReason` 由
-  `PathSession.capabilityFacts()` 实现，而它调的是 **裸 `SafeZoneData.protectionReason`** ⇒
+  `PathSession.capabilityFacts()` 实现，而它调的是 **裸 `AreaData.protectionReason`** ⇒
   保护区块里**任何会改世界的移动**（`PILLAR` / `PLACE_STEP_AND_TRAVERSE`）一律被拒，`L2` 任务区**根本没机会发言**。
   ⇒ **`ZoneAuthority` 的消费点实际有四处，不是三处**：候选扫描（矿/木）×2 · 破坏闸门 · 放置闸门 ·
   **能力闸门（规划/执行期）**。⚠️ 我上一片宣称"一个判据三处消费"**不完整**——原因是我只按
@@ -13865,7 +13865,7 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 | `RoadObstaclePolicy.exactForbidden:54` | ✅ **裸 `protectionReason` 是**有意**的**（2026-09-19 `D-343` 裁定②）：这是**规划期规避**（保护区一律视为障碍 ⇒ 不越界，方向**收紧**），**不做授权决策** | **故意不接阶梯**（接上 = 放松，且会造出"规划通过、逐块写入被拒"的半成品路）；真正的写入闸门在 `BlockInteraction.placeBulkEdit`/`breakForBulkEdit` 且**没绕过**；结论已变**可失败断言** `rule_bulk_write_zone_gate` ③ |
 | `BotManager:2308`（归位点/返回）、`BotCommand`（`protect list`/`region info` 显示）、各夹具 | 有意裸用 | 读/显示/夹具，不做写入决策 |
 
-⇒ 口径收敛为：**写入决策必须过 `ZoneAuthority`**（今天 5 处已接、1 处待定）；显示与夹具可直接读 `SafeZoneData`。
+⇒ 口径收敛为：**写入决策必须过 `ZoneAuthority`**（今天 5 处已接、1 处待定）；显示与夹具可直接读 `AreaData`。
 
 ### D-338 附注十一：这轮"保护区里的树又被砍了"——**不是 `lumber_job` 的问题**，是 LLM 决策层**换路重试** 2026-09-19
 
@@ -13956,7 +13956,7 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 - **封顶只收紧、不放宽**：`Level.cappedForUnattended()` = `min(声明等级, L1)` ⇒ `L0` 仍是 `L0`
   （不许被"封顶"抬成可临时放置），`L2/L3` 降到 `L1`；配 `L3` 原有的"非玩家降级 `L2`"= **两级都只收紧**。
 - **实现位置**：`WritePolicyMatrix.Level.cappedForUnattended()`（口径单一出处）·
-  `TaskZoneRegistry.Zone.playerDriven()` + `Zone.effectiveLevel()`（**生效**等级）·
+  `JobAreaRegistry.Zone.playerDriven()` + `Zone.effectiveLevel()`（**生效**等级）·
   `ZoneAuthority.authorize` 用 `effectiveLevel()`，且拒绝/放行文案带
   `【保护区内·非玩家发起 ⇒ 从 L2 封顶 L1】`（**日志不说谎**）。
 - ⭐ **门禁顺带抓到一个真语义问题**：同 `scopeId` 同 `kind` 同区域的**再声明**被判 `ALREADY` ⇒ **新的驱动身份被忽略**
@@ -14297,7 +14297,7 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
 - **事实（代码级查证，这才是判据）**：配额只查 `L1`（`ZoneAuthority.java:178-189`，`L1_MAX_PLACES=8`）；
   但 `L2` **不是无界** —— `WriteBudget` 的上限**也按 `scopeId` 计**（`SCOPES`，`DEFAULT.maxPlaces=32`），
   而 `scopeId = WorldModLedger.currentScope` = **当前任务作用域、随任务生灭**
-  （`TaskZoneRegistry.java:276`、`release:326-331`；`WriteBudget.java:92,105,135`）
+  （`JobAreaRegistry.java:276`、`release:326-331`；`WriteBudget.java:92,105,135`）
   ⇒ 一个 `L2` 任务**全部**放置（区内 ⊆ 全部）已经 ≤32 ⇒ **不存在"无限往玩家区里铺"的路径**。
 - **不加的第二条理由**：`L2` = 工作面，补种树苗 / 插火把 / 垫脚 pillar **天然**需要多于 8 次区内放置
   ⇒ 再压一道小额配额会制造**假拒绝**（正是 `D-341` 那一类"任务被误判"）。
@@ -15225,7 +15225,7 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 **不许把授权面/可破性/扫描记忆掺进簇的身份**。理由与 `D-348` 同源：那些都是**那一刻**的世界事实，会过期；
 一旦固化进簇，"这几格挖不动"就变成了簇的永久属性。
 ⇒ 门禁 `rule_cluster_is_pure_geometry`：`TargetClusters` 里**不出现** `ZoneAuthority` / `breakable` /
-`WriteBudget` / `MineScanMemoryData` / `getBlockState` / `SafeZoneData`。
+`WriteBudget` / `MineScanMemoryData` / `getBlockState` / `AreaData`。
 "哪些成员真能挖"永远由调用方用**当前**授权面算（`MineJob` 的 `revalidate` 就是那个位置）。
 
 #### 三、判据（`mine_menu` 5 条 ⇒ `checks=42`）与反向对照
@@ -17775,7 +17775,7 @@ break -85, 89, 147 gold_block   by=command:EXPECTED_TARGET
 
 | # | 位置 | 改动 |
 |---|---|---|
-| 1 | ⭐ **新** `protection/ProtectionZones` | **唯一判据入口**：`isProtected(level,pos)` = `SafeZoneData.isClaimed`（区块级、全高度、零副作用）+ 反面名字 `isWild`。类注释写死三条口径：子区域（安全区）**已按不变量 ⊆ 保护区** ⇒ 不加第三项；**任务区不是保护区**（`D-406` §二那次误判就是把它当成了区）；挖掘黑名单与"地归谁"正交 ⇒ 不进本判据 |
+| 1 | ⭐ **新** `protection/LedgerScope` | **唯一判据入口**：`isProtected(level,pos)` = `AreaData.isClaimed`（区块级、全高度、零副作用）+ 反面名字 `isWild`。类注释写死三条口径：子区域（安全区）**已按不变量 ⊆ 保护区** ⇒ 不加第三项；**任务区不是保护区**（`D-406` §二那次误判就是把它当成了区）；挖掘黑名单与"地归谁"正交 ⇒ 不进本判据 |
 | 2 | `ledger/WorldModLedger.recordPlacement` | 区外**直接不记**（`[Ledger] skip …` 一行 + 遥测计数 `outsideSkipCount`，**不是静默丢弃**）。这一条就是真机事故的直接修复 |
 | 3 | `WorldModLedger.dropStale` | 除"幽灵条目"外，**区外条目也销**（旧存档遗留 / 玩家 `unclaim` 之后）—— 两类各打一行日志。取件前后都调 ⇒ 时序不敏感 |
 | 4 | `WorldModLedger.pendingTemporaryProtected` + `task/RestoreScopeTask` | 回收的**取件口径**（`buildQueue`）与**收尾对账**（`finish` 的 `remaining`）都换成"只认区内条目" ⇒ 区外条目既不会被拆、也不会被算成"没拆完" |
@@ -17798,7 +17798,7 @@ zoneTerminal=restore_done purgeDropped=1 ticks=166 → PASS`（`run/headless-log
 1. **区外不再拆任何我方方块**（R2 的直接推论）：野外作业会**留下垫脚石/工作站**，并**净消耗**
    `THROWAWAY` 方块（通常是圆石）——"建拆同权"在区外不再成立。要改就得改裁定本身。
 2. ⭐ **夹具纪律升级**：凡是要验"保护区内该发生什么"（建拆同权 / 工作站的拆回 / 回收守卫）的夹具，
-   现在**必须自己摆前提**（认领区块 + 声明 L2 任务区封套）⇒ 新增 `task/FixtureZone`
+   现在**必须自己摆前提**（认领区块 + 声明 L2 任务区封套）⇒ 新增 `task/FixtureClaim`
    （一个入口、结束复位、幂等 `release`）。本片改了 3 个夹具：`scaffold`（实测真红过：
    `pillar=4 torn=0 residue=4`）、`craft_station`（实测真红过：`write_accounted=FAIL / teardown_clean=FAIL`）、
    `restore_underfoot_safety`（改前是**静默假绿**：播种被跳过 ⇒ `pending=0` ⇒ `nothing_to_restore` ⇒ 三条判据空跑）。
@@ -17954,7 +17954,7 @@ zoneTerminal=restore_done purgeDropped=1 ticks=166 → PASS`（`run/headless-log
   `lumber_course_trees` **161/186**、`lumber_plant` **10/14**；`partial_search_terrain` 仅 fill 起点角在界内
   （bot 活动点 `z=245` 在界外 ⇒ 无实际暴露）⇒ 解释了"为何只有 `lumber_job` 连红"。
 - ⭐ **教训**：世界母本 = **玩家真实存档副本**（`headless-battery.sh:33-39` 的设计）⇒ 夹具**继承玩家世界的一切**。
-  ⇒ **"夹具自带前提"必须扩展到第三方保护**：`Z1` 已为**我方**保护区做过（`FixtureZone`），
+  ⇒ **"夹具自带前提"必须扩展到第三方保护**：`Z1` 已为**我方**保护区做过（`FixtureClaim`），
   **第三方那一半今天没人管** ⇒ 踩进去只会得到**误导性的内核失败码**（`no_reachable_candidate`）而不是
   "**前提不成立**"。**这是"静默"的一种：错的原因、对的表象。**
 
@@ -18163,14 +18163,14 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 | 生产 `BotManager.clearTask` | `closure(...)`：判据只认 `inZone`，人口进告警（区外条目不再算进"仍有 N 条未拆除"） |
 | 恢复入口 `BotManager.assignRestore` | 入口口径收成**区内视图** —— 与 `RestoreScopeTask` 的取件口径必须一致（否则"说去恢复，到了什么都不做"） |
 | `RestoreCheckItem` | 同上 |
-| `Z1` 夹具 `LedgerZoneScopeCheckTask.finish` | 改用 `closure(...)`（与电池 `endStep` 同口径） |
+| `Z1` 夹具 `LedgerScopeCheckTask.finish` | 改用 `closure(...)`（与电池 `endStep` 同口径） |
 | `/alice ledger`（`command/BotCommand.ledger`） | `pending==0` 的提示语**不再说「建拆同权已闭合」**，改成带人口的读法（玩家可见读数里误读成本最高的一句） |
 
 #### 四、门禁：`tools/kernel-predicates.py` → `rule_ledger_closure_zone_scoped`（标签 `[Z2·账本闭合口径]`）
 
 三条硬约束 + **八条注入臂**（每条实测变红，基线绿）：① 闭合点只许用 `closure(...)`（不许裸
 `pendingTemporary(`/`pendingForOwner(`）② 区内判据只有一个出处（`pendingTemporaryProtected` →
-`ProtectionZones.isProtected`）③ 空集必须可见（无条件人口行 + `recorded` 计数器 + 窗口基线）。
+`LedgerScope.isProtected`）③ 空集必须可见（无条件人口行 + `recorded` 计数器 + 窗口基线）。
 ⚠️ **臂③ 第一版没红**（本会话第 7 次"判据太弱"）：泄漏**判红分支**里也有 `closure.describe()`
 ⇒ 删掉无条件人口行仍满足判据；改成**同时钉标记与数据**才红。逐臂输出见
 `docs/reviews/2026-09-23-Z2-账本闭合与空集假绿.md §5`。
@@ -18179,7 +18179,7 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 
 空集断言**不当场变红**（那要给每个夹具认领区块或改读世界，CORE 会先红一片），
 而是**登记清单**（10 组站点，分"判据/生产决策输入/只读数"三类，见 review §6）+ 本轮给的"可见性"能力。
-每条的修法只有三种：① 夹具 `FixtureZone.protect(...)` 让**人口回来** ② 判据改读**世界事实**
+每条的修法只有三种：① 夹具 `FixtureClaim.protect(...)` 让**人口回来** ② 判据改读**世界事实**
 ③ 明确标 `n/a（区外 ⇒ 无义务）` 并**印出人口**。
 
 ---
@@ -18193,7 +18193,7 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 
 | 条款 | 结论 | 证据 |
 |---|---|---|
-| 区外取消格数额度 | **行为已满足**（默认回退 `Caps.UNBOUNDED`），但**"区"在代码里不存在** —— 是默认值的涌现属性 | `grep ProtectionZones action/` = 0；生产行全印 `cap[breaks/places]=不限`；`write_policy` 连破坏 200 次后 `remainingBreaks > 200` |
+| 区外取消格数额度 | **行为已满足**（默认回退 `Caps.UNBOUNDED`），但**"区"在代码里不存在** —— 是默认值的涌现属性 | `grep LedgerScope action/` = 0；生产行全印 `cap[breaks/places]=不限`；`write_policy` 连破坏 200 次后 `remainingBreaks > 200` |
 | 保护区内不许静默降级 | **已满足且有判据** | 内核 `[WRITE-REFUSED] … reason=write_budget_exhausted`；作业 `[Job] terminal … reason=write_budget_exhausted`；`BreakRefusedCheckTask ⑥` 反向对照"预算不许被 `world_refused` 抢走" |
 
 #### 二、审计挖出的**真缺陷**：同一个量的 **6 个副本**（`P1-a` 同类复发）
@@ -18221,7 +18221,7 @@ wildSkippedSince 窗口内被跳过的区外放置次数
    `Caps.DEFAULT`（唯一两个例外）+ `closeScope` 的容器列证据；**`Caps.UNBOUNDED` 的容器份额 =
    `DEFAULT_MAX_CONTAINER_WRITES`**（原先 `MAX_VALUE` ⇒ 装"不限的破坏/放置额度"会顺手放开容器轴）。
 4. **判据（动态）**：CORE 的 `write_budget` 步追加 `ZONE` 臂 —— **野外前提自证**
-   （`ProtectionZones.isWild`，不成立即判红）+ 臂①「无装订 ⇒ 连做 **70** 次破坏/放置一次都不许被拒」
+   （`LedgerScope.isWild`，不成立即判红）+ 臂①「无装订 ⇒ 连做 **70** 次破坏/放置一次都不许被拒」
    （70 > 64/32 ⇒ 对"兜底退回 64"有鉴别力）+ 臂②「显式装订照旧强制」（`capForEscape` 装"**再给 1 次**"，
    第 2 次必被拒）。⚠️ 第一版把额度写成绝对值 1 ⇒ 本阶段第一次就被拒（**前提是假的**，判据看着对）——
    已改为"当前计数 + 1"。
@@ -18382,11 +18382,11 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 - **两次误诊（留痕）**：① 相信旧注释"几何拆不到"；② 以为"没发镐" ⇒ **加镐后仍红**（假设被证伪）。
 - **分层探针**（`MineBlockRunner.tickBreak()`，验证后已删）：`breakAllowed=true refusal=protected_area`
   ⇒ 真因 = `ZoneAuthority` 的 `protected_area`。
-- **代码级根因**：`TaskZoneRegistry.zoneOf` 是**按"当前作用域"**取任务区的
-  （`ZONES.get(WorldModLedger.currentScope(...))`）；夹具旧版**先 `FixtureZone.protect`（任务区挂外层步作用域）→ 再 `openScope("c2_underfoot")`（当前作用域换人）**
+- **代码级根因**：`JobAreaRegistry.zoneOf` 是**按"当前作用域"**取任务区的
+  （`ZONES.get(WorldModLedger.currentScope(...))`）；夹具旧版**先 `FixtureClaim.protect`（任务区挂外层步作用域）→ 再 `openScope("c2_underfoot")`（当前作用域换人）**
   ⇒ 回收期写入找不到任务区 ⇒ `protected_area` ⇒ `TARGET_NOT_BREAKABLE`。（`side_break_failed` 只是**下游症状**。）
-- **修**：交换成 **先 `openScope` 后 `protect`**（参照 `task/LedgerZoneScopeCheckTask` 的正确形状）；
-  **全仓唯一受害者**（另外三个 `FixtureZone` 使用者不另开作用域）。
+- **修**：交换成 **先 `openScope` 后 `protect`**（参照 `task/LedgerScopeCheckTask` 的正确形状）；
+  **全仓唯一受害者**（另外三个 `FixtureClaim` 使用者不另开作用域）。
 - **判据（4 条，先红后绿 + 双向注入）**：新增**正向对照**（世界事实：回收后账本只该剩"脚下那格"）⇒
   修前 `remaining=3` **红** / 修后 `remaining=1` **绿**；注入"关掉 `D-399` 脚下守卫" ⇒ **两条同时红**。
 - ⚠️ **顺带修掉我自己的弱判据**：旧 check ②`!terminal.contains("restore_partial") || (skipped>0 && notes!="-")`
@@ -20169,7 +20169,7 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 | 6 | 矿上限 | **"丢弃" ⇒ "有界延后"**（片 B） | 复用 `ore_reach_deferred` 语义 + 队列上限；不改预算、不放大游走 |
 | 7a | 搭路预算数字 | **合成一个数** `max(16, advanceCells/10)` | `C8` 的 16 当下限、形状推导当缩放（保住 `A14` 注释里"形状可配"的理由，不回到"写死一个数"） |
 | 7b | 额度用尽语义 | **`C8` 语义：如实放弃/失败** | `A14` 原语义"退回纯通行、坑留着继续走"会违反新立的 `I2`（支撑格必须存在），且通道是 bot 自己要反复走的路 |
-| 8 | `I5` 落点 | **作业形状驱动 + 作业作用域载体**（不挂 `ZoneAuthority`） | 元凶是同作业自己的两条写路径（同 `scope`）⇒ 授权/归属闸门分不开"我的矿"与"我的地板"；`WorkArea` 还是 2D 无 Y（`TaskZoneRegistry.java:77`） |
+| 8 | `I5` 落点 | **作业形状驱动 + 作业作用域载体**（不挂 `ZoneAuthority`） | 元凶是同作业自己的两条写路径（同 `scope`）⇒ 授权/归属闸门分不开"我的矿"与"我的地板"；`WorkArea` 还是 2D 无 Y（`JobAreaRegistry.java:77`） |
 
 **主工作流提议（用户未反对，按此实现；可随时否决）**：`C8` 的"前瞻看不到地板 ⇒ 放弃"落地口径 =
 推进下一单元前沿模板方向在**行走层**前瞻最多 `maxGapLength`(4) 格；若连续悬空 > 4 格、或窗口内**既无现成支撑也无可放置面**
@@ -20439,11 +20439,11 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 
 **四、明确不做**
 - ⛔ **不做成第二套实现**；⛔ **不是为了补区域任务的缺口**（区域任务已有资产
-  `REGION_LUMBER` / `LumberRegionState` / `TaskZoneRegistry`）。
+  `REGION_LUMBER` / `LumberRegionState` / `JobAreaRegistry`）。
 
 **五、⏳ 未定（本条不裁）**
 1. 锚点落在保护区内 / 跨保护区域边界时的权限（`L4` 说"权限管理还没讨论"的那类边界）；
-2. 「**半径**」这种范围怎么接进「区块级派生 + 忽略 Y」的现有授权机制（`TaskZoneRegistry:74`「Y 不参与派生」；
+2. 「**半径**」这种范围怎么接进「区块级派生 + 忽略 Y」的现有授权机制（`JobAreaRegistry:74`「Y 不参与派生」；
    `survey/34 §6` 已核 `ZoneAuthority` 无 Y）；
 3. 是否需要 `ZoneAuthority` 之外的**半径判据** —— `D-356` 的 `MineIntent` 是**方形**作业区，
    而锚点要**半径**（⚠️ 形状不同，**未验证能否复用**）。
@@ -21323,13 +21323,13 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 | 尝试 | 做法 | 实测逐字 | 机制 |
 |---|---|---|---|
 | ① | 直接加 `exec_support` | `[Ledger] skip 23, 64, 212 place=minecraft:cobblestone by=…:SUPPORT_PLACEMENT（区外：D-398 R1/R2 不记账、不恢复）` · `[Ledger] 闭合 … inZone=0 wildSkipped=+1` · `supportRestored=false` | ⭐ **无头夹具世界一个认领都没有**（`D-409/D-413` 清 FTB 认领的副作用）⇒ **每一笔写入都被 `D-398` 判"区外"** ⇒ 无回收义务 |
-| ② | 夹具先 `SafeZoneData.claim(目标区块)` | `[WRITE-REFUSED] place pos=23, 64, 212 by=…:SUPPORT_PLACEMENT reason=protected_area` · `[MineRunner] support_skipped … result=ZONE_DENIED（垫不上 ⇒ 照挖，不判死）` · 随后 `TARGET_NOT_BREAKABLE` | `ZoneAuthority.authorize` 的白纸黑字规则：**保护区内的写入需要「生效的任务区」覆盖这一格**（`protected_area`）。认领是**全局区块集、无 owner** ⇒ 保护层拒写自己的 bot |
+| ② | 夹具先 `AreaData.claim(目标区块)` | `[WRITE-REFUSED] place pos=23, 64, 212 by=…:SUPPORT_PLACEMENT reason=protected_area` · `[MineRunner] support_skipped … result=ZONE_DENIED（垫不上 ⇒ 照挖，不判死）` · 随后 `TARGET_NOT_BREAKABLE` | `ZoneAuthority.authorize` 的白纸黑字规则：**保护区内的写入需要「生效的任务区」覆盖这一格**（`protected_area`）。认领是**全局区块集、无 owner** ⇒ 保护层拒写自己的 bot |
 
 ⭐⭐ **由此得到 O2 的真正机制（推翻我原先的说法）**：`RESTORE` 相位在无头电池里**结构性不可达**，
 原因**不是**"`D-364` 之后没有临时放置了"，而是 **无头世界没有区域上下文**：
 **不认领 ⇒ `D-398` 不记账；认领 ⇒ `ZoneAuthority` 拒写**。两者都让"建拆同权"这条路走不到。
 
-⛔ 要让 EXECUTE 侧跑通，夹具需要 **4 件一起对**：场景 + `SafeClaim` + `TaskZoneRegistry.declare` 任务区
+⛔ 要让 EXECUTE 侧跑通，夹具需要 **4 件一起对**：场景 + `SafeClaim` + `JobAreaRegistry.declare` 任务区
 + 三者的**对称清理**（认领/任务区泄漏会给后面的电池步改变 `D-398` 行为 —— 尝试② 里就实测到
 `support_plan` 的认领**泄漏**给了 `exec_support`：`认领 ⇒ false`）。⇒ **不在本刀做**，登记为 O2 的复活条件。
 
@@ -21410,7 +21410,7 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 | 4 | 两个类内常量 | **甲：随编排留下、不注入** | 判定为额度常量（实质上）但属**编排策略** ⇒ 随编排留 `MineTask`，本刀**不注入**（注入要穿调用点，而那个接口正在被本刀重画）；读数门禁**加一条"只打印"读数**（列出原语与编排器里**全部 `static final` 常量**：名字＋值），让词汇漏洞藏不住但**不做断言**；`D1` 的范围**只管原语** |
 | 5 | 门禁判据面 | **甲：五条全上** | A（原语无相位机：`MineStep` 里 `Phase`/`phase` 引用 == 0 **＋ 文件存在断言**）· B（成功出口 **== 1** **＋ 正向人口断言**）· C（**改写**：原语 0 处 `new MineTask(` ＋ `MineTask` 委托点 ≥1）· D1＋D2 · E（同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6**）|
 | 6 | `useChain` 归属 | **甲：留计划段并导出** | 判定留**计划段**（同一 tick 读 `targetState`，行为逐字不变）并由 `MineStep` 作为**计划结论**导出；`chainTriggered` 留**编排器**；`walkOnly` 当**参数**传下去 ⇒ 落到 `MineBlockRunner` **现成的那个布尔参数**上 |
-| 7 | 盲区安全阀 | **甲：夹具先行** | **先补完 EXECUTE 侧（密封夹具）＋ 修 O1/O2/O4，再开主体刀**。四件一起：场景 ＋ `SafeZoneData.claim` ＋ `TaskZoneRegistry.declare` 任务区 ＋ **三者对称清理（必须在 `finally` 里）** |
+| 7 | 盲区安全阀 | **甲：夹具先行** | **先补完 EXECUTE 侧（密封夹具）＋ 修 O1/O2/O4，再开主体刀**。四件一起：场景 ＋ `AreaData.claim` ＋ `JobAreaRegistry.declare` 任务区 ＋ **三者对称清理（必须在 `finally` 里）** |
 | 8 | `step 2b` 落点 | **甲：落 `5b`** | 仍是 `step 5`（不推翻"并入 `step 5`"）；2b 的对象是 `CollectDropsTask` 自己的便捷构造，而 `5b` 正是重画它 ⇒ 同一接口**只改一次**；`5a` 不碰收集预算 ⇒ **保住"18 个 `new MineTask(` 调用点 0 处要改"** |
 | 9 | 类名 | **甲：`MineStep`** | 落 `task/mining/`；层次 = `MineTask`（编排）→ `MineStep`（一格的一次作业）→ `MineBlockRunner`（破坏机制）→ `BlockBreakSession`（方块）|
 | 10 | 落盘范围 | **甲：`D-466` ＋ 台账 `5` 行 ＋ `HANDOVER`** | 只落进既有的**三个出处**（裁定/状态/断点各一个，`survey/35 §10`），不另开第 4 个文件 |
@@ -21502,7 +21502,7 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 - 主体刀若发现 `MineStep` 的"单格结论"不得不**回头读 `MineStep` 内部字段**（而不是只靠 `tick()` 的返回值）⇒ 说明第 1 拍的语句切分**没切干净**，须重审 §二.1 的两张表；
 - 若真机出现**连锁之后又重规划**的路径（`chainTriggered` 真正起作用的那条）⇒ `B4` 的零覆盖必须立即升级为"先补夹具"；
-- 若第 7 拍补完的 EXECUTE 侧夹具**认领泄漏**给后续电池步（尝试② 已实测到一次）⇒ 立即改用"每用例独立密封 ＋ `finally` 还原 `SafeZoneData` 快照"，不许靠顺序；
+- 若第 7 拍补完的 EXECUTE 侧夹具**认领泄漏**给后续电池步（尝试② 已实测到一次）⇒ 立即改用"每用例独立密封 ＋ `finally` 还原 `AreaData` 快照"，不许靠顺序；
 - 若将来 `K2`（`GoalAdjacent`）落地 ⇒ 本条的 §七 必须重审（`B` 交出去之后 `清障`/`clear` 的归属会变）。
 
 ### D-467：**`step 5a` 第 ① 步落地** —— EXECUTE 侧密封夹具（`O1`/`O2`/`O4` 同刀修复）（2026-09-27）
@@ -21513,8 +21513,8 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 #### 一、⭐ 为什么这次一落地就成了（关键发现：助手早就在仓里）
 
-`D-465` 把 `O2` 的复活条件写成"**四件一起对**：场景 ＋ 认领 ＋ `TaskZoneRegistry.declare` 任务区 ＋ 三者对称清理"，
-而**这四件里除了场景，早有现成实现**：`src/main/java/com/dddgn/alice/task/FixtureZone.java`（174 行，**7 个夹具已在用**：
+`D-465` 把 `O2` 的复活条件写成"**四件一起对**：场景 ＋ 认领 ＋ `JobAreaRegistry.declare` 任务区 ＋ 三者对称清理"，
+而**这四件里除了场景，早有现成实现**：`src/main/java/com/dddgn/alice/task/FixtureClaim.java`（174 行，**7 个夹具已在用**：
 `CraftStation` / `LossyWriteAccounted` / `BreakRefused` / `ScaffoldLifecycle` / `LedgerZoneScope` / `RestoreUnderfootSafety`）。
 
 它逐字做的就是那三件：① 认领区块（**只记"本夹具自己新加的"**，本来就是我们的地不还）；
@@ -21522,16 +21522,16 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 ③ `release()` —— **幂等**、还它自己加的那些区块 + 解任务区 + （仅当自己开的作用域才）关作用域。
 
 ⇒ ⭐ **`D-465` 尝试② 之所以红，不是"这条路走不通"，而是那条路只手做了四件里的一件**
-（裸 `SafeZoneData.claim`，既没声明任务区 ⇒ `ZoneAuthority` 只能判 `protected_area`，
+（裸 `AreaData.claim`，既没声明任务区 ⇒ `ZoneAuthority` 只能判 `protected_area`，
 又没对称清理 ⇒ **认领泄漏给下一条用例**）。
 
 #### 二、改动（`task/MineRegressionTask.java`，夹具侧）
 
 | # | 改动 | 为什么 |
 |---|---|---|
-| 1 | 新字段 `FixtureZone.Handle zone` ＋ 常量 `SUPPORT_MIN/SUPPORT_MAX`（= 场景盒子 `x 17..31, y 44..76, z 205..223`）| 认领是**区块级、不分高度**（`D-313`）⇒ 这两个角只决定认领 `cx=1, cz=12..13` 两个区块，不碰别的用例（它们的 z 都 ≤190）|
+| 1 | 新字段 `FixtureClaim.Handle zone` ＋ 常量 `SUPPORT_MIN/SUPPORT_MAX`（= 场景盒子 `x 17..31, y 44..76, z 205..223`）| 认领是**区块级、不分高度**（`D-313`）⇒ 这两个角只决定认领 `cx=1, cz=12..13` 两个区块，不碰别的用例（它们的 z 都 ≤190）|
 | 2 | 新用例 **`exec_support`** = **第一条 `expectSupport=true` 的 EXECUTE 用例** | `O1` 的根因就是"13 条用例的 `expectSupport` 全是 false"|
-| 3 | 摆前提的位置 = `scope.begin(...)` **之后** | `TaskZoneRegistry.declare` 的硬约束逐字"任务区必须挂在**打开的作用域**上（不许在任务之外造授权封套）"⇒ 早一行就是 `NO_SCOPE` |
+| 3 | 摆前提的位置 = `scope.begin(...)` **之后** | `JobAreaRegistry.declare` 的硬约束逐字"任务区必须挂在**打开的作用域**上（不许在任务之外造授权封套）"⇒ 早一行就是 `NO_SCOPE` |
 | 4 | 还原位置 = `finishCase()` | 它是**所有**用例终态的唯一出口（正常 / 超时 / settle / 连锁 / 前提失败）⇒ **失败路径同样走**（夹具纪律；`chainModeBefore` 的恢复也在这里，同一模式）|
 | 5 | 前提没摆成 ⇒ `record(current, false, "zone_premise_failed …")` | **如实判红**，不默默继续（否则"前提缺失"会被读成"支撑没垫"）|
 | 6 | 起手 `WorldModLedger.dropStale(level)` | 场景函数把这块地重铺过 ⇒ 账本里可能留上一轮的**幽灵条目**（`CraftStationCheckTask` 同款处置）|
@@ -21543,7 +21543,7 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 ```
 [TaskZone] declared（声明任务区） scope=…#2:Regression:mine_regression owner=… kind=region_lumber
            level=L2 chunks=2 area(block)=285 [17..31,205..223] conflicts=0
-[FixtureZone] 夹具前提 = 保护区 + region_lumber 任务区 ｜ 新认领区块=2 任务区=DECLARED/L2 chunks=2
+[FixtureClaim] 夹具前提 = 保护区 + region_lumber 任务区 ｜ 新认领区块=2 任务区=DECLARED/L2 chunks=2
 [WRITE] place 23, 64, 212 minecraft:cobblestone by=MineRegressionTask:SUPPORT_PLACEMENT
 [Ledger] place 23, 64, 212 minecraft:cobblestone←minecraft:air [TEMP SUPPORT_PLACEMENT scope=…]   ← ⭐ 区内**记账**
 [MineRunner] support_placed target=23, 65, 212 pos=23, 64, 212 feet=21, 64, 212                ← 是 placed，不是 skipped
@@ -21552,7 +21552,7 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 [MineTask] restore_end target=23, 65, 212 status=DONE restored=1 remaining=0
 [MineRegression] exec_support=PASS status=DONE/targetGone=true/collected=1/1/inventoryDelta=1(期望0)/
    dropsLeft=0/idempotent=true/foreignOk=true/supportRestored=true/ledgerRestored=1/scaffoldLeft=0
-[TaskZone] released scope=…        [FixtureZone] 前提已还原：取消认领 2 个区块 + 解任务区
+[TaskZone] released scope=…        [FixtureClaim] 前提已还原：取消认领 2 个区块 + 解任务区
 ```
 
 - **`O2` 修复证据**：此前 11 次全是 `restore_skip pending=0`（`places=0`）⇒ `to=RESTORE` **一次都到不了**；
@@ -21614,8 +21614,8 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 #### 七、复核触发
 
 - 若 `Restore` 的材料回收在**更长的跑动**里稳定停在 `recovered=0` ⇒ `O5` 升级为待查（今天的两次差异说明它至少不稳定）；
-- 若将来有**第二个**需要"真放置 + 真拆回"的用例 ⇒ 直接把 `FixtureZone` 那段抽成 `MineRegressionTask` 的小助手（今天只有一处，不抽）；
-- 若 `SUPPORT_MIN/SUPPORT_MAX` 覆盖的区块与**别的用例**重叠（新增用例挪坐标时最可能）⇒ `FixtureZone.ok()` 会因"没新认领到区块"而**判红**，别把它读成"保护区坏了"；
+- 若将来有**第二个**需要"真放置 + 真拆回"的用例 ⇒ 直接把 `FixtureClaim` 那段抽成 `MineRegressionTask` 的小助手（今天只有一处，不抽）；
+- 若 `SUPPORT_MIN/SUPPORT_MAX` 覆盖的区块与**别的用例**重叠（新增用例挪坐标时最可能）⇒ `FixtureClaim.ok()` 会因"没新认领到区块"而**判红**，别把它读成"保护区坏了"；
 - `D-466` §八 的第 ②–⑤ 步（新门禁 / 主体刀 / 同刀改红臂 #6 / `core` 逐步 diff）仍未开始。
 
 ### D-468：**读数门禁的新读数** —— `static final` 常量清单（`D-466` 第 4 条的落地）（2026-09-27）
@@ -22790,7 +22790,7 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 **只能由玩家增删改** · **全局缓存** · **仓库是集合而非单点** · 临时容器**同样可注册/缓存**。
 
 **载体先例（✅ 已核实，全部是 `SavedData`，形状同族）**：
-`protection/SafeZoneData`（玩家划定的安全区**集合**）· `protection/ReturnPointData` ·
+`protection/AreaData`（玩家划定的安全区**集合**）· `protection/ReturnPointData` ·
 `job/lumber/LumberRegionState`（玩家 `/alice region set` 划区；`DATA_KEY="alice_lumber_regions"`）·
 `decision/CollectGrants.GrantsData`（玩家授权集合）· `transfer/TransferSelectionData`（玩家划选）。
 
@@ -23295,7 +23295,7 @@ bot 没工具时 Job 会**如实失败 `tool_missing`**。⭐ **这是裁定的�
 | `*CheckTask` | **87** |
 | `*DiagnosticTask` | **13** |
 | `*ProbeTask` | **5** |
-| 其余 | **35** —— 混着三样：**生产任务**（`MineTask` · `CollectDropsTask` · `RestoreScopeTask` · `RoadBuildTask` · `TransferTask` · `ToolMaintenanceTask` · `WalkToTask` · `PlaceTask` · `FollowTask` · `FarWalkTask` · `SafeReturnTask` · `SurvivalExitTask` · `SurvivalFloatTask`）· **任务接口/结构**（`Task` · `TaskNode` · `TaskTarget`）· **夹具基础设施**（`FixturePremise` · `FixtureScript` · `FixtureThirdParty` · `FixtureZone` · `PremiseGateTask` · `CleanupWrappedTask`）· **回归/电池**（`RegressionBatteryTask` · `MineRegressionTask` · `PathingRegressionTask` · `PathingBatteryTask`）· **课程锚点**（`LumberCourseAnchor` · `OreCourseAnchor` · `SurvivalCourseAnchor` · `TransferCourseAnchor`） |
+| 其余 | **35** —— 混着三样：**生产任务**（`MineTask` · `CollectDropsTask` · `RestoreScopeTask` · `RoadBuildTask` · `TransferTask` · `ToolMaintenanceTask` · `WalkToTask` · `PlaceTask` · `FollowTask` · `FarWalkTask` · `SafeReturnTask` · `SurvivalExitTask` · `SurvivalFloatTask`）· **任务接口/结构**（`Task` · `TaskNode` · `TaskTarget`）· **夹具基础设施**（`FixturePremise` · `FixtureScript` · `FixtureThirdParty` · `FixtureClaim` · `PremiseGateTask` · `CleanupWrappedTask`）· **回归/电池**（`RegressionBatteryTask` · `MineRegressionTask` · `PathingRegressionTask` · `PathingBatteryTask`）· **课程锚点**（`LumberCourseAnchor` · `OreCourseAnchor` · `SurvivalCourseAnchor` · `TransferCourseAnchor`） |
 
 ⭐ **"夹具"今天唯一的定义是一个门禁的正则**：`tools/fixture-hygiene.py:57`
 `FIXTURE_NAME = re.compile(r"(Check|Probe)\w*Task\.java$")` ⇒ 87 + 5 = **92**。
@@ -26764,7 +26764,7 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 - `TransferCheckTask`（`dest=debug`，`BotManager` 派发 ⇒ **玩家可达**）**直接调用 4 个 `fixture/transfer/*` 夹具**
   （`:111-116` 四个子相位）⇒ 搬进 `debug/` **当场红**（`check-layer-direction` 4 条）。
   ⚠️ 用户 `D-552` ④ **明示不放宽** `debug/ ✗→ fixture/` ⇒ **退回 `task/`**，⛔ 不硬搬。
-- ⭐ **同族还有 6 个**：`FixturePremise` · `FixtureScript` · `FixtureZone` · `Lumber/Survival/TransferCourseAnchor`
+- ⭐ **同族还有 6 个**：`FixturePremise` · `FixtureScript` · `FixtureClaim` · `Lumber/Survival/TransferCourseAnchor`
   （目的地 `fixture/`，却**被 `debug/` 引用**）⇒ **夹具波一搬会再红 6 次**。
 - ⭐ **争点**：按 `R6`（要剔就剔 `fixture/`、不剔 `debug/`）⇒ **被产品面使用的类不可能是"可剔除"的**。
   候选 = **甲 改判 `debug/`（AI 推荐）** ／ 乙 `TransferCheckTask` 改判 `fixture/`（⚠️ 与 `R2` 字面冲突）／
@@ -26916,7 +26916,7 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 | 类 | 被谁引用 |
 |---|---|
 | `GainStepRunner` | `MineTask`（**字段类型 ＋ 每 tick 调 `tick()`**）· `CollectStep` |
-| `FixtureZone` | `ScaffoldLifecycleTask` |
+| `FixtureClaim` | `ScaffoldLifecycleTask` |
 | `MachineRecipeFacts` | `RecipeQuery` |
 | `TableCraft` | `CraftStation` · `MachineCycle` |
 
@@ -26931,7 +26931,7 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
    ⇒ 修法：引用者若是 `task/` 下的类，按 **`task:<类名>`** 标签记，再按**那个类自己的 `dest`** 回判
    ⇒ **迭代到不动点**（上限 6 轮，不收敛即**响亮失败**）。
 2. ⭐ **`R6` 硬约束**：`有标记但被生产引用 ⇒ 判生产`。原来"命名标记"（`Fixture`/`Battery`…）
-   **压过事实** —— `FixtureZone` 名字带 `Fixture`，即使被生产引用也仍判 `fixture/`。
+   **压过事实** —— `FixtureClaim` 名字带 `Fixture`，即使被生产引用也仍判 `fixture/`。
    ⇒ 现在「**被生产执行路径引用 ⇒ 不可能"可剔除"**」（`R6` 逐字：要剔就剔 `fixture/`）。
    ⚠️ **注册位置**（`item/`·`command/`·`bot/`·模组入口）**不算**生产执行路径 ⇒ 原判据不变。
 3. ⚠️ **`import` 行不算"引用"**：`task/FixtureScript.java` 对 `fixture/PathingRegressionTask`
@@ -27341,7 +27341,7 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 - ⛔ **我错在哪**：我把「不能静默主动修改没有对应权限的区域」读成了"区外**也有**一条权限要求（只是叫'不静默'）"，
   于是去问"`D-398` R1/R4 说区外无限制，与'不静默'冲突吗"。**不存在这个冲突** —— 因为**区外根本不是权限主体**。
 - ✅ **更正后的口径（本轮确立）**：
-  1. ⭐ **本项目只有一个区域概念 = 保护区及其子区域**（`protection/ProtectionZones` 是它的唯一判据入口，`D-398`）；
+  1. ⭐ **本项目只有一个区域概念 = 保护区及其子区域**（`protection/LedgerScope` 是它的唯一判据入口，`D-398`）；
   2. ⭐ **区外 = "没有区域"** ⇒ **脱离保护区，任何"权限管理"都没有意义**（⛔ 不是"另一套宽松规则"，是**没有这回事**）；
   3. 「不能静默主动修改没有对应权限的区域」**在区外退化为一个位置判定**（= 不在保护区内），⛔ 不产生授权语义；
   4. ⭐ 真正的适用面是**非区域任务仍然会碰到区内** ⇒ **权限管理只可能在保护区内被触发**。
@@ -27422,10 +27422,10 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 | 文件 | 改动 |
 |---|---|
 | `protection/ZoneAuthority.java` | 删 `authorize` 的安全区分支（`protected_safe_zone`）；从 `permanentDenial` 码表与 javadoc 删该码（⛔ 发射点已 0 个，留着 = 死规则） |
-| `protection/TaskZoneRegistry.java` | 删 `Declare.CONFLICT_SUBZONE`；`Result` 去掉第三栏 `conflicts`；删 `safeZoneConflicts`；`declare` 删冲突分支 |
+| `protection/JobAreaRegistry.java` | 删 `Declare.CONFLICT_SUBZONE`；`Result` 去掉第三栏 `conflicts`；删 `safeZoneConflicts`；`declare` 删冲突分支 |
 | `job/lumber/RegionLumberJob.java` | 删 `case CONFLICT_SUBZONE`（`task_zone_conflict` 失败路径**整条删除**）＋ 文案 |
 | `debug/DebugCommands.java` | 任务区预检不再报"会不会与安全区冲突" |
-| `fixture/TaskZoneCheckTask.java` | ⭐ **把两条"断言已删除行为"的相位改成断言新规则**：`CONFLICT`＋`DEGRADE` ⇒ `SAFE_OVERLAY`；`JOB_CONFLICT` ⇒ `JOB_SAFE`；`AUTH_SAFE` 的码 ⇒ 与「越界」**同一个** `protected_area` |
+| `fixture/JobAreaCheckTask.java` | ⭐ **把两条"断言已删除行为"的相位改成断言新规则**：`CONFLICT`＋`DEGRADE` ⇒ `SAFE_OVERLAY`；`JOB_CONFLICT` ⇒ `JOB_SAFE`；`AUTH_SAFE` 的码 ⇒ 与「越界」**同一个** `protected_area` |
 | `tools/kernel-predicates.py` | `D-341·无权≠没有` 的**人口表同步收窄**（删 `"protected_safe_zone"`）＋ 记原因 |
 
 **⭐ 新覆盖规则（收敛成两条）**：

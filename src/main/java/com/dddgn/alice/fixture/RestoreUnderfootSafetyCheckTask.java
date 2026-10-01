@@ -19,7 +19,7 @@ import java.util.Map;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 
 /**
  * ⭐ `C2`（`D-399` 的强判据）：**回收自己放的柱子时不许把 bot 摔下去**。
@@ -186,7 +186,7 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     /** ⭐ `A4`：DONE 时账本里仍挂着的条目数（正向对照的读数）。 */
     private int remainingAfter = -1;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
 
     public RestoreUnderfootSafetyCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -524,10 +524,10 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         // ⭐ `D-398`/`Z1`（2026-09-22）：**回收只在保护区内发生** —— 区外按裁定不记账、不恢复
         // ⇒ 不摆这个前提，下面的账本播种会被 `recordPlacement` 整批跳过（静默假绿：
         // `pending=0` → `nothing_to_restore` → 三条判据在"什么都没发生"的世界里全绿）。
-        // 前提 = 认领场景区块 + L2 任务区封套（理由见 `FixtureZone` 类注释）。
+        // 前提 = 认领场景区块 + L2 任务区封套（理由见 `FixtureClaim` 类注释）。
         //
         // ⭐⭐ `A4`（2026-09-23）：**顺序不能反** —— 必须**先开作用域、再声明任务区**。
-        // `TaskZoneRegistry.zoneOf` 是**按"当前作用域"**找生效任务区的：
+        // `JobAreaRegistry.zoneOf` 是**按"当前作用域"**找生效任务区的：
         //     `scopeId = WorldModLedger.currentScope(server, owner); zone = ZONES.get(scopeId);`
         // 旧版反着来（先 `protect` ⇒ 任务区挂在外层电池步作用域 `#N:Regression:<step>` 上，
         // 再 `openScope("c2_underfoot")` ⇒ 当前作用域变成新的内层 `#N+1`）⇒ 回收期的每一次写入
@@ -537,13 +537,13 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         // grant=RestoreScope:SCAFFOLD_RESTORE`；`[PathRetry] plan_failed UNREACHABLE goal=…`；
         // `[MineTask] failure=TARGET_NOT_BREAKABLE`。⇒ 与**几何/工具无关**（旧注释把它记成"几何拆不到"，
         // 那是**误诊**；`ensurePickaxe` 仍然必要，但它不是这条红的成因）。
-        // 正确形状的参照 = `task/LedgerZoneScopeCheckTask`（先 `openScope` 后 `protect`）。
+        // 正确形状的参照 = `task/LedgerScopeCheckTask`（先 `openScope` 后 `protect`）。
         String scopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "c2_underfoot");
         this.scopeId = scopeId;
         // ⚠️ 前提盒子必须**同时**覆盖：① 阶梯 + 摔落面；② 臂②那格（南侧 3 格）；③ 臂③的远区块
         // （认领是**按区块**的，`x+512` ⇒ 顺带认领中间那 33 列区块 —— 这些区块**不读不写**，
         //  认领本身是纯数据操作，不会加载任何区块，这正是臂③能成立的前提）。
-        zone = FixtureZone.protect(level, bot.getUUID(),
+        zone = FixtureClaim.protect(level, bot.getUUID(),
                 new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
                 new BlockPos(ORIGIN.getX() + FAR_OFFSET_X + 2, FLOOR_Y + PILLAR_H + 2,
                         ORIGIN.getZ() + FLOOR_DZ),

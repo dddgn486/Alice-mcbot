@@ -1,7 +1,7 @@
 package com.dddgn.alice.road;
 
 import com.dddgn.alice.protection.BlockBreakSafety;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -51,7 +51,7 @@ public final class RoadObstaclePolicy {
      * 该不变量的可执行断言 = {@code tools/kernel-predicates.py: rule_bulk_write_zone_gate}。
      */
     public static boolean exactForbidden(ServerLevel level, BlockPos pos) {
-        if (SafeZoneData.get(level.getServer()).protectionReason(level, pos) != null) return true;
+        if (AreaData.get(level.getServer()).protectionReason(level, pos) != null) return true;
         BlockState state = level.getBlockState(pos);
         return BlockBreakSafety.isUnbreakable(level, pos)
                 || BlockBreakSafety.isExpensiveToClear(state)

@@ -6,7 +6,7 @@ import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
 import com.dddgn.alice.job.JobDeclaration;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.reach.MiningTuning;
@@ -70,7 +70,7 @@ public final class LumberCandidateSource implements CandidateSource {
             //（这正是"玩家在自己的基地里划一片林场"的用法）；没有任务区 ⇒ 代码逐字仍是 `protected_area`。
             String protection = com.dddgn.alice.protection.ZoneAuthority.candidateRefusal(level, bot.getUUID(),
                     tree.base(),
-                    SafeZoneData.get(level.getServer()).protectionReason(level, tree.base()),
+                    AreaData.get(level.getServer()).protectionReason(level, tree.base()),
                     com.dddgn.alice.write.WriteReason.EXPECTED_TARGET);
             if (protection != null) {
                 rejected.add(id + ":" + protection);

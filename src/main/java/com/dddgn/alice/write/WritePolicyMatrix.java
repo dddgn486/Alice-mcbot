@@ -27,9 +27,9 @@ import java.util.Set;
  *
  * <p><b>三个维度的语义（2026-09-14 用户拍板，取代早期提案里的三分层）</b>：
  * <ul>
- *   <li><b>区域归属只有两层</b>：{@link Zone#EXTERNAL}（默认，不是 Alice 的地）与
- *       {@link Zone#WORKSPACE}（Alice 的地，来源 = 玩家已划定的区域）。<b>保护区不是第三层</b>：
- *       它是**优先级更高的独立闸门**（{@code SafeZoneData} 命中即禁止破坏），与"归属"正交，
+ *   <li><b>区域归属只有两层</b>：{@link Tenure#EXTERNAL}（默认，不是 Alice 的地）与
+ *       {@link Tenure#WORKSPACE}（Alice 的地，来源 = 玩家已划定的区域）。<b>保护区不是第三层</b>：
+ *       它是**优先级更高的独立闸门**（{@code AreaData} 命中即禁止破坏），与"归属"正交，
  *       两个概念不该挤在同一列里（旧提案的 {@code PROTECTED} 与既有"保护区"同名反义）。</li>
  *   <li><b>移动授权用 {@link PathRequest} 的工厂名当词表</b>：不新造形容词（旧提案的 `WILD` 就是
  *       把"场合"当成了"能力"）。集合内容**直接问工厂要**（见 {@link MovementGrant#types()}），
@@ -48,7 +48,7 @@ import java.util.Set;
  *
  * <p><b>不变量（自检断言，见 {@code WritePolicyCheckTask}）</b>：
  * <ol>
- *   <li>表对 {@code Zone × Task} **全枚举**（一行不缺、一行不多）；</li>
+ *   <li>表对 {@code Tenure × Task} **全枚举**（一行不缺、一行不多）；</li>
  *   <li>每个 {@link WriteReason} 至少被一行登记（无孤儿理由）；显式义务与该行理由的
  *       {@code temporary()} **不矛盾**（防止"显式 KEEP"把本该回收的东西放过）；</li>
  *   <li>负例：未授权组合（纯通行任务 + 会写世界的移动集）**必须抛异常**；</li>
@@ -70,10 +70,10 @@ public final class WritePolicyMatrix {
     /**
      * **区域归属**（两层）。
      *
-     * <p>刻意不含"保护区"：保护区（{@code SafeZoneData}）是独立闸门，命中即禁止破坏，
+     * <p>刻意不含"保护区"：保护区（{@code AreaData}）是独立闸门，命中即禁止破坏，
      * 与"这块地是不是 Alice 的"正交。把两者混成一列会造出同名反义的术语。
      */
-    public enum Zone {
+    public enum Tenure {
         /** 默认：不是 Alice 的地。放置是**借用**（按理由决定是否必须归还）。 */
         EXTERNAL,
         /** Alice 的地（来源 = 玩家已划定的区域）：允许留下永久改动。 */
@@ -93,8 +93,8 @@ public final class WritePolicyMatrix {
      * ⭐ **区域级权限等级**（用户 2026-09-19 拍板"权限阶梯我同意"，`D-338` 附注七②）。
      *
      * <p>它回答的是**第三维**问题：在**保护区**（= 玩家认领的区块）里，**这个任务**被允许写到什么程度。
-     * 与另两维正交：① 保护区闸门（`SafeZoneData`：认领即禁止）管"能不能动"；
-     * ② 本表的 {@link Zone}（EXTERNAL/WORKSPACE）管"这片地是不是 Alice 的"；
+     * 与另两维正交：① 保护区闸门（`AreaData`：认领即禁止）管"能不能动"；
+     * ② 本表的 {@link Tenure}（EXTERNAL/WORKSPACE）管"这片地是不是 Alice 的"；
      * ③ 本枚举管"**任务在这个封套里被授予了哪一档**"。
      *
      * <p>⚠️ **等级不是新制度**：它**不放宽**任何既有红线 —— 每一次写入仍然要过
@@ -273,7 +273,7 @@ public final class WritePolicyMatrix {
      * @param movements 该组合允许的移动授权集合；{@code null} = **未声明**（不拦、只留痕，用于 {@code UNREGISTERED}）
      * @param reasons   该组合登记的理由（覆盖检查的比对基准；未登记的写入会 WARN 留痕）
      */
-    public record Row(String id, Zone zone, Task task, Obligation obligation,
+    public record Row(String id, Tenure zone, Task task, Obligation obligation,
                       Set<MovementGrant> movements, Set<WriteReason> reasons,
                       String codeRef, String note) {
     }
@@ -317,12 +317,12 @@ public final class WritePolicyMatrix {
 
     public static final List<Row> ROWS = List.of(
             // ---- EXTERNAL（默认：不是 Alice 的地）----
-            new Row("P-01", Zone.EXTERNAL, Task.TRAVERSAL, Obligation.TEMP,
+            new Row("P-01", Tenure.EXTERNAL, Task.TRAVERSAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL), PATHING_REASONS,
                     "action/PathRequest.java:35,119",
                     "纯通行任务（walk-to/follow/place）：**刻意显式 TEMP** —— 走到某处不该留下永久痕迹；"
                             + "移动集刻意**不含** withWorldModification（D-076 红线的可执行版本）"),
-            new Row("P-02", Zone.EXTERNAL, Task.MINING, Obligation.REASON_DEFAULT,
+            new Row("P-02", Tenure.EXTERNAL, Task.MINING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
                             MovementGrant.CLIMB_APPROACH, MovementGrant.PLACEMENT_REPAIR,
                             MovementGrant.ADJACENT_APPROACH),
@@ -333,13 +333,13 @@ public final class WritePolicyMatrix {
                     "挖掘站位用 miningApproach（D-067 ㉘ 禁用 PILLAR/FALL/DOWNWARD）；支撑块用完即拆；"
                             + "⭐ withPlacement（D-440 鱼骨切片 5）= **只放不拆**的「补一块再走」："
                             + "追簇挖空地板之后由规划器自己补回路面（额度由 Job 自己推导并封顶）"),
-            new Row("P-03", Zone.EXTERNAL, Task.GATHERING, Obligation.REASON_DEFAULT,
+            new Row("P-03", Tenure.EXTERNAL, Task.GATHERING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),
                     with(WORLD_MOD_REASONS, WriteReason.LINE_OF_SIGHT),
                     "task/CollectDropsTask.java:254,360",
                     "掉落物收集需调用方**显式** allowWorldModification（D-076）"),
-            new Row("P-04", Zone.EXTERNAL, Task.LUMBER, Obligation.REASON_DEFAULT,
+            new Row("P-04", Tenure.EXTERNAL, Task.LUMBER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
                             MovementGrant.CLIMB_APPROACH),
                     Set.of(WriteReason.LINE_OF_SIGHT, WriteReason.EXPECTED_TARGET, WriteReason.REGION_REPLANT,
@@ -347,35 +347,35 @@ public final class WritePolicyMatrix {
                             WriteReason.STANDING_SPACE),
                     "job/lumber/RegionLumberJob.java:467、job/lumber/LumberJob.java:348",
                     "补种 = 计划内永久（KEEP 来自理由自身）；脚手架仍 TEMP"),
-            new Row("P-05", Zone.EXTERNAL, Task.CRAFT, Obligation.REASON_DEFAULT,
+            new Row("P-05", Tenure.EXTERNAL, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
                     "task/craft/StationPlacement.java:116、job/craft/CraftJob.java:310",
                     "合成工作站用完即拆（TEMP，建拆同权）；**熔炼路线要写容器**（放料/取产物）"
                             + "——2026-09-14 覆盖面审查发现 CraftJob 这几下没记账 ⇒ 补声明 + 过容器闸门"),
-            new Row("P-06", Zone.EXTERNAL, Task.CONTAINER, Obligation.REASON_DEFAULT,
+            new Row("P-06", Tenure.EXTERNAL, Task.CONTAINER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CONTAINER_TRANSFER, WriteReason.STATION_PROVISION),
                     "task/TransferTask.java:197、task/craft/StationProvision.java:242",
                     "容器写入走 WriteBudget 的容器维度（不产生放置账本条目）"),
-            new Row("P-07", Zone.EXTERNAL, Task.BUILD, Obligation.KEEP,
+            new Row("P-07", Tenure.EXTERNAL, Task.BUILD, Obligation.KEEP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.BULK_EDIT, WriteReason.EXPECTED_TARGET),
                     "task/RoadBuildTask.java:33、road/RoadBuilder.java:27",
                     "**显式 KEEP**：批量地形编辑是上层显式授权（D-095 §12.1），不被默认区降级为 TEMP"),
-            new Row("P-08", Zone.EXTERNAL, Task.RESTORE, Obligation.REASON_DEFAULT,
+            new Row("P-08", Tenure.EXTERNAL, Task.RESTORE, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.SCAFFOLD_REMOVAL, MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.SCAFFOLD_RESTORE, WriteReason.DESCEND_FOOT, WriteReason.EXPECTED_TARGET),
                     "task/RestoreScopeTask.java:303,367",
                     "只拆不建（scaffoldRemoval 不含 PILLAR/PLACE_STEP/BREAK_*）；回收豁免破坏上限"),
-            new Row("P-09", Zone.EXTERNAL, Task.MANUAL, Obligation.REASON_DEFAULT,
+            new Row("P-09", Tenure.EXTERNAL, Task.MANUAL, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),
                     with(WORLD_MOD_REASONS, WriteReason.MANUAL, WriteReason.LINE_OF_SIGHT),
                     "bot/BotManager.java:1706、command/BotCommand.java:1058",
                     "**不显式 KEEP**（虽然 MANUAL 理由本身是永久类）：命令挖矿会顺带垫脚/搭柱，"
                             + "那些脚手架必须回收 —— 显式 KEEP 会把垃圾永远留在世界里"),
-            new Row("P-10", Zone.EXTERNAL, Task.DIAGNOSTIC, Obligation.REASON_DEFAULT,
+            new Row("P-10", Tenure.EXTERNAL, Task.DIAGNOSTIC, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.MINING_APPROACH, MovementGrant.SCAFFOLD_REMOVAL,
                             MovementGrant.CLIMB_APPROACH),
@@ -383,69 +383,69 @@ public final class WritePolicyMatrix {
                     "task/…CheckTask.java、item/Pathing…Item.java",
                     "自检/夹具：为了能**构造**各类场景而持有全集；"
                             + "注意它是**唯一**持有全集的行 ⇒ 生产任务不能用它兜底"),
-            new Row("P-11", Zone.EXTERNAL, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
+            new Row("P-11", Tenure.EXTERNAL, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
                     "action/WriteGrant.java:26（UNKNOWN）",
                     "未登记 requester：**movements=null ⇒ 不拦**，但写入/规划会留痕（计数 + 一次 WARN）"),
             // ---- WORKSPACE（Alice 的地：来源 = 玩家已划定的区域）----
             // 今天与 EXTERNAL **逐条相同**（ⓑ：工作区只是"允许"KEEP 类理由，不改其余理由的回收义务）。
             // 差异一旦出现，workspace_equiv 断言会红 ⇒ 必须同时补决策记录。
-            new Row("P-12", Zone.WORKSPACE, Task.TRAVERSAL, Obligation.TEMP,
+            new Row("P-12", Tenure.WORKSPACE, Task.TRAVERSAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL), PATHING_REASONS,
                     "同上（R1b 起工作区才可能不同）", "同 P-01（今天两区解析相同）"),
-            new Row("P-13", Zone.WORKSPACE, Task.MINING, Obligation.REASON_DEFAULT,
+            new Row("P-13", Tenure.WORKSPACE, Task.MINING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
                             MovementGrant.CLIMB_APPROACH),
                     Set.of(WriteReason.EXPECTED_TARGET, WriteReason.STANDING_SPACE, WriteReason.PATH_ACCESS,
                             WriteReason.SUPPORT_PLACEMENT, WriteReason.STEP_PLACEMENT,
                             WriteReason.SCAFFOLD_RESTORE),
                     "同 P-02", "同 P-02（今天两区解析相同）"),
-            new Row("P-14", Zone.WORKSPACE, Task.GATHERING, Obligation.REASON_DEFAULT,
+            new Row("P-14", Tenure.WORKSPACE, Task.GATHERING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),
                     with(WORLD_MOD_REASONS, WriteReason.LINE_OF_SIGHT),
                     "同 P-03", "同 P-03（今天两区解析相同）"),
-            new Row("P-15", Zone.WORKSPACE, Task.LUMBER, Obligation.REASON_DEFAULT,
+            new Row("P-15", Tenure.WORKSPACE, Task.LUMBER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
                             MovementGrant.CLIMB_APPROACH),
                     Set.of(WriteReason.LINE_OF_SIGHT, WriteReason.EXPECTED_TARGET, WriteReason.REGION_REPLANT,
                             WriteReason.STEP_PLACEMENT, WriteReason.SUPPORT_PLACEMENT,
                             WriteReason.STANDING_SPACE),
                     "job/lumber/LumberRegionState.java:32", "工作区的**唯一来源**就是这里的已划区域"),
-            new Row("P-16", Zone.WORKSPACE, Task.CRAFT, Obligation.REASON_DEFAULT,
+            new Row("P-16", Tenure.WORKSPACE, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
                     "同 P-05", "同 P-05（今天两区解析相同）"),
-            new Row("P-17", Zone.WORKSPACE, Task.CONTAINER, Obligation.REASON_DEFAULT,
+            new Row("P-17", Tenure.WORKSPACE, Task.CONTAINER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CONTAINER_TRANSFER, WriteReason.STATION_PROVISION),
                     "同 P-06", "同 P-06（今天两区解析相同）"),
-            new Row("P-18", Zone.WORKSPACE, Task.BUILD, Obligation.KEEP,
+            new Row("P-18", Tenure.WORKSPACE, Task.BUILD, Obligation.KEEP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.BULK_EDIT, WriteReason.EXPECTED_TARGET),
                     "同 P-07", "同 P-07（今天两区解析相同）"),
-            new Row("P-19", Zone.WORKSPACE, Task.RESTORE, Obligation.REASON_DEFAULT,
+            new Row("P-19", Tenure.WORKSPACE, Task.RESTORE, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.SCAFFOLD_REMOVAL, MovementGrant.OF, MovementGrant.PURE_TRAVERSAL),
                     Set.of(WriteReason.SCAFFOLD_RESTORE, WriteReason.DESCEND_FOOT, WriteReason.EXPECTED_TARGET),
                     "同 P-08", "同 P-08（今天两区解析相同）"),
-            new Row("P-20", Zone.WORKSPACE, Task.MANUAL, Obligation.REASON_DEFAULT,
+            new Row("P-20", Tenure.WORKSPACE, Task.MANUAL, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),
                     with(WORLD_MOD_REASONS, WriteReason.MANUAL, WriteReason.LINE_OF_SIGHT),
                     "同 P-09", "同 P-09（今天两区解析相同）"),
-            new Row("P-21", Zone.WORKSPACE, Task.DIAGNOSTIC, Obligation.REASON_DEFAULT,
+            new Row("P-21", Tenure.WORKSPACE, Task.DIAGNOSTIC, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.MINING_APPROACH, MovementGrant.SCAFFOLD_REMOVAL,
                             MovementGrant.CLIMB_APPROACH),
                     Set.of(WriteReason.values()),
                     "同 P-10", "同 P-10（今天两区解析相同）"),
-            new Row("P-22", Zone.WORKSPACE, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
+            new Row("P-22", Tenure.WORKSPACE, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
                     "action/WriteGrant.java:26（UNKNOWN）", "同 P-11"),
             // ---- 维生自救（D-241，2026-09-16 用户批准的提案 B）----
             // 轴 = "这个任务改不改世界"（`MovementCapabilities.changesWorld()`）：只有信封里本就有写授权的任务，
             // 才允许在危急时用 `survivalEscape`（放置 + 破坏 + PILLAR，不含 DOWNWARD/FALL）。
-            new Row("P-23", Zone.EXTERNAL, Task.SURVIVAL, Obligation.TEMP,
+            new Row("P-23", Tenure.EXTERNAL, Task.SURVIVAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.SURVIVAL_ESCAPE),
                     ESCAPE_REASONS,
                     "action/PathRequest.java:53（survivalEscape）",
@@ -453,7 +453,7 @@ public final class WritePolicyMatrix {
                             + "预算上限 8 破坏/8 放置、每次危险事件最多升档 1 次；信封无写权 ⇒ 根本不发这张凭证；"
                             + "**回收时机由玩家定（D-245）：逃生任务自己不拆**（自动拆会把 bot 关回坑里 ⇒ 逃生循环）"
                             + "⇒ 拆走玩家入口 `/alice restore` / `alice:restore_check`（同一条 RestoreScopeTask 路径）"),
-            new Row("P-24", Zone.WORKSPACE, Task.SURVIVAL, Obligation.TEMP,
+            new Row("P-24", Tenure.WORKSPACE, Task.SURVIVAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.SURVIVAL_ESCAPE),
                     ESCAPE_REASONS,
                     "同 P-23", "同 P-23（今天两区解析相同：逃生留下的桥**照样要拆**，不因为在自己地上就免回收；"
@@ -580,44 +580,44 @@ public final class WritePolicyMatrix {
     // ==================== 区域（R1b 才接线来源）====================
 
     /**
-     * 区域归属的来源。**默认恒 {@link Zone#EXTERNAL}**。
+     * 区域归属的来源。**默认恒 {@link Tenure#EXTERNAL}**。
      *
      * <p>为什么不直接调 {@code LumberRegionState}：那是 `job.lumber` 的高层类，
      * 而本类在 `action`（低层）。低层不该反向依赖 job 层（今天仓库里没有这种依赖，别开这个头）；
-     * R1b 接线时由**上层**注入（`installZoneSource`）。
+     * R1b 接线时由**上层**注入（`installTenureSource`）。
      *
      * <p>今天不接线也**不丢任何行为**：EXTERNAL 与 WORKSPACE 对每个理由解析相同（见类注释）。
      */
-    public interface ZoneSource {
-        Zone zoneAt(ServerLevel level, BlockPos pos, java.util.UUID owner);
+    public interface TenureSource {
+        Tenure zoneAt(ServerLevel level, BlockPos pos, java.util.UUID owner);
     }
 
-    private static volatile ZoneSource zoneSource = (level, pos, owner) -> Zone.EXTERNAL;
+    private static volatile TenureSource tenureSource = (level, pos, owner) -> Tenure.EXTERNAL;
 
     /** 由上层安装区域来源（R1b：已划区域 ⇒ WORKSPACE）。 */
-    public static void installZoneSource(ZoneSource source) {
-        zoneSource = source == null ? (level, pos, owner) -> Zone.EXTERNAL : source;
+    public static void installTenureSource(TenureSource source) {
+        tenureSource = source == null ? (level, pos, owner) -> Tenure.EXTERNAL : source;
     }
 
     /** 该位置属于哪种归属（今天恒 EXTERNAL）。 */
-    public static Zone zoneAt(ServerLevel level, BlockPos pos, java.util.UUID owner) {
+    public static Tenure zoneAt(ServerLevel level, BlockPos pos, java.util.UUID owner) {
         if (level == null || pos == null) {
-            return Zone.EXTERNAL;
+            return Tenure.EXTERNAL;
         }
-        return zoneSource.zoneAt(level, pos, owner);
+        return tenureSource.zoneAt(level, pos, owner);
     }
 
     // ==================== 解析 ====================
 
     /** 精确查行；缺失时回退到同任务的 EXTERNAL 行，再回退到 UNREGISTERED 行（**函数总是全的**）。 */
-    public static Row row(Zone zone, Task task) {
+    public static Row row(Tenure zone, Task task) {
         for (Row candidate : ROWS) {
             if (candidate.zone() == zone && candidate.task() == task) {
                 return candidate;
             }
         }
         for (Row candidate : ROWS) {
-            if (candidate.zone() == Zone.EXTERNAL && candidate.task() == task) {
+            if (candidate.zone() == Tenure.EXTERNAL && candidate.task() == task) {
                 return candidate;
             }
         }
@@ -630,7 +630,7 @@ public final class WritePolicyMatrix {
     }
 
     /** 回收义务（**执行期与账本的唯一判据**）。 */
-    public static Obligation obligation(Zone zone, Task task, WriteReason reason) {
+    public static Obligation obligation(Tenure zone, Task task, WriteReason reason) {
         Row row = row(zone, task);
         return switch (row.obligation()) {
             case TEMP -> Obligation.TEMP;
@@ -640,12 +640,12 @@ public final class WritePolicyMatrix {
     }
 
     /** 该组合允许的移动授权；{@code null} = 未声明（不拦）。 */
-    public static Set<MovementGrant> grants(Zone zone, Task task) {
+    public static Set<MovementGrant> grants(Tenure zone, Task task) {
         return row(zone, task).movements();
     }
 
     /** 该组合允许的 Movement 类型全集；未声明 ⇒ {@code null}。 */
-    public static Set<MovementType> allowedMovementTypes(Zone zone, Task task) {
+    public static Set<MovementType> allowedMovementTypes(Tenure zone, Task task) {
         Set<MovementGrant> grants = grants(zone, task);
         if (grants == null) {
             return null;
@@ -692,7 +692,7 @@ public final class WritePolicyMatrix {
         if (task == Task.UNREGISTERED) {
             noteUnregistered(request.requester(), "pathing");
         }
-        Zone zone = zoneAt(level, request.startFoot(), null);
+        Tenure zone = zoneAt(level, request.startFoot(), null);
         Set<MovementType> allowed = allowedMovementTypes(zone, task);
         if (allowed == null) {
             return;   // 未声明 ⇒ 不拦
@@ -722,7 +722,7 @@ public final class WritePolicyMatrix {
         if (task == Task.UNREGISTERED) {
             noteUnregistered(grant == null ? null : grant.requester(), "place");
         }
-        Zone zone = zoneAt(level, pos, owner);
+        Tenure zone = zoneAt(level, pos, owner);
         WriteReason reason = grant == null ? null : grant.reason();
         Row row = row(zone, task);
         if (reason != null && !row.reasons().contains(reason)) {
@@ -944,8 +944,8 @@ public final class WritePolicyMatrix {
     public static List<String> audit() {
         List<String> problems = new ArrayList<>();
 
-        // 1) Zone × Task 全枚举
-        for (Zone zone : Zone.values()) {
+        // 1) Tenure × Task 全枚举
+        for (Tenure zone : Tenure.values()) {
             for (Task task : Task.values()) {
                 int count = 0;
                 for (Row candidate : ROWS) {
@@ -1010,7 +1010,7 @@ public final class WritePolicyMatrix {
         int diff = 0;
         for (Task task : Task.values()) {
             for (WriteReason reason : WriteReason.values()) {
-                if (obligation(Zone.EXTERNAL, task, reason) != obligation(Zone.WORKSPACE, task, reason)) {
+                if (obligation(Tenure.EXTERNAL, task, reason) != obligation(Tenure.WORKSPACE, task, reason)) {
                     diff++;
                 }
             }
@@ -1020,7 +1020,7 @@ public final class WritePolicyMatrix {
 
     /** 一行摘要（命令/日志用）。 */
     public static String describe() {
-        return "rows=" + ROWS.size() + " zones=" + Zone.values().length + " tasks=" + Task.values().length
+        return "rows=" + ROWS.size() + " zones=" + Tenure.values().length + " tasks=" + Task.values().length
                 + " reasons=" + WriteReason.values().length + " grants=" + MovementGrant.values().length
                 + " zoneDiff=" + zoneDiffCount()
                 + " unregistered=" + UNREGISTERED_SEEN.size()

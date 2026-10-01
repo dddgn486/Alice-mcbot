@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Set;
 import com.dddgn.alice.pathing.path.PathRetryRunner;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 
 /**
  * J7 Step 1：**脚手架生命周期闭环**（§12.3 / §11-① 要素①–④）。
@@ -112,7 +112,7 @@ public final class ScaffoldLifecycleTask implements Task {
     /** 1 = 正常生命周期；2 = 残留验证轮。 */
     private int round = 1;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
     /** 第一轮是否通过（第二轮断言要把两轮一起算）。 */
     private boolean phase1Pass;
     private String recoveryDecision = "-";
@@ -200,8 +200,8 @@ public final class ScaffoldLifecycleTask implements Task {
         // ⭐ `D-398`/`Z1`（2026-09-22）：**本夹具验的是"保护区内"的建拆同权** —— 区外按裁定
         // **不记账、不回收**（`recordPlacement` 直接跳过）⇒ 不摆这个前提，"拆干净"这条判据根本
         // 无从成立（实测：`scaffold` 曾 `pillar=4 torn=0 residue=4` 红过一次）。
-        // 前提 = 认领场景区块 + 声明 L2 任务区封套（`FixtureZone` 有完整理由）。
-        zone = FixtureZone.protect(level, bot.getUUID(),
+        // 前提 = 认领场景区块 + 声明 L2 任务区封套（`FixtureClaim` 有完整理由）。
+        zone = FixtureClaim.protect(level, bot.getUUID(),
                 BlockPos.containing(SCENE_BOX.minX, SCENE_BOX.minY, SCENE_BOX.minZ),
                 BlockPos.containing(SCENE_BOX.maxX, SCENE_BOX.maxY, SCENE_BOX.maxZ), "region_lumber");
         if (!zone.ok()) {

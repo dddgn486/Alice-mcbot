@@ -11,7 +11,7 @@
 | 维度 | 今天的决定者 | 位置 | 备注 |
 |---|---|---|---|
 | `TEMP/KEEP` | `WriteReason.temporary()` —— **只有 3 个值算 TEMP**：`STEP_PLACEMENT`/`SUPPORT_PLACEMENT`/`CRAFT_STATION_PLACE` | `action/WriteReason.java:138-141` | 被 `ledger/WorldModLedger.java:126` 读取（`grant.reason().temporary()`）；`REGION_REPLANT`/`BULK_EDIT`/`MANUAL` = KEEP |
-| 区域保护 | `SafeZoneData.protectionReason(level,pos)` → `protected_area`/`protected_block`/`protected_tag`，无命中返回 `null` | `protection/SafeZoneData.java:137` | **只有"禁止"语义，没有"工作区"概念**；快照实测 `areas=0 blocks=0 tags=0` |
+| 区域保护 | `AreaData.protectionReason(level,pos)` → `protected_area`/`protected_block`/`protected_tag`，无命中返回 `null` | `protection/AreaData.java:137` | **只有"禁止"语义，没有"工作区"概念**；快照实测 `areas=0 blocks=0 tags=0` |
 | 允许 Movement 集合 | `PathRequest` 命名工厂：`of`(:35) / `withWorldModification`(:43) / `miningApproach`(:59) / `scaffoldRemoval`(:80) / `climbApproach`(:98) / `pureTraversal()`(:119) | `pathing/core/search/PathRequest.java` | `miningApproach` **整类禁用** `PILLAR/FALL/DOWNWARD`（D-067㉘，见 :91 注释）⇒ R3 要改成按条件放行 |
 | 预算上限 | `WriteBudget.Caps`：`DEFAULT_MAX_BREAKS=64` / `PLACES=32` / `CONTAINER=32`；`setCaps` 仅夹具可用 | `action/WriteBudget.java:44-48`、`task/WriteBudgetCheckTask.java:101` | 无作用域 ⇒ 闸门未生效（D-106 附注，2026-09-14） |
 | 挖掘预算 | `MiningBudget.DEFAULT_MULTIPLIER=10.0` / `FALLBACK_ORDINARY_TICKS=6.0` | `task/mining/MiningBudget.java:25,27` | 与 `Caps` 不同维度（时间/代价，不是次数） |
@@ -28,7 +28,7 @@
 | 列 | 含义 |
 |---|---|
 | `id` | `P-xx` 稳定编号 |
-| `zone_class` | `PROTECTED`（默认，含 `SafeZoneData` 命中区）/ `WORKSPACE`（显式声明的工作区）/ `TRANSIT`（纯通行） |
+| `zone_class` | `PROTECTED`（默认，含 `AreaData` 命中区）/ `WORKSPACE`（显式声明的工作区）/ `TRANSIT`（纯通行） |
 | `task_class` | `TRAVERSAL` / `MINING` / `GATHERING` / `LUMBER` / `CRAFT` / `CONTAINER` / `BUILD` / `DIAGNOSTIC` |
 | `placement_policy` | `TEMP`（必须回收）/ `KEEP`（免回收）/ `DENY`（该类任务在此区域**不得放置**） |
 | `allowed_reasons` | 允许的 `WriteReason` 集合（**白名单**，其余规划期拒绝） |
@@ -77,7 +77,7 @@
 
 ### 5.2 接线时纠正的三处术语错误（用户质疑触发，2026-09-14）
 
-1. **`PROTECTED` 不能当默认区类的名字**：项目里"保护区"= `SafeZoneData` 命中 ⇒ **禁止破坏**
+1. **`PROTECTED` 不能当默认区类的名字**：项目里"保护区"= `AreaData` 命中 ⇒ **禁止破坏**
    （`protection/BlockBreakSafety.java:47`、`action/BlockInteraction.java:462`、`pathing/core/CapabilityGate.java:71`、
    `road/RoadObstaclePolicy.java:54（`exactForbidden`）`）；而默认区**允许**破坏（挖矿/清障/脚手架都在里面）。**同名反义**必致误读。
    ⇒ 默认区改名 **`EXTERNAL`**（不是 Alice 的地）。

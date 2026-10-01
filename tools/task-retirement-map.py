@@ -50,7 +50,7 @@ def is_verify_side(pkg: str, prod_task: frozenset[str] = frozenset()) -> bool:
     ⭐ 2026-09-30（夹具波实测踩到，本次修）：`task/` **不再整体**算验证侧 ——
     `task/` 里同时住着**生产/原语**类，而"只被 `task/` 引用 ⇒ `fixture/`"会把
     **生产执行路径上的类**判成"可剔除"。实测受害者 **4 个**：`GainStepRunner`（被 `MineTask`+`CollectStep`）·
-    `FixtureZone`（被 `ScaffoldLifecycleTask`）· `MachineRecipeFacts`（被 `RecipeQuery`）·
+    `FixtureClaim`（被 `ScaffoldLifecycleTask`）· `MachineRecipeFacts`（被 `RecipeQuery`）·
     `TableCraft`（被 `CraftStation`+`MachineCycle`）。
     ⇒ 引用者若是 `task/` 下的 `.java`，引用**按类**记成 `task:<Stem>` 标签，
     本函数再按那个类的**判定的 dest** 回判（`prod_task` = 已判为 `生产`/`step` 的类集合）⇒ **迭代到不动点**。
@@ -83,7 +83,7 @@ REG_POS = {"item", "command", "debug", "bot", "<root>"}
 def is_prod_ref(tag: str, prod_task: frozenset[str]) -> bool:
     """这条引用是否来自**生产执行路径**（⇒ 被引用的类**不可能**是"可剔除"的，`R6`）。
 
-    ⚠️ 2026-09-30（夹具波实测）：判据原来只看"是不是夹具命名"，于是 **`FixtureZone`**（名字带 `Fixture`）
+    ⚠️ 2026-09-30（夹具波实测）：判据原来只看"是不是夹具命名"，于是 **`FixtureClaim`**（名字带 `Fixture`）
     即使被**生产**类 `ScaffoldLifecycleTask` 引用也仍判 `fixture/` —— 而它在生产执行路径上。
     ⭐ `R6` 逐字：「要物理剔除，剔的是 `fixture/`」⇒ **被生产引用的东西不可能同时是"可剔除"的**。
     """

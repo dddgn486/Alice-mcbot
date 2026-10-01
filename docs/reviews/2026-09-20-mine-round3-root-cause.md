@@ -212,7 +212,7 @@ java.lang.IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardina
 
 **已核**：`tools/test-scenes/` 工作树干净（场景源未被本次会话改动）；`alice_test` 数据包**每轮都会被重装**
 （`headless-battery.sh:220-221` `rm -rf` + `cp -r`）；`trunk_too_tall` 是场景里**故意摆的对照大云杉**
-（`LumberCourseAnchor`：2×2 高云杉 77 原木，`TaskZoneCheckTask` 断言它必须被拒）⇒ 缺的是**几棵正常橡树**。
+（`LumberCourseAnchor`：2×2 高云杉 77 原木，`JobAreaCheckTask` 断言它必须被拒）⇒ 缺的是**几棵正常橡树**。
 
 **推断（未证，需用户确认）**：`run/world-pristine` 是从**用户的客户端存档**拷来的
 （`headless-battery.sh:38`）；若用户在自己的世界里动过伐木考场那片地（挖/建/放方块），场景函数重建地形后

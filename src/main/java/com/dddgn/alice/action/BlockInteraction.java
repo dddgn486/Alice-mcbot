@@ -329,7 +329,7 @@ public final class BlockInteraction {
         //（`D-338` 核对表里的缺口）⇒ 在这里补上。判据与破坏侧**同一个函数**（`ZoneAuthority`）。
         // ⚠️ 没有任务区时拒绝码逐字仍是 `protected_area`；野外/未认领 ⇒ 不拦、不留痕。
         String zoneRefusal = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), placeAt,
-                com.dddgn.alice.protection.SafeZoneData.get(level.getServer()).protectionReason(level, placeAt),
+                com.dddgn.alice.protection.AreaData.get(level.getServer()).protectionReason(level, placeAt),
                 grant == null ? null : grant.reason(), com.dddgn.alice.protection.ZoneAuthority.Act.PLACE);
         if (zoneRefusal != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
@@ -394,7 +394,7 @@ public final class BlockInteraction {
             com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, placeAt,
                     previousState, level.getBlockState(placeAt));
             // ⭐ 区内放置计数（`L1` 的"≤8 次"配额，`D-338` 附注七②）：只统计落在**自己任务区**里的放置
-            com.dddgn.alice.protection.TaskZoneRegistry.recordZonePlacement(level, bot.getUUID(), placeAt);
+            com.dddgn.alice.protection.JobAreaRegistry.recordZonePlacement(level, bot.getUUID(), placeAt);
             return PlaceResult.PLACED;
         }
         return PlaceResult.NO_OPTION;
@@ -668,7 +668,7 @@ public final class BlockInteraction {
             return false;
         }
         String protectedReason = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), pos,
-                com.dddgn.alice.protection.SafeZoneData.get(level.getServer()).protectionReason(level, pos),
+                com.dddgn.alice.protection.AreaData.get(level.getServer()).protectionReason(level, pos),
                 grant == null ? null : grant.reason(), com.dddgn.alice.protection.ZoneAuthority.Act.PLACE);
         if (protectedReason != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
@@ -688,7 +688,7 @@ public final class BlockInteraction {
         level.setBlock(pos, state, 3);
         com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, pos,
                 previousState, state);
-        com.dddgn.alice.protection.TaskZoneRegistry.recordZonePlacement(level, bot.getUUID(), pos);
+        com.dddgn.alice.protection.JobAreaRegistry.recordZonePlacement(level, bot.getUUID(), pos);
         return true;
     }
 

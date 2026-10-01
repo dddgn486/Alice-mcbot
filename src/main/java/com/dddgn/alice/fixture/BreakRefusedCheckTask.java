@@ -26,7 +26,7 @@ import java.util.UUID;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureZone;
+import com.dddgn.alice.task.FixtureClaim;
 
 /**
  * **被拒绝的破坏不许被记成成功**自检（`D-323`）—— 电池步 `break_refused`。
@@ -92,7 +92,7 @@ public final class BreakRefusedCheckTask implements Task {
 
     private BlockBreakSession session;
     /** ⭐ `RC4`：预算对照臂的现场（保护区封套 + 授权 + 两个读数）。 */
-    private FixtureZone.Handle zone;
+    private FixtureClaim.Handle zone;
     private WriteGrant budgetGrant;
     private int budgetBefore = -1;
     private int budgetRefundedBefore = -1;
@@ -368,7 +368,7 @@ public final class BreakRefusedCheckTask implements Task {
             clearTarget();
             placeTarget();
             budgetGrant = WriteGrant.of("check:break-refused", WriteReason.EXPECTED_TARGET);
-            zone = FixtureZone.protect(lvl, bot.getUUID(),
+            zone = FixtureClaim.protect(lvl, bot.getUUID(),
                     target.offset(-2, -2, -2), target.offset(2, 2, 2), "region_lumber");
             check("⑥ 前提：夹具摆出保护区 + 任务区封套（" + zone.describe() + "）", zone.ok());
             String refusal = BlockInteraction.breakRefusal(bot, lvl, target, budgetGrant);

@@ -20,7 +20,7 @@
 >   **正向产出**：41/41 solo 判决一致 ⇒ `single:<步名>` 通道拿到**可信基线**（`run/a2-solo-matrix.tsv`）。
 > · `A1′` **六处终态闩锁早已修**（`51a66d3`；台账"待做"是**过期状态**）⇒ 本轮只补门禁
 >   `rule_terminal_latch_replays_status`（站点人口 ≥7，注入即红）。
-> · `A4` 假绿根因**不是几何**：夹具把「先 `openScope` 后 `FixtureZone.protect`」写反 ⇒ `ZoneAuthority: protected_area`
+> · `A4` 假绿根因**不是几何**：夹具把「先 `openScope` 后 `FixtureClaim.protect`」写反 ⇒ `ZoneAuthority: protected_area`
 >   ⇒ `restored=0`、真破坏 0 次；修好后 4 条判据全真 + 双向注入即红（`docs/reviews/2026-09-23-A4-脚下守卫夹具根因.md`）。
 > · `B2` 底线门禁 `tools/risk-surface.py`（`D-418`，已挂 `check-all`）：可选/底线双向 + 人口 + 「Alice 今天**没有**配置面」钉成事实，四臂注入全红。
 > · ⭐ `B3` **能力清单从代码生成**（`D-419`）：`docs/CAPABILITY_LIST.md`（生成物，禁手改）＝ 8 个**已有**单一出处的人读视图，
@@ -106,7 +106,7 @@
 > **本次落地的两件事**
 > | # | 内容 | 判据 |
 > |---|---|---|
-> | ⭐ `Z1`（`D-407`） | 账本/回收**收窄到"保护区及其子区域"**：`protection/ProtectionZones`（唯一判据）+ `recordPlacement` 区外不记（`[Ledger] skip` + 遥测）+ `dropStale` 销区外条目 + `pendingTemporaryProtected`（取件与 `remaining` 同口径） | 新步 **`ledger_zone_scope`** 四臂 **绿 `checks=24 failures=0`**（`single:` + `module:ledger`）；夹具前提统一走新类 `task/FixtureZone` |
+> | ⭐ `Z1`（`D-407`） | 账本/回收**收窄到"保护区及其子区域"**：`protection/LedgerScope`（唯一判据）+ `recordPlacement` 区外不记（`[Ledger] skip` + 遥测）+ `dropStale` 销区外条目 + `pendingTemporaryProtected`（取件与 `remaining` 同口径） | 新步 **`ledger_zone_scope`** 四臂 **绿 `checks=24 failures=0`**（`single:` + `module:ledger`）；夹具前提统一走新类 `task/FixtureClaim` |
 > | ⭐ CORE 瘦身（`D-408`） | 用户「次要的剔除」⇒ **降级 12 步到 EXTRA**（一步没删）：CORE **53 → 41**；并修**两个真缺陷**：① `CleanupWrappedTask` 把内层 `FAILED` 报成 `DONE`（`fall_execute`/`pillar_execute` 结构上不可能红）② **电池把场景跑在冷区块上**（`scenes → provision`，编排器早已 `provision → scenes`） | `D-201` 附注一纪律：**两轮 CORE 逐步 diff** ⇒ 除被撤 12 步外**判决逐条不变、存活步 0 位移**；注入证明：包装器修后 `single:fall_execute` 注入 `false` ⇒ **FAIL**；场景改序后 `single:craft_table` 由红转绿 |
 >
 > **用户最新裁定（必须逐字遵守）**
@@ -1492,9 +1492,9 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   "真机轮=新发现来源，必须单列"）· **状态词表统一到验证等级** · **先看 `J-4` 明确不做** ·
   **`J-1` 退出条件**（⏳ 待你拍：我提议"连跑 15 分钟不失败 + 三个计数自洽"）。
 - **文书收口五件（0.3 轮，纯文档 + 一行注释）**：
-  - `0.1` ✅ `TaskZoneRegistry:24` 措辞修掉 —— 原文「保护区**父类**之外的另一种区块级授权封套」与 `D-338` ①
+  - `0.1` ✅ `JobAreaRegistry:24` 措辞修掉 —— 原文「保护区**父类**之外的另一种区块级授权封套」与 `D-338` ①
     **直接冲突**，且**已实际误导过一轮勘测**（`survey/37 §1.3` 连错两次）⇒ 改成「它是保护区的**子类**；
-    本类之所以独立是因为**载体**不同（任务自己声明 vs `SafeZoneData`）」（`survey/38 §1`）。
+    本类之所以独立是因为**载体**不同（任务自己声明 vs `AreaData`）」（`survey/38 §1`）。
   - `0.2` ✅ **`D-448`** 锚点任务 = 区域任务的**简易档（部署方式）**，**不是第二套实现**（用户 `L4`/`L5`/`L7`/`L8` 逐字）+
     附注一（`survey/26 §2.3`「车万女仆固定锚点 ❌ 没有」**被实测推翻**，差异来源=查了两棵不同的树）+
     附注二（新发现：车万女仆三根正交轴「在哪 × 干什么 × **什么时候**」，第三轴 Alice 0 命中，**不进第一层**）。
@@ -1749,7 +1749,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
     ⇒ 随后 `TARGET_NOT_BREAKABLE`（`ZoneAuthority`：保护区内的写入需要**生效的任务区**覆盖该格）。
   - ⭐⭐ **O2 的真正机制由此推翻原先说法**：`RESTORE` 在无头电池里不可达**不是**"没有临时放置"，
     而是**无头世界没有区域上下文**（不认领不记账 / 认领就拒写）。要跑通需**四件一起对**
-    （场景 + 认领 + `TaskZoneRegistry.declare` 任务区 + 三者对称清理；尝试② 已实测到认领**泄漏**给下一条用例）。
+    （场景 + 认领 + `JobAreaRegistry.declare` 任务区 + 三者对称清理；尝试② 已实测到认领**泄漏**给下一条用例）。
 - ⚠️ 新增 **O4**：`supportRestored` 是**弱判据** —— 尝试② 里它报 `true` 而**支撑块根本没放**
   （它是"`target.below()` 是空气"的检查，空操作也能满足）。
 - 本刀**没有**加一条"永远 SKIP"的用例来充数（那会把"没验证"伪装成"验证过"）。
@@ -1791,7 +1791,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - **基线**（开工前对一次）：`MineTask.java` sha256 `414c78c4eebd5599f420c2e52b435d79ce4c9346759a615841dff5430e093f51`（997 行）。
   `HEAD` = `1484797`；worktree 干净；`master` 与 `github/master` 同步。
 - ⏭ **接着做的第一件事 = `D-466` §八 的第 ① 步**：补完 EXECUTE 侧**密封夹具**
-  （场景 ＋ `SafeZoneData.claim` ＋ `TaskZoneRegistry.declare` 任务区 ＋ **三者对称清理，必须在 `finally` 里**），
+  （场景 ＋ `AreaData.claim` ＋ `JobAreaRegistry.declare` 任务区 ＋ **三者对称清理，必须在 `finally` 里**），
   同刀修 **O1**（`supportOk`/`restoredOk` 恒真）＋ **O4**（`supportRestored` 弱判据：要断言"确实放过 + 确实拆回"）。
   ⚠️ 这不是可选项：`D-466` §八 已把它定为**开工前置**（安全网不能破在 `D-175` 那个历史崩溃点上）。
 - ⚠️ **本轮顺手抓到的两条过期/错误读数**（写下来防再犯）：① 台账 `2b` 行的 `MiningBudget.forTarget`「14 处」→ 实测 **29 处**；
@@ -1807,8 +1807,8 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 - **只动夹具**（`task/MineRegressionTask.java`）：生产代码零改动，`MineTask` 一行没碰。
 - ⭐ **关键发现（本刀省了整轮工作）**：`D-465` 说的"四件一起对"（认领 + `declare` 任务区 + 对称清理）
-  **早就有现成助手** —— `src/main/java/com/dddgn/alice/task/FixtureZone.java`（174 行，**7 个夹具在用**）。
-  ⇒ `D-465` 尝试② 失败的原因是**四件里只手做了一件**（裸 `SafeZoneData.claim`：没任务区 ⇒ `protected_area` 拒写；
+  **早就有现成助手** —— `src/main/java/com/dddgn/alice/task/FixtureClaim.java`（174 行，**7 个夹具在用**）。
+  ⇒ `D-465` 尝试② 失败的原因是**四件里只手做了一件**（裸 `AreaData.claim`：没任务区 ⇒ `protected_area` 拒写；
   没清理 ⇒ 认领**泄漏**给下一条用例）。
 - 落成 = 新用例 **`exec_support`**（**第一条 `expectSupport=true` 的 EXECUTE 用例**）＋ 前提摆在 `scope.begin`
   **之后**（`declare` 的硬约束）＋ 还原在 **`finishCase()`**（所有终态的唯一出口 ⇒ 失败路径同样走）。
@@ -5358,12 +5358,12 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 
 **本轮做完的**（⛔ **零 `src/` 改动**）：
 - ⭐ **`A0` 世界修改授权判据地图**（报告 = `docs/reviews/2026-10-01-世界修改授权与单槽位-底账.md` **§1**）：
-  授权面其实只有 **3 件**（`ProtectionZones` 判据入口 · `ZoneAuthority` 授权面 · `TaskZoneRegistry` 载体）；
+  授权面其实只有 **3 件**（`LedgerScope` 判据入口 · `ZoneAuthority` 授权面 · `JobAreaRegistry` 载体）；
   `BlockBreakSafety` 就是"挖掘黑名单"那一侧（⛔ 与权限正交，`ZoneAuthority` javadoc 逐字确认）；
   生产侧授权问点 **6 处**；`ZoneAuthority` 三态 ＋ **10 个拒绝码**；`WritePolicyMatrix` 的 `Zone` **只有 2 值**；
   ⭐ **那本"只读账本"已识别 = `bot/TaskMetrics`（运行账）**，唯一给 LLM 的读者 = `decision/BotStateReport:186`。
 - ⭐⭐ **两种额度来源的实测（用户最关心的那条）**：
-  **① 默认任务区域额度** —— 代码 ✅ 在 · 夹具 ✅ 在（`fixture/TaskZoneCheckTask`，含 `L1` 区内 8 次配额），
+  **① 默认任务区域额度** —— 代码 ✅ 在 · 夹具 ✅ 在（`fixture/JobAreaCheckTask`，含 `L1` 区内 8 次配额），
   ⛔ **但电池步 `task_zone` = `Profile.EXTRA` ⇒ 不进 CORE**，本轮 core 日志里出现 **0 次**；
   **② 紧急逃生临时权限+额度** —— 代码 ✅ 在（`capForEscape(scope,8,8)` ＋ `PathRequest.survivalEscape`），
   ⭐ **本轮 core 真的执行了**（"逃生准备金已装上：上限 破坏=8 放置=8" 出现 **2 次**），
@@ -5402,7 +5402,7 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 
 | 下一步 | 入口 |
 |---|---|
-| ⭐ **甲串轮 1 = `A2`**：两个场景的判据形状 —— (a) 非区域任务碰到区内 · (b) 区域任务碰到区内的**非目标**部分；**是同一个判据的两面还是两条独立判据**？「非目标」怎么**机械判定**（今天 `TaskZoneRegistry` 的封套是**整片任务区**，不区分目标/非目标）？ | `O116` ⑤ · `D-564` §二 · 底账 §1 |
+| ⭐ **甲串轮 1 = `A2`**：两个场景的判据形状 —— (a) 非区域任务碰到区内 · (b) 区域任务碰到区内的**非目标**部分；**是同一个判据的两面还是两条独立判据**？「非目标」怎么**机械判定**（今天 `JobAreaRegistry` 的封套是**整片任务区**，不区分目标/非目标）？ | `O116` ⑤ · `D-564` §二 · 底账 §1 |
 | ⚠️ **开工时问一次**：`A2` 单独一轮，还是一次带 `A3`（两种额度来源） | `O116` ⑤ |
 | 甲串余下：`A3` 两种额度来源（**实测已给**：① 有夹具无回归 · ② 有回归恒红于场景）· `A4` 两本账 · `A5` 黑名单解耦 · `A6` `write/` 族处置 | 底账 **§1.9** · §1.7 |
 | 乙串轮 6：`TopUnit` 单槽合同（从**原意**重问：记录"当前动作" 与 "锁住不被中断/替换" **要不要同一个载体**） | `O120` · 底账 §2 |
@@ -5540,10 +5540,10 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 | 文件 | 改动 |
 |---|---|
 | `protection/ZoneAuthority.java` | 删 `authorize` 的安全区分支（`protected_safe_zone`）；`permanentDenial` 码表同步收窄 |
-| `protection/TaskZoneRegistry.java` | 删 `Declare.CONFLICT_SUBZONE` · `Result` 去第三栏 `conflicts` · 删 `safeZoneConflicts` · `declare` 删冲突分支 |
+| `protection/JobAreaRegistry.java` | 删 `Declare.CONFLICT_SUBZONE` · `Result` 去第三栏 `conflicts` · 删 `safeZoneConflicts` · `declare` 删冲突分支 |
 | `job/lumber/RegionLumberJob.java` | 删 `case CONFLICT_SUBZONE`（`task_zone_conflict` 失败路径**整条删除**） |
 | `debug/DebugCommands.java` | 任务区预检不再报"会不会与安全区冲突" |
-| `fixture/TaskZoneCheckTask.java` | ⭐ 两条"断言已删除行为"的相位 ⇒ 改断言**新规则**（`SAFE_OVERLAY` / `JOB_SAFE`；`AUTH_SAFE` 的码改 `protected_area`） |
+| `fixture/JobAreaCheckTask.java` | ⭐ 两条"断言已删除行为"的相位 ⇒ 改断言**新规则**（`SAFE_OVERLAY` / `JOB_SAFE`；`AUTH_SAFE` 的码改 `protected_area`） |
 | `tools/kernel-predicates.py` | `D-341·无权≠没有` 人口表收窄（删 `"protected_safe_zone"`）＋ 记原因 |
 
 **证据**：`single:task_zone` ⇒ **`checks=89 failures=0 verdict=PASS`**（`ticks=33`）·

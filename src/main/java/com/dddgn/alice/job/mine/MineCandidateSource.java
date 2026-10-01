@@ -7,7 +7,7 @@ import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
 import com.dddgn.alice.job.JobDeclaration;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -332,7 +332,7 @@ public final class MineCandidateSource implements CandidateSource {
          */
         public Progress advance(ServerPlayer bot) {
             ServerLevel level = (ServerLevel) bot.level();
-            var safeZones = SafeZoneData.get(level.getServer());
+            var safeZones = AreaData.get(level.getServer());
             int budget = (int) Math.min(perCallBudget, Math.max(0, totalBudget - visited));
             int did = 0;
             while (did < budget && !done) {
@@ -387,7 +387,7 @@ public final class MineCandidateSource implements CandidateSource {
             }
         }
 
-        private void visit(ServerLevel level, ServerPlayer bot, SafeZoneData safeZones, BlockPos pos) {
+        private void visit(ServerLevel level, ServerPlayer bot, AreaData safeZones, BlockPos pos) {
             visited++;
             // ⭐ D-329 ① / D-331 同类：**未加载的格一律不读**（`getBlockState` 会同步加载区块）。
             // 只记"未扫"，绝不冒充"没矿"；调用方据此把该区域视为**尚未感知**（等靠近/记忆累积）。
@@ -442,7 +442,7 @@ public final class MineCandidateSource implements CandidateSource {
          * <p>⚠️ 这是 `D-348` 同一条纪律的另一面：**别把代理判据当世界事实**。
          */
         private static String viabilityRefusal(ServerLevel level, ServerPlayer bot,
-                                               SafeZoneData safeZones, BlockPos pos) {
+                                               AreaData safeZones, BlockPos pos) {
             // ⭐ 保护区这一层走**区域级授权面**（`D-338` 附注七③：与破坏/放置闸门**同一个函数**）。
             // 挖矿是 `L0`（`D-338` ④"挖矿 = 野外采集，不发生在保护区内"）⇒ 认领区块里的矿
             // **照旧被拒**（没有任务区时拒绝码逐字仍是 `protected_area`）。
@@ -477,7 +477,7 @@ public final class MineCandidateSource implements CandidateSource {
          */
         public CandidateSet revalidate(ServerPlayer bot, int targetIndex) {
             ServerLevel level = (ServerLevel) bot.level();
-            var safeZones = SafeZoneData.get(level.getServer());
+            var safeZones = AreaData.get(level.getServer());
             List<Candidate> stillViable = new ArrayList<>();
             List<String> rejectedNow = new ArrayList<>(rejected.get(targetIndex));
             for (Candidate candidate : viable.get(targetIndex)) {

@@ -8,7 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * **第三方保护层**（`D-326`）—— 与 {@link SafeZoneData}（**我们自己的**保护区）并列的那一层：
+ * **第三方保护层**（`D-326`）—— 与 {@link AreaData}（**我们自己的**保护区）并列的那一层：
  * 这里问的是**别的模组的裁决**。
  *
  * <p><b>为什么需要它</b>：三条**批量写**路径（道路施工的 `placeBulkEdit`/`breakForBulkEdit`、伐木补种的

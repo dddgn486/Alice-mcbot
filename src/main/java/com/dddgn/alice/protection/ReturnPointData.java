@@ -28,7 +28,7 @@ import java.util.UUID;
  * <p><b>半径</b>（默认 {@link #DEFAULT_RADIUS}）：到达判据 = **XZ 距离 ≤ 半径**，末段在半径内找**可站格**
  * —— 精确那一格可能被占/不可站（"站得进去"是执行层的事，判据层只要求"到附近"）。
  *
- * <p>⚠️ 本类**只存坐标**：不读方块、不加载区块、不授权（与 {@link SafeZoneData} 同一条纪律）。
+ * <p>⚠️ 本类**只存坐标**：不读方块、不加载区块、不授权（与 {@link AreaData} 同一条纪律）。
  */
 public final class ReturnPointData extends SavedData {
 

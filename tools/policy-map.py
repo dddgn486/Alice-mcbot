@@ -6,7 +6,7 @@
 
 ``--check`` 断言（任一不成立即非零退出 + 打印 ``POLICY_MATRIX_CHECK_RESULT FAIL``）：
 
-1. 表对 ``Zone × Task`` **全枚举**（一行不缺、一行不多）；
+1. 表对 ``Tenure × Task`` **全枚举**（一行不缺、一行不多）；
 2. 每个 ``WriteReason`` 至少被一行登记（无孤儿理由）；
 3. 每个 ``MovementGrant`` 至少被一行引用；
 4. 每个 ``PathRequest`` 工厂都被某个 ``MovementGrant`` 认领（词表 = 工厂名，不许有孤儿工厂）；
@@ -254,7 +254,7 @@ def parse_matrix() -> dict:
             "note": java_strings(fields[7])[0],
         })
 
-    zone_names = parse_enum(text, "Zone")
+    zone_names = parse_enum(text, "Tenure")
     task_names = parse_enum(text, "Task")
 
     prefix_rules = re.findall(r'new String\[\]\{"([^"]+)",\s*"(\w+)"\}', text)
@@ -443,7 +443,7 @@ def main() -> int:
     # ① 全枚举
     expected = len(matrix["zones"]) * len(matrix["tasks"])
     if len(matrix["rows"]) != expected:
-        problems.append(f"行数 {len(matrix['rows'])} ≠ Zone×Task {expected}")
+        problems.append(f"行数 {len(matrix['rows'])} ≠ Tenure×Task {expected}")
     for zone in matrix["zones"]:
         for task in matrix["tasks"]:
             hits = [r for r in matrix["rows"] if r["zone"] == zone and r["task"] == task]

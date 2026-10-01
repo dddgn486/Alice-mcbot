@@ -9,7 +9,7 @@ import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.protection.TaskZoneRegistry;
+import com.dddgn.alice.protection.JobAreaRegistry;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -436,7 +436,7 @@ com.dddgn.alice.pathing.MovementHelper
         taskZoneScope = WorldModLedger.currentScope(server, bot.getUUID());
         // 维度取**bot 所在维度**：`LumberRegionState.Region` 只有水平范围（玩家只划水平），
         // 而工作区域必须落在某个维度里 ⇒ 以作业时的维度为准（跨维度作业本来也不成立）。
-        var area = new TaskZoneRegistry.WorkArea(bot.serverLevel().dimension().location(),
+        var area = new JobAreaRegistry.WorkingArea(bot.serverLevel().dimension().location(),
                 region.minX(), region.minZ(), region.maxX(), region.maxZ());
         // ⭐ `D-338` 附注十四：**玩家显式**的判据 = 命令（`IN_GAME_PLAYER`）或物品/夹具（`FIXTURE`）发起；
         // LLM（`LLM`）与未归因（`SYSTEM`）**不算** ⇒ 在保护区内的生效等级封顶 `L1`（拆不了玩家的方块）。
@@ -444,7 +444,7 @@ com.dddgn.alice.pathing.MovementHelper
         String driver = com.dddgn.alice.decision.Driver.of(bot);
         boolean playerDriven = com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(driver)
                 || com.dddgn.alice.decision.Driver.FIXTURE.equals(driver);
-        TaskZoneRegistry.Result result = TaskZoneRegistry.declare(
+        JobAreaRegistry.Result result = JobAreaRegistry.declare(
                 server, bot.getUUID(), NAME, area, playerDriven);
         // 解算结果**逐字留痕一次**（含 `ALREADY`/`REPLACED`/`NO_SCOPE` 这些"没发生事"的分支）——
         // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
@@ -1286,8 +1286,8 @@ com.dddgn.alice.pathing.MovementHelper
         // **取消任务 ⇒ 自动解除任务区**（D-338 附注二第 2 条）：任务区内所有区块的授权都由任务持有，
         // 任务一结束就没有持有者了 ⇒ 就地解除，玩家不需要再点一次。
         // （`/alice region stop` 那种**不经 finish** 的显式打断走的是作用域收尾钩子
-        //  `TaskZoneRegistry.release(closedScope)`；两条路都堵住。）
-        TaskZoneRegistry.release(taskZoneScope);
+        //  `JobAreaRegistry.release(closedScope)`；两条路都堵住。）
+        JobAreaRegistry.release(taskZoneScope);
         BotLog.info("[Job] maintain SUMMARY region={} chopped={} failed={} patrols={} mySaplings={}"
                         + " planted={} baseline={} saplingItem={} zone={} reason={} → {}",
                 region.describe(), treesChopped, treesFailed,

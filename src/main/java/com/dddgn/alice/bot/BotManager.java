@@ -2296,7 +2296,7 @@ com.dddgn.alice.task.mining.MiningBudget
                     taskKind + " " + terminalStatus + " " + resultCode,
                     lastExecutionRecord == null ? "" : "reason=" + lastExecutionRecord.terminalReason());
             // ⭐ `D-327` 机制 B（2026-09-19）：**任务失败后"回安全区"的兜底**。
-            // 只在"确实存在安全区（`SafeZoneData` 认领区块）**且** bot 在区外"时生效 ——
+            // 只在"确实存在安全区（`AreaData` 认领区块）**且** bot 在区外"时生效 ——
             // 没有认领区 ⇒ 与今天**一字不变**（回归零影响：CORE 没有任何步会认领区块，且电池是
             // **直驱夹具**、不走本方法）。返程本身失败 ⇒ 返程任务**如实报码**，bot 就**站定不动**
             // （= 今天已有的行为，作为**临时**兜底）。
@@ -2329,7 +2329,7 @@ com.dddgn.alice.task.mining.MiningBudget
             if (!com.dddgn.alice.task.SafeReturnTask.shouldStart(level, bot.getUUID(), foot)) {
                 return false;   // 已经在安全区里 / 世界没声明过安全区 ⇒ 不改变今天的行为
             }
-            BlockPos entry = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
+            BlockPos entry = com.dddgn.alice.protection.AreaData.get(level.getServer())
                     .nearestReturnCell(level, foot);
             BotLog.warn("[SafeReturn] 任务失败且不在返程到达集 ⇒ 启动返程兜底（D-327 机制 B / D-338 ③）bot={} from={}"
                             + " entry={} distance={} failed={}",
@@ -2431,7 +2431,7 @@ com.dddgn.alice.task.mining.MiningBudget
                 // **任务区随作用域解除**（`D-338` 附注二第 2 条"取消任务自动解除"）：显式打断
                 // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
                 // 否则会留下一个"没有任务对应的授权封套"。
-                com.dddgn.alice.protection.TaskZoneRegistry.release(closedScope);
+                com.dddgn.alice.protection.JobAreaRegistry.release(closedScope);
                 // ⭐ `Z2`：闭合读数**要在 `dropStale` 之前**读（区外遗留一旦被销掉就看不见了）
                 var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
                         bot.serverLevel(), closedScope, ledgerPopulationBaseline);

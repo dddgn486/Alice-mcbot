@@ -12,7 +12,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.dddgn.alice.protection.ReturnPointData;
-import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -161,7 +161,7 @@ public final class BotCommand {
      * <p>保留这条命令是为了兼容既有用法与"精确复现"；**面向用户的主入口是地图式勾选界面**（D-307 ①-入口）。
      */
     private static int addArea(CommandSourceStack source, BlockPos center, int radius) {
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         int added = data.claimCircle(source.getLevel(), center, radius);
         source.sendSuccess(() -> Component.literal("[alice] 已认领 " + added + " 个区块（" + center.toShortString()
                 + " 半径 " + radius + " 所及区块；忽略 Y ⇒ 全高度）；当前共 " + data.claimedChunkCount() + " 个区块"), false);
@@ -171,7 +171,7 @@ public final class BotCommand {
 
     /** 取消**包含该坐标的那个区块**的认领（区块级认领下"移除"必定是整块移除）。 */
     private static int removeArea(CommandSourceStack source, BlockPos center) {
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         int chunkX = center.getX() >> 4;
         int chunkZ = center.getZ() >> 4;
         if (!data.unclaimAt(source.getLevel(), center)) {
@@ -186,7 +186,7 @@ public final class BotCommand {
 
     /** 精确认领一个区块（管理员诊断 / 精确复现用；用户主入口是勾选界面）。 */
     private static int claimChunk(CommandSourceStack source, int chunkX, int chunkZ) {
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         boolean changed = data.claim(source.getLevel(), chunkX, chunkZ);
         source.sendSuccess(() -> Component.literal("[alice] " + (changed ? "已认领" : "本就已认领")
                 + " 区块 " + chunkX + ", " + chunkZ + "（忽略 Y ⇒ 全高度；当前共 "
@@ -197,7 +197,7 @@ public final class BotCommand {
 
     /** 精确取消一个区块的认领。 */
     private static int unclaimChunk(CommandSourceStack source, int chunkX, int chunkZ) {
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         if (!data.unclaim(source.getLevel(), chunkX, chunkZ)) {
             source.sendFailure(Component.literal("[alice] 区块未被认领: " + chunkX + ", " + chunkZ));
             return 0;
@@ -224,19 +224,19 @@ public final class BotCommand {
                     + "（作用对象 = 他当前所在区块 ⇒ 站在资产里敲）"));
             return 0;
         }
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         ServerLevel level = actor.serverLevel();
         int chunkX = actor.chunkPosition().x;
         int chunkZ = actor.chunkPosition().z;
         if (declare) {
-            SafeZoneData.SafeDeclare result = data.declareSafe(level, chunkX, chunkZ);
-            if (result == SafeZoneData.SafeDeclare.NOT_PROTECTED) {
+            AreaData.SafeDeclare result = data.declareSafe(level, chunkX, chunkZ);
+            if (result == AreaData.SafeDeclare.NOT_PROTECTED) {
                 source.sendFailure(Component.literal("[alice] 该区块（" + chunkX + ", " + chunkZ
                         + "）**还不是保护区** ⇒ 安全区必须是保护区的子集：先认领保护区，再声明安全区"));
                 return 0;
             }
             source.sendSuccess(() -> Component.literal("[alice] 安全区：" + chunkX + ", " + chunkZ + " ⇒ "
-                    + (result == SafeZoneData.SafeDeclare.DECLARED ? "已声明" : "本就是安全区")
+                    + (result == AreaData.SafeDeclare.DECLARED ? "已声明" : "本就是安全区")
                     + "（安全区 = 保护区的子类；当前安全区 " + data.safeChunkCount() + " 个区块 / 保护区 "
                     + data.claimedChunkCount() + " 个）"), false);
             return 1;
@@ -316,7 +316,7 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] 不存在的方块 ID: " + rawId));
             return 0;
         }
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         boolean changed = tagRule ? (add ? data.addTag(id) : data.removeTag(id))
                 : (add ? data.addBlock(id) : data.removeBlock(id));
         if (!changed) {
@@ -329,7 +329,7 @@ public final class BotCommand {
 
 
     private static int listProtection(CommandSourceStack source) {
-        SafeZoneData data = SafeZoneData.get(source.getServer());
+        AreaData data = AreaData.get(source.getServer());
         // `D-338` ③：**当前位置**的两态（保护区/安全区）——这是玩家验证"我声明的到底生效没有"的入口，
         // 也让 `isClaimed`/`isSafe` 这对判据在服务端有真实读者（不是只有夹具在读）。
         if (source.getEntity() instanceof ServerPlayer actor) {
@@ -337,8 +337,8 @@ public final class BotCommand {
             BlockPos at = actor.blockPosition();
             // `D-338` 附注四②：**任务区**（工作区域派生的区块级授权封套）——只读展示，
             // 玩家由此能看出"这个区块现在被某个任务覆盖着"（任务存续期内他手改不了它）。
-            com.dddgn.alice.protection.TaskZoneRegistry.Zone zone =
-                    com.dddgn.alice.protection.TaskZoneRegistry.zoneAt(level, at);
+            com.dddgn.alice.protection.JobAreaRegistry.JobArea zone =
+                    com.dddgn.alice.protection.JobAreaRegistry.zoneAt(level, at);
             source.sendSuccess(() -> Component.literal("[alice] 当前位置 " + at.toShortString()
                     + "（区块 " + (at.getX() >> 4) + ", " + (at.getZ() >> 4) + "）：保护区="
                     + data.isClaimed(level, at) + " 安全区=" + data.isSafe(level, at)
@@ -351,7 +351,7 @@ public final class BotCommand {
                 + " 安全区=" + data.internalSafeClaims(source.getLevel().dimension().location()).size()
                 + "（空 = 区域太小 ⇒ 退化为「进区即到」）"), false);
         source.sendSuccess(() -> Component.literal("[alice] 任务区（由任务的工作区域派生，随任务生灭）: "
-                + com.dddgn.alice.protection.TaskZoneRegistry.summary(source.getServer())), false);
+                + com.dddgn.alice.protection.JobAreaRegistry.summary(source.getServer())), false);
         return 1;
     }
 

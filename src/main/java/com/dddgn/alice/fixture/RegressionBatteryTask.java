@@ -346,7 +346,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("driver_label", Profile.MAIN),
             Map.entry("container_access_profile", Profile.MAIN),
             Map.entry("hazard_aversion_plan", Profile.MAIN),
-            // **设计线 · 保护区（D-313）**：`SafeZoneData` 改成区块级 2D 认领（忽略 Y / 全高度）+
+            // **设计线 · 保护区（D-313）**：`AreaData` 改成区块级 2D 认领（忽略 Y / 全高度）+
             // 旧圆形迁移 ⇒ "认领的区块不许动、没认领放行、旧数据不静默丢"必须每轮 CORE 都成立。
             // 按 `BATTERY_CURATION.md` 规则 1（新能力默认进 MAIN）；成本≈0（纯查询、不写世界）。
             Map.entry("protection_zones", Profile.MAIN),
@@ -712,7 +712,7 @@ public final class RegressionBatteryTask implements Task {
         // ⚠️ 封闭场景（无出口）仍由夹具自己在到位后建造 —— 它进不了 `scenes`（见模块 javadoc）✓
         steps.addAll(fromCheckSteps(new com.dddgn.alice.fixture.check.modules.SurvivalModule().steps(checkContext())));
         // ---- 设计线：**保护区模块**（1 步，EXTRA：CORE 不跑 ⇒ 上面 48 步的次序一个格子都不动）----
-        // 新能力（`SafeZoneData` 改成区块级 2D 认领 + 旧格式迁移）的第一个离线门禁；见 D-313
+        // 新能力（`AreaData` 改成区块级 2D 认领 + 旧格式迁移）的第一个离线门禁；见 D-313
         steps.addAll(fromCheckSteps(new com.dddgn.alice.fixture.check.modules.ProtectionModule().steps(checkContext())));
         // ---- 设计线：**假人归属模块**（1 步，MAIN：进 CORE）----
         // 新能力（创建者登记，D-319）；**追加在步表末尾** ⇒ 上面 49 步的次序一个格子都不动。
@@ -1129,7 +1129,7 @@ public final class RegressionBatteryTask implements Task {
         com.dddgn.alice.write.WriteBudget.closeScope(closed);
         // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
         // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
-        com.dddgn.alice.protection.TaskZoneRegistry.release(closed);
+        com.dddgn.alice.protection.JobAreaRegistry.release(closed);
         // ⭐ `Z2`：**先读人口，再看账本** —— `dropStale` 会把区外条目销掉 ⇒ 在它之后读就看不到
         // "账本里还留着区外旧条目"这件事了（那正是"先记账、后 unclaim"的现场）。
         var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
