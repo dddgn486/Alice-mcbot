@@ -159,6 +159,11 @@ run_gate             "check-capability-list" bash tools/check-capability-list.sh
 # ⚠️ 顺带钉住一个数字：**决策编号 492 个**（`##` 独有 114 + `###` 独有 331 + 两者都有 47）
 #   —— 只数 `###` 会**漏 114 个**；⚠️ 那个错勘测侧犯过、**我在 `O12` 初版也犯了一次**。
 run_gate             "check-decisions-index" bash tools/check-decisions-index.sh
+  # 门禁（2026-10-02，用户令「设计总文档 ＋ 散落的设计索引，索引从下往上维护」）：
+  # **设计索引不许与实际顶层包分叉** —— 真相在**每个包的 `package-info.java`**，索引只是汇总。
+  # ⚠️ 它**不**要求"每个包都有设计说明"（今天 30 个顶层包里只有 9 个有）⇒ 只把缺口摆到台面上。
+  # 人口下限 25：路径写坏 / 包被删 ⇒ **响亮失败**，⛔ 不许"索引里只剩一个包"也照样绿。
+run_gate             "check-design-index" bash tools/check-design-index.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh
