@@ -99,7 +99,7 @@ DUP_EXEMPT: dict[str, dict] = {
             "src/main/java/com/dddgn/alice/job/Candidate.java",
             "src/main/java/com/dddgn/alice/reach/StandingPointSelector.java",
             "src/main/java/com/dddgn/alice/road/ContinuousRoadCurve.java",
-            "src/main/java/com/dddgn/alice/task/craft/CraftStation.java",
+            "src/main/java/com/dddgn/alice/action/craft/CraftStation.java",
         ],
         "reason": "`job/Candidate.java` 是**作业候选**（顶层）；另三处各自声明本地的 `Candidate`"
                   "（站位候选 / 道路曲线采样点 / 合成站候选）。⚠️ **归属 = `P1` 立家刀** 之后的"

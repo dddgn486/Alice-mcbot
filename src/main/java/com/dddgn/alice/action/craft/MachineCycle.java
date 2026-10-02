@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.region.authz.Quota;
@@ -24,7 +24,6 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.dddgn.alice.task.craft.TableCraft;
 
 /**
  * **一台机器的单机最小闭环执行器**（阶段 3-B / S4 v2 → (c) 增量 2）：走 → 开 → 电 → 放料 → 等 → 取 → 复核。

@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.region.authz.Quota;

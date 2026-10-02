@@ -3,7 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.fixture.FixtureDispatch;
-import com.dddgn.alice.task.craft.CraftStation;
+import com.dddgn.alice.action.craft.CraftStation;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

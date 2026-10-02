@@ -159,7 +159,7 @@ public final class MachineMap {
     private static final List<Row> ROWS = List.of(
             // —— 基础加工机（S2 已客户端实测 enriching/enrichment_chamber）——
             // **(c) 增量 2 / D-217 起 = EXECUTABLE**：三条件齐了 —— ① 执行适配器
-            // `task/craft/MachineCycle`（走→开→电→放料→等→取，夹具与生产同一份）；② `menuClass` 客户端实测
+            // `action/craft/MachineCycle`（走→开→电→放料→等→取，夹具与生产同一份）；② `menuClass` 客户端实测
             // （S2 `machine_station` 第四轮）；③ 客户端验证记录：S4 单机闭环第七/九/十/十一轮 +
             // 第十一轮 S4 v2 自走到机器旁（`latest.log:3209`）。**其余行仍 READ_ONLY**（没验过就是没验过）。
             executable("mekanism:enriching", "mekanism:enrichment_chamber", "mekanism.common.inventory.container.tile.MekanismTileContainer",

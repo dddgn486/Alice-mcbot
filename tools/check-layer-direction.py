@@ -497,12 +497,18 @@ SELFTEST_CALC_CASES: list[tuple[str, str, str, bool]] = [
 #   ③ ⭐ **人口下限 / 反空转**：域子包必须真的存在且非空 —— ⛔ 不许靠"把域搬空"让 ①② 空过。
 ACTION_DIR = f"{PKG}/action/"
 #: `action/` 下的**域子包**（域执行件的家）。⛔ 加新域时同刀加人口下限。
-ACTION_DOMAINS = ("mining",)
+ACTION_DOMAINS = ("mining", "craft")
 ACTION_DOMAIN_DIRS = tuple(f"{PKG}/action/{d}/" for d in ACTION_DOMAINS)
 #: `action/` **根**原语的实测人口（刀 1 之后 = 5；`step 4` 之后原 6 个里的 `MineBlockRunner` 进了 `mining/`）。
 MIN_ACTION_ROOT_FILES = 5
-#: 域子包人口下限（刀 1 实测 = 2：`MineBlockRunner` · `ChainMining`）。
-MIN_ACTION_DOMAIN_FILES = 2
+#: 域子包人口下限（反空转）——⭐ **按域各给一个**，⛔ 不是单个全局常数：
+#: 域之间人口差异大（`mining` 2 / `craft` 11），一个全局数会让"人多的域被搬空大半"判不出来。
+#: ⚠️ 口径 = `rglob("*.java")`（**含 `package-info.java`**，同 `under()` 的计数）。
+#: `mining` 实测 = 2（`MineBlockRunner` · `ChainMining`，**无** `package-info`）；
+#: `craft`  = 10 个类 ＋ `package-info.java` = **11**（2026-10-02 整簇入住后实测）。
+MIN_ACTION_DOMAIN_FILES: dict[str, int] = {"mining": 2, "craft": 11}
+#: 域没登记下限时的兜底（⛔ 别让"忘了登记"静默变成"没有下限"）。
+MIN_ACTION_DOMAIN_FILES_DEFAULT = 2
 #: ⭐ 低层包（层链里在 `action/` **之下**）—— 它们 ✗→ `action/<域>/`。
 LOW_LAYERS = ("pathing", "reach", "write", "log", "ledger")
 #: `action/<域>` 的全限定名（**剥注释与字符串字面量后**再扫 ⇒ 路径指针字符串不算依赖，`D-556` (c)）。
@@ -644,8 +650,9 @@ def main() -> int:
         problems.append(f"`action/` **根**只有 {len(action_root_files)} 个 `.java`（下限 "
                         f"{MIN_ACTION_ROOT_FILES}）⇒ 跨域共享原语被搬走/被删（刀 1 之后根 = 5 个）")
     for d, n in domain_counts.items():
-        if n < MIN_ACTION_DOMAIN_FILES:
-            problems.append(f"`action/{d}/` 只有 {n} 个 `.java`（下限 {MIN_ACTION_DOMAIN_FILES}）"
+        floor = MIN_ACTION_DOMAIN_FILES.get(d, MIN_ACTION_DOMAIN_FILES_DEFAULT)
+        if n < floor:
+            problems.append(f"`action/{d}/` 只有 {n} 个 `.java`（下限 {floor}）"
                             f"⇒ 域子包被搬空 ⇒ 断言①②会**空过**（反空转 ③）")
     missing = [n for n in WRITE_GOVERNANCE if not (SRC / PKG / "write" / f"{n}.java").exists()]
     if missing:

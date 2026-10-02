@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 红线① 门禁（D-216 / D-217）：**补电通道只许住在夹具里**，生产路径一个字都不许碰。
 #
-# 背景：S4 的闭环执行器 `task/craft/MachineCycle` 是**夹具与生产共用**的同一份实现。
+# 背景：S4 的闭环执行器 `action/craft/MachineCycle` 是**夹具与生产共用**的同一份实现。
 # 它的电前提是"机器已有电 ⇒ 放行；没有 ⇒ 如实失败（`machine_no_energy`）"，
 # 唯一例外是调用方注入的 `MachineCycle.EnergyTopUp`（"按前提补电"，测试前提）。
 # 生产语义是"没电就如实失败"，**不许凭空造能量** —— 所以那条通道只允许夹具实现。
@@ -18,7 +18,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 FIXTURE="src/main/java/com/dddgn/alice/fixture/MachineCycleCheckTask.java"
-EXECUTOR="src/main/java/com/dddgn/alice/task/craft/MachineCycle.java"
+EXECUTOR="src/main/java/com/dddgn/alice/action/craft/MachineCycle.java"
 PRODUCTION_JOB="src/main/java/com/dddgn/alice/job/craft/CraftJob.java"
 
 WRITE_PATTERN='precharge[[:space:]]*\(|PRECHARGE|setEnergy[[:space:]]*\('

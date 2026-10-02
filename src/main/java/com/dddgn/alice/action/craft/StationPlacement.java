@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.write.Attribution;

@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;

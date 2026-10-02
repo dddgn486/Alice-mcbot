@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.decision.RecipeDump;
@@ -20,7 +20,6 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import com.dddgn.alice.task.craft.MachineRecipeFacts;
 
 /**
  * **只读配方查询原语**（阶段 3-A / A1，D-185）。

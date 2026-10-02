@@ -43,7 +43,7 @@ import com.dddgn.alice.fixture.check.modules.TelemetryModule;
 import com.dddgn.alice.fixture.check.modules.ToolsModule;
 import com.dddgn.alice.fixture.check.modules.TransferModule;
 import com.dddgn.alice.fixture.check.modules.WriteModule;
-import com.dddgn.alice.task.craft.CraftStation;
+import com.dddgn.alice.action.craft.CraftStation;
 import com.dddgn.alice.task.Step;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
@@ -1160,7 +1160,7 @@ public final class RegressionBatteryTask implements Task {
         com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
         scope.end();
         // **站点选择不跨步泄漏**：电池是自检串联，谁设的谁收（下一步回到 auto = 现状顺序）
-        com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
+        com.dddgn.alice.action.craft.CraftStation.select(bot, "auto");
         // ⭐ `Z2` **可见性**：账本侧发生过任何事情（区内有待收 / 区外被跳过）就印一行人口读数。
         // 为什么必须印：`Z1` 之后"用账本证明我没写世界"的判据在野外是**空集真**
         // （实测 8 条记账全来自自认领的 `scaffold` 步，13 次放置全 `skip`）

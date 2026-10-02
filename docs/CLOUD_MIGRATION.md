@@ -863,3 +863,76 @@ idle_timeout_minutes = 15
 **设计**：挂 `gh codespace ssh -c <名> -- -N -L 3181:127.0.0.1:3081` 不动，每 3 分钟**只用 GitHub API** 看 `state`（打 github.com ⇒ 不碰 codespace ⇒ 不污染）。
 **日志**：`run/tunnel-idle-test.log`。
 **为什么先问它**：§19.5 第 1 条的有效性完全取决于此 —— 若隧道也算活动，则"关掉浏览器但隧道还挂着"= 一夜照扣。
+
+---
+
+## §20 ⭐⭐ 云端**缺 Baritone 参照树** ⇒ 两条门禁假红（2026-10-02 查清并修好，主工作流）
+
+> **用户裁定（逐字）**：「你可以干脆直接拉取 Baritone 的源代码，如果你找不到的话。
+> 收发协议在你做完需要测试的时候再弄。」
+> **性质**：环境件修复 —— ⛔ **零仓库改动**（只在云端补外部树与链接）。
+
+### §20.1 症状：`check-all` 在云端是 `failed=2`，而交接记的是 `failed=0`
+
+| 门禁 | 报的 | 数量 |
+|---|---|---|
+| `check-ref-integrity` | `行号超界=24`（全是 `MovementHelper.java:600`–`843`） | 24 |
+| `check-redline-gates` | `problems=1`：「`AGENTS.md` 钉的路径 `/home/fb486/projects/reference/baritone-1.20.1` … 无法复算」 | 1 |
+
+⚠️ **两条红都不是"文档腐烂"，是同一件缺物**。逐条核对那 24 条引用：
+引用的是 **Baritone 的**行号（`606`/`613`/`790`/`796`/`843`…），而云端只有 **Alice 自己那份**
+`pathing/MovementHelper.java`（**597 行**）⇒ 装不下 ⇒ 全判"超界"。
+
+⇒ **这是 `443e47e6`（2026-09-24）那次"云端假阳性"的复发**。那次修法是"路径兜底
+（`ALICE_BARITONE_DIR` > 本地固定路径 > `$HOME/reference/baritone*`）"，
+**前提是"云端参照仓在 `$HOME/reference/baritone-1.20.1`"** —— 而 2026-10-02 实测
+**`~/reference/` 整个不存在**（`/home/fb486/projects/reference/` 也不存在）⇒ 前提没了 ⇒ 兜底退化。
+
+⭐ **与 `c871137a`「云端 `.agent-presets` 丢失」同一族**：**云端家目录内容不持久**。
+⛔ 别再把"上次修过"当成"这次也在"。
+
+### §20.2 修法（两步，都在仓外）
+
+1. **拉参照树**（用户 2026-10-02 授权）：
+   `git clone --depth 1 --branch 1.20.1 https://github.com/cabaletta/baritone.git ~/reference/baritone-1.20.1`
+2. **补既有链接网里漏掉的一环**：云端**早就**把旧机绝对路径复刻成符号链接 ——
+   实测 `/home/fb486/projects/alice -> /workspaces/Alice-mcbot` **已存在**（有人故意做的，这就是那次云端修法能成立的原因）。
+   而 `reference` 这一环缺失 ⇒ 补 `ln -s /home/vscode/reference /home/fb486/projects/reference`。
+   ⚠️ 为什么用链接而不是改 `AGENTS.md`：`check-redline-gates` 的 `PINS` 把 `reference/baritone*` 前的绝对前缀
+   **剥掉**、按 `ROOT.parent` 解析 ⇒ 它要的就是 `<工作区>/reference/baritone-1.20.1/`。
+   ⇒ **补链接 = 零仓库改动、零门禁改动、`AGENTS.md` 一字不动**。
+
+### §20.3 判据（怎么知道拉对了树）
+
+| 判据 | 值 |
+|---|---|
+| `MovementHelper.java` 行数 | **863**（与 `443e47e6` 记的 863 逐字一致；Alice 那份 597） |
+| `gradle.properties` 的 `minecraft_version` | **1.20.1**（与项目 `gradle.properties` 一致 ⇒ 修正了 `AGENTS.md` 提过的"另一棵是 1.21.4、不可用"的坑） |
+| 树 HEAD | `efed17c8` · 2026-09-01 · `deprecate 1.20.1` |
+
+### §20.4 效果（实测读数）
+
+| 项 | 修前 | 修后 |
+|---|---|---|
+| `check-ref-integrity` | FAIL · 校验 1663 处 · 超界 **24** | **PASS** · 校验 **2020** 处 · 超界 **0** |
+| `check-redline-gates` | FAIL · `problems=1` | **PASS** · `problems=0` |
+| `check-all` | `pass=38 warning=2 failed=2` | **`pass=40 warning=2 failed=0`** |
+
+⭐ **校验量多查了 357 处**（1663 → 2020）⇒ 这道门禁现在**真的在守**搬迁期的引用腐烂，
+⛔ 不是"变松了才绿"。
+
+### §20.5 ⛔ 云端的 warning 是**未执行**，不是通过
+
+`warning=2` 两条都**不在这台机器上跑得了**：
+`check-machine-map`（缺上游模组 jar）· `check-headless-battery`（无头测试**在本地端**，云端无 `run/` 目录）。
+⇒ ⛔ **别把云端的 `PASS_WITH_WARNINGS` 读成"全绿"**。
+
+### §20.6 ⏳ 下次云端重建的复现清单（⛔ 别重新查一遍）
+
+```
+mkdir -p ~/reference
+git clone --depth 1 --branch 1.20.1 https://github.com/cabaletta/baritone.git ~/reference/baritone-1.20.1
+ln -s /home/vscode/reference /home/fb486/projects/reference     # ⚠️ 若 /home/fb486/projects/alice 链接还在，说明链接网是既有约定
+# 判据：wc -l ~/reference/baritone-1.20.1/src/main/java/baritone/pathing/movement/MovementHelper.java  ⇒ 863
+```
+

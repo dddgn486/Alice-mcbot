@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.bot.BotPlayer;
@@ -10,9 +10,6 @@ import net.minecraft.world.item.crafting.Recipe;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.dddgn.alice.task.craft.GridDiscovery;
-import com.dddgn.alice.task.craft.InventoryCraft;
-import com.dddgn.alice.task.craft.StationProvision;
 
 /**
  * **用现成工作台的 3×3 合成**（阶段 3-A / A3，D-188）。**零世界写入**：只找、只走过去、只开菜单。

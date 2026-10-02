@@ -559,8 +559,8 @@ def main() -> int:
     #    「调本原语必须显式交出 Attribution，且理由必须属于菜单写入家族」。
     #    这三处原语若签名里没有 Attribution，就等于回到"记账靠调用方自觉"（三路审计 §3.1 R-5 的原缺口，
     #    R5-残 登记了 `StationProvision.click`／`InventoryCraft.click` 两处未做）。
-    for rel in ("task/craft/FurnaceStation.java", "task/craft/InventoryCraft.java",
-                "task/craft/StationProvision.java"):
+    for rel in ("action/craft/FurnaceStation.java", "action/craft/InventoryCraft.java",
+                "action/craft/StationProvision.java"):
         src = read(os.path.join(SRC, rel))
         overloads = list(re.finditer(r"private static boolean click\(", src))
         if not overloads:

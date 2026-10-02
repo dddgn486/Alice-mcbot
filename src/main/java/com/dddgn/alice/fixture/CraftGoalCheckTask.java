@@ -6,7 +6,7 @@ import com.dddgn.alice.decision.GoalAction;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.craft.CraftJob;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.craft.RecipeQuery;
+import com.dddgn.alice.action.craft.RecipeQuery;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;

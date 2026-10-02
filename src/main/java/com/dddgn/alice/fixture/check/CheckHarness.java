@@ -15,7 +15,7 @@ import com.dddgn.alice.fixture.FixturePremise;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import com.dddgn.alice.task.craft.CraftStation;
+import com.dddgn.alice.action.craft.CraftStation;
 
 /**
  * **自检编排器（R-2 Phase 1b）** —— 用户原话：「让电池本身**脱离任务管理的束缚**，每个电池步按分类模块化，
@@ -347,7 +347,7 @@ public final class CheckHarness {
      * 的行为取决于"上一步设了什么"✗（正是模块独立性最怕的隐含前提 ✗）。
      */
     private void endStepHygiene() {
-        com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
+        com.dddgn.alice.action.craft.CraftStation.select(bot, "auto");
         // **兜底收作用域**：正常路径由会话的 `clearTask` 收（那时 scope 已经不在），这里只处理
         // **任务根本没起来**的早期退出路径（前提超时 / 工厂返回 null / 起任务失败 / 看门狗）
         // —— 作用域由编排器开，不收就变成**残留作用域**（`BotManager` 有残留检查 ⇒ 后续判据会红 ✗）。

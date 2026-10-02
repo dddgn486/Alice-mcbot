@@ -155,13 +155,17 @@ PROD_HOME: dict[str, str] = {
     "TransferTask": "com.dddgn.alice.transfer",
     "WalkToTask": UNDECIDED,
     # ——— `task/craft/` 10 个 ———
-    "CraftStation": UNDECIDED,
+    # ⭐ 2026-10-02：**整簇进 `action/craft/`**（用户裁定「允许 `action` 包里的动作自足，放自己的依赖部件」）。
+    # 依赖边实测闭合且跨过原分类线：4 个动作类用 `GridDiscovery` · 3 个用 `RecipeQuery.countInInventory`
+    # · `RecipeQuery` 用 `MachineRecipeFacts` ⇒ 只搬"动作"那半会造 `action/craft/ → task/craft/` 向上边。
+    # ⚠️ 连带撤销两处旧裁：三个只读件**不再**去 `staging/` · `CraftStation` **不再**去 `compat/<mod>/`。
+    "CraftStation": "com.dddgn.alice.action.craft",
     "FurnaceStation": "com.dddgn.alice.action.craft",
-    "GridDiscovery": "com.dddgn.alice.staging",
+    "GridDiscovery": "com.dddgn.alice.action.craft",
     "InventoryCraft": "com.dddgn.alice.action.craft",
     "MachineCycle": "com.dddgn.alice.action.craft",
-    "MachineRecipeFacts": "com.dddgn.alice.staging",
-    "RecipeQuery": "com.dddgn.alice.staging",
+    "MachineRecipeFacts": "com.dddgn.alice.action.craft",
+    "RecipeQuery": "com.dddgn.alice.action.craft",
     "StationPlacement": "com.dddgn.alice.action.craft",
     "StationProvision": "com.dddgn.alice.action.craft",
     "TableCraft": "com.dddgn.alice.action.craft",

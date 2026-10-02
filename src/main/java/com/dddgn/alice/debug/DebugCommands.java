@@ -291,7 +291,7 @@ public final class DebugCommands {
                                 .executes(ctx -> craftStationShow(ctx.getSource()))
                                 .then(Commands.argument("station", StringArgumentType.word())
                                         .suggests((context, builder) -> {
-                                            for (var station : com.dddgn.alice.task.craft.CraftStation.all()) {
+                                            for (var station : com.dddgn.alice.action.craft.CraftStation.all()) {
                                                 builder.suggest(station.id());
                                             }
                                             builder.suggest("auto");
@@ -1035,15 +1035,15 @@ public final class DebugCommands {
             return 0;
         }
         source.sendSuccess(() -> Component.literal("[alice] 合成工作站 = "
-                + com.dddgn.alice.task.craft.CraftStation.describe(bot, 6)), false);
-        for (var candidate : com.dddgn.alice.task.craft.CraftStation.candidates(bot, 6)) {
+                + com.dddgn.alice.action.craft.CraftStation.describe(bot, 6)), false);
+        for (var candidate : com.dddgn.alice.action.craft.CraftStation.candidates(bot, 6)) {
             source.sendSuccess(() -> Component.literal("[alice]   " + candidate.station().id()
                     + "（" + candidate.station().label() + "）"
                     + (candidate.available() ? " 可用：" : " 不可用：") + candidate.reason()), false);
         }
         source.sendSuccess(() -> Component.literal("[alice] 切换：/alice craft station <auto|"
-                + String.join("|", com.dddgn.alice.task.craft.CraftStation.all().stream()
-                        .map(com.dddgn.alice.task.craft.CraftStation.Descriptor::id).toList())
+                + String.join("|", com.dddgn.alice.action.craft.CraftStation.all().stream()
+                        .map(com.dddgn.alice.action.craft.CraftStation.Descriptor::id).toList())
                 + ">（auto = 现状顺序：随身 → 工作台；**不含**升级页签，不自动选优）"), false);
         return 1;
     }
@@ -1056,15 +1056,15 @@ public final class DebugCommands {
             source.sendFailure(Component.literal("[alice] 没有可用 bot"));
             return 0;
         }
-        if (!com.dddgn.alice.task.craft.CraftStation.select(bot, id)) {
+        if (!com.dddgn.alice.action.craft.CraftStation.select(bot, id)) {
             source.sendFailure(Component.literal("[alice] 未知工作站 " + id + "（可选：auto + "
-                    + String.join(", ", com.dddgn.alice.task.craft.CraftStation.all().stream()
-                            .map(com.dddgn.alice.task.craft.CraftStation.Descriptor::id).toList()) + "）"));
+                    + String.join(", ", com.dddgn.alice.action.craft.CraftStation.all().stream()
+                            .map(com.dddgn.alice.action.craft.CraftStation.Descriptor::id).toList()) + "）"));
             return 0;
         }
         source.sendSuccess(() -> Component.literal("[alice] 合成工作站已切到 "
-                + com.dddgn.alice.task.craft.CraftStation.selected(bot) + "：" 
-                + com.dddgn.alice.task.craft.CraftStation.describe(bot, 6)), false);
+                + com.dddgn.alice.action.craft.CraftStation.selected(bot) + "：" 
+                + com.dddgn.alice.action.craft.CraftStation.describe(bot, 6)), false);
         return 1;
     }
 

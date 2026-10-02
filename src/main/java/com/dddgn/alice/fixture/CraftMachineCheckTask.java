@@ -4,7 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.job.craft.CraftJob;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.craft.RecipeQuery;
+import com.dddgn.alice.action.craft.RecipeQuery;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;

@@ -5,7 +5,7 @@ import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.decision.RecipeDump;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.craft.MachineRecipeFacts;
+import com.dddgn.alice.action.craft.MachineRecipeFacts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.dddgn.alice.task.craft.RecipeQuery;
+import com.dddgn.alice.action.craft.RecipeQuery;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 
@@ -401,13 +401,13 @@ public class MachineProbeTask implements Task {
                 continue;
             }
             queryProbed++;
-            var result = com.dddgn.alice.task.craft.RecipeQuery.query(server, bot, item, 1);
+            var result = com.dddgn.alice.action.craft.RecipeQuery.query(server, bot, item, 1);
             boolean isMachineRoute = result.verdict()
-                    == com.dddgn.alice.task.craft.RecipeQuery.Verdict.MACHINE_ROUTE;
+                    == com.dddgn.alice.action.craft.RecipeQuery.Verdict.MACHINE_ROUTE;
             if (isMachineRoute) {
                 machineRouteOk++;
             }
-            if (result.verdict() != com.dddgn.alice.task.craft.RecipeQuery.Verdict.NO_RECIPE) {
+            if (result.verdict() != com.dddgn.alice.action.craft.RecipeQuery.Verdict.NO_RECIPE) {
                 queryReachable++;
             }
             BotLog.info("[MachineProbe] query item={} verdict={} {}", itemId, result.verdict(),
@@ -526,9 +526,9 @@ public class MachineProbeTask implements Task {
                     continue;
                 }
                 unregisteredQueryProbed++;
-                var result = com.dddgn.alice.task.craft.RecipeQuery.query(server, bot, item, 1);
+                var result = com.dddgn.alice.action.craft.RecipeQuery.query(server, bot, item, 1);
                 unregisteredVerdicts.merge(result.verdict().name(), 1, Integer::sum);
-                if (result.verdict() == com.dddgn.alice.task.craft.RecipeQuery.Verdict.NO_RECIPE) {
+                if (result.verdict() == com.dddgn.alice.action.craft.RecipeQuery.Verdict.NO_RECIPE) {
                     unregisteredQueryNoRecipe++;
                 } else {
                     unregisteredQueryReachable++;

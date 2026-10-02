@@ -3,7 +3,7 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.craft.RecipeQuery;
+import com.dddgn.alice.action.craft.RecipeQuery;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.craft.MachineRecipeFacts;
+import com.dddgn.alice.action.craft.MachineRecipeFacts;
 
 /**
  * **只读配方查询自检**（阶段 3-A / A1，D-185）：一次右键跑完，输出 `SUMMARY key=VALUE`。
@@ -179,7 +179,7 @@ public class CraftCheckTask implements Task {
                 producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(result.getItem()).toString());
             }
-            for (var item : com.dddgn.alice.task.craft.MachineRecipeFacts.read(recipe, access).outputs()) {
+            for (var item : com.dddgn.alice.action.craft.MachineRecipeFacts.read(recipe, access).outputs()) {
                 producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(item.getItem()).toString());
             }

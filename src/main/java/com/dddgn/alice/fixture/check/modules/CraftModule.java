@@ -19,7 +19,7 @@ import net.minecraft.core.BlockPos;
 import java.util.List;
 import java.util.Set;
 import com.dddgn.alice.fixture.RestoreUnderfootSafetyCheckTask;
-import com.dddgn.alice.task.craft.CraftStation;
+import com.dddgn.alice.action.craft.CraftStation;
 
 /**
  * **合成 / 工作站模块（R-2：最大的一个模块，12 步）**：把阶段 3-A 的整条合成链从电池里搬出来。
@@ -137,6 +137,6 @@ public final class CraftModule implements CheckModule {
     /** 网格发现器的入口指定：**先传送再指定**（与电池里的顺序一致 ✓，顺序反了会让选择被传送清掉的风险）。 */
     private static void select(BotPlayer bot, String station) {
         to(bot, CraftGridProbeTask.START);
-        com.dddgn.alice.task.craft.CraftStation.select(bot, station);
+        com.dddgn.alice.action.craft.CraftStation.select(bot, station);
     }
 }

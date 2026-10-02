@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.craft;
+package com.dddgn.alice.action.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.bot.BotPlayer;
@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.dddgn.alice.task.craft.TableCraft;
 
 /**
  * **合成工作站**（阶段 3-A / S1-2，D-192）：把"在哪儿合成"变成**一等、可选、可切换**的对象。

@@ -332,7 +332,7 @@ public final class CandidateMenu {
             return false;
         }
         var access = server.registryAccess();
-        String selected = com.dddgn.alice.task.craft.CraftStation.selected(bot);
+        String selected = com.dddgn.alice.action.craft.CraftStation.selected(bot);
         int scanned = 0;
         boolean truncated = false;
         java.util.Set<String> seen = new java.util.LinkedHashSet<>();
