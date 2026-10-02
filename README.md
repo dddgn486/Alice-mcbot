@@ -15,7 +15,7 @@ Alice 是一个 Minecraft Forge 1.20.1 模组：在服务端运行一个客户�
 
 ## 文档入口
 
-- **接手第一入口**：[`docs/START_HERE.md`](docs/START_HERE.md)
+- ⭐ **接手第一入口 = [`AGENTS.md`](AGENTS.md)**（唯一入口）—— 接手口令「接手 Alice」与启动流程都在里面
 - 当前状态：[`docs/AI_PROJECT_STATE.md`](docs/AI_PROJECT_STATE.md) ｜ 决策：[`docs/AI_DECISIONS.md`](docs/AI_DECISIONS.md) ｜ 测试矩阵：[`docs/AI_TEST_MATRIX.md`](docs/AI_TEST_MATRIX.md)
 - 开发协作与 skills：[`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)、[`AGENTS.md`](AGENTS.md)、[`.alice-supervision/skills/`](.alice-supervision/skills)
 - 内核与设计：[`ALICE_PATHING_CORE_ARCHITECTURE.md`](docs/ALICE_PATHING_CORE_ARCHITECTURE.md)、[`R4_BARITONE_ALIGNMENT_AUDIT.md`](docs/R4_BARITONE_ALIGNMENT_AUDIT.md)、[`MINING_STAND_SELECTION_DESIGN.md`](docs/MINING_STAND_SELECTION_DESIGN.md)、[`MINE_MIGRATION_DESIGN.md`](docs/MINE_MIGRATION_DESIGN.md)

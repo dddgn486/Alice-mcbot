@@ -1,11 +1,12 @@
 # Alice 文档索引
 
-> **第一入口：[`START_HERE.md`](START_HERE.md)** —— 一句话接手口令和完整恢复流程。
+> ⭐ **接手入口是 [`../AGENTS.md`](../AGENTS.md)（唯一）** —— 接手口令与启动流程都在那里。
+> ⛔ **本文件只是"文档地图"**：它指路，⛔ **不自称入口**（此前它与 `START_HERE.md` 两处同时声索"第一入口"）。
 > 归档内容仅用于追溯，**不作为当前规则**；与当前状态冲突时，以用户本轮决定、当前代码和真实客户端证据为准。
 
 ## 每次 AI 会话先读（活文档）
 
-1. [`START_HERE.md`](START_HERE.md) —— 接手口令与恢复流程
+1. [`../AGENTS.md`](../AGENTS.md) —— **唯一入口**：接手口令、启动流程、架构红线、测试规则
 2. [`AI_PROJECT_STATE.md`](AI_PROJECT_STATE.md) —— 当前目标、已验证状态、下一步
 3. [`AI_DEVELOPMENT_PLAYBOOK.md`](AI_DEVELOPMENT_PLAYBOOK.md) —— 协作流程、skills 使用、Windows 测试习惯
 4. [`AI_DECISIONS.md`](AI_DECISIONS.md) —— 稳定架构决策（D-001 起；新增决策按同一格式追加）

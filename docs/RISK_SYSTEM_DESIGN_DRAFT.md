@@ -88,11 +88,11 @@
 | 已作废 | 说明 |
 |---|---|
 | 监督员工作流 | 纯流程产物已删除，文档归档至 `docs/archive/legacy-2026-08/`（17 份设计文档）与 `.alice-supervision/archive/legacy-2026-08/`（30 份历史材料） |
-| `docs/START_HERE.md` 中的"每个小改动都要 active plan / 审核包 / HANDOVER" | 现行文件明确写：**不要求** |
+| `docs/START_HERE.md`（2026-10-02 已删）里的"每个小改动都要 active plan / 审核包 / HANDOVER" | 现行 `AGENTS.md` 明确写：**不要求** |
 | `HARD_PATH` / `SOFT_SURFACE` 术语 | 已由 **D-076 寻路红线**取代（语义不变，表述更新） |
 | `PATHING_REFACTOR` / `MINING_SAFETY_AND_PLANNING` / `PRODUCT_ARCHITECTURE_ROADMAP` 等 | 已归档到 `docs/archive/legacy-2026-08/` |
 
-> 注意：`.alice-supervision/skills/`（21 个 skill）**仍在有效使用**——`START_HERE.md` 明确「Skills 是技术知识库，不是审批流程」。别误删。
+> 注意：`.alice-supervision/skills/`（21 个 skill）**仍在有效使用**——`AGENTS.md` 明确「Skills 是技术知识库，不是审批流程」（⛔ 原引的 `docs/START_HERE.md` 2026-10-02 已删）。别误删。
 
 ### 2.3 作者已确认的立场
 

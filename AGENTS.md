@@ -150,6 +150,16 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 
 始终区分 `IMPLEMENTED`、`COMPILES`、`SERVER_TESTED`、`WINDOWS_CLIENT`、`USER_ACCEPTED`。构建成功不代表客户端可用。
 
+## 关于 skills（`.alice-supervision/skills/`）
+
+**Skills 是技术知识库，不是审批流程** —— 读它是为了把事情做对，⛔ 不是为了走一道手续；
+读完**不产生**任何审批 / 审核包 / 强制提交的要求（触发条件与文件清单见「每次会话先做」第 3 步）。
+`[用户确认: 2026-10-02]`
+
+⚠️ **为什么把这句话搬到这里**：它原来**只在** `docs/START_HERE.md`（该文件 2026-10-02 已删），
+却**被两处当权威引用**（`docs/RISK_SYSTEM_ISSUE_LIST.md` · `docs/RISK_SYSTEM_DESIGN_DRAFT.md`）
+⇒ 删文件前必须给它一个新家，否则引用变成真空。那两处的指针已同刀改到本文件。
+
 ## 用户接手口令
 
 用户说：

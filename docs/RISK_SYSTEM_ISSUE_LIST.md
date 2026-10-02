@@ -523,7 +523,7 @@ D-046 已经总结过这个教训（`WorldView`）。**建议把检查方法固�
 
 | 项 | 为什么别动 |
 |---|---|
-| `.alice-supervision/skills/`（21 个 skill） | **仍在有效使用**。`START_HERE.md` 明确「Skills 是技术知识库，不是审批流程」。**别跟着"清理监督工作流"一起删** |
+| `.alice-supervision/skills/`（21 个 skill） | **仍在有效使用**。`AGENTS.md` 明确「Skills 是技术知识库，不是审批流程」（⛔ 原引的 `docs/START_HERE.md` 2026-10-02 已删）。**别跟着"清理监督工作流"一起删** |
 | `BotManager` 用 `TickEvent.Phase.END` | **D-038 已撤回**，Forge 源码证明 `START`/`END` 等价。**不要再改相位** |
 | `descend_overshoot` 默认关闭 | 这是 **D-059 的明确裁定**（对齐 Baritone），不是遗漏 |
 | `MiningBudget` 用 tick 而非方块数 | 它是**破坏耗时预算**，不是资源充足性预算。**两回事，别合并** |

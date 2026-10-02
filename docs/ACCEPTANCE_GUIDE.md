@@ -19,17 +19,28 @@
 cd /workspaces/Alice-mcbot
 go() { printf '%-34s %s\n' "$1" "$2"; }
 
+# ⚠️ `check-all` 一次约 1 分钟 ⇒ **只跑一次**，把输出存起来给下面各条共用
+#    （第一版让它跑了 3 次 ⇒ 验收脚本 60 秒超时被 kill）
+CHECK_ALL_OUT="$(bash tools/check-all.sh 2>&1)"
+
 # ① 门禁总体（本次之后 failed 必须 = 0）
-go "check-all"        "$(bash tools/check-all.sh 2>&1 | grep -o 'CHECK_ALL_RESULT.*')"
+go "check-all"        "$(printf '%s' "$CHECK_ALL_OUT" | grep -o 'CHECK_ALL_RESULT.*')"
 
-# ② 常驻规范的行数（余额必须 ≥ 0；⛔ 不许靠"上调预算"过关）
-go "AGENTS+PLAYBOOK+STATE" "$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l) / 1476"
+# ② 常驻规范行数 —— ⚠️ 2026-10-02 用户裁定：**重构期只报读数，不报红**
+#    （原话「硬上限已经没有意义，因为现在反而是优先考虑这个文档要留什么，然后再想删什么」）
+#    ⇒ 现在看的是下面 ②′ 那一行；② 这一行只是把数摆出来
+go "AGENTS+PLAYBOOK+STATE" "$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l) / 1476（原冻结上限，⛔ 重构期不红）"
 
-# ③ 入口是不是只剩一个声索人（必须只剩 1 处）
-go "第一入口声索数"   "$(grep -rn '第一入口\|接手第一' --include=*.md . | grep -v '^./docs/archive/\|^./survey/\|^./docs/HANDOVER.md' | wc -l)"
+# ②′ 冻结是否已真的降为警告（判据：门禁输出里是 `[WARN]` 而不是 `[FAIL]`）
+go "doc-budget 级别" "$(printf '%s' "$CHECK_ALL_OUT" | grep -c 'WARN. check-doc-budget')/1（1=只警告 · 0=又变红了）"
 
-# ④ 设计覆盖率（package-info 份数 / 顶层包数）
-go "package-info"     "$(find src -name package-info.java | wc -l) / $(ls -d src/main/java/com/dddgn/alice/*/ | wc -l)"
+# ③ 入口声索：必须**恰好 1 个文件**在**声明自己是入口**
+#    ⚠️ 判据不能只数 `grep -l`：`AGENTS.md` 与 `docs/README.md` 里各有 1 处是在**说明"过去有两处"**，
+#    它们**不是声索**。⇒ 判据 = "行的开头是 `-`/`>` + 指向自己的链接"
+go "第一入口声索人" "$(grep -rln '^[-*] .*接手第一入口\|^> .*第一入口：\[' --include=*.md . | grep -v 'archive/\|survey/\|HANDOVER' | tr '\n' ' ')"
+
+# ④ 设计覆盖率 —— ⭐ 现在有门禁了，直接读它（⛔ 别自己 find，口径会分叉）
+bash tools/check-design-index.sh 2>&1 | grep DESIGN_INDEX_RESULT
 
 # ⑤ 裁定状态词表（收敛后应当只剩 4 种取值）
 go "状态取值种类"     "$(grep -oh '状态[：:][^（(]*' docs/AI_DECISIONS.md | sort -u | wc -l)"
@@ -39,11 +50,11 @@ go "状态取值种类"     "$(grep -oh '状态[：:][^（(]*' docs/AI_DECISIONS
 
 | 读数 | 施工前 |
 |---|---|
-| `check-all` | **`pass=39 warning=2 failed=1`** |
-| `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**） |
-| 「第一入口」声索 | **3**（`README.md` · `docs/README.md` · `docs/START_HERE.md`） |
-| `package-info` | **9 / 30** |
-| 状态取值种类 | **37** |
+| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=40 warning=3 failed=0`** |
+| `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ⚠️ 现在 **1508**，**WARN 不红**（用户 2026-10-02 裁定） |
+| 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
+| `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |
+| 状态取值种类 | **37** → ✅ 现在 **47**（旧读数是**又少又脏**：见 §六 勘误） |
 | 编译 | ⭐ **`BUILD SUCCESSFUL in 3m 8s`**（11 warnings / 0 error）—— 这是 **`src/` 改动前的对照臂** |
 | `AI_DECISIONS.md` 真条目 | ⭐ **565**（不是 670 —— 「670」把 `####` 子标题也数了进去） |
 
