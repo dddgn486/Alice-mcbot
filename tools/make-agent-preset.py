@@ -64,9 +64,33 @@ def build() -> str:
     return yml[:i] + HEADER + body + "\n" + yml[j:]
 
 
+def install(dest: pathlib.Path) -> int:
+    """把 preset 的两份文件放进 DSH 的 preset 目录（preset 是**目录**，不会被自动发现）。"""
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in ("preset.yml", "agent.cordis.yml"):
+        src = SRC.parent / name
+        if not src.is_file():
+            print(f"✗ 缺 {src}（先不带 --install 跑一次生成）")
+            return 2
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=dest, delete=False, suffix=".tmp"
+        ) as f:
+            f.write(src.read_text(encoding="utf-8"))
+            tmp = pathlib.Path(f.name)
+        tmp.replace(dest / name)
+    print(f"→ 已装入 {dest}")
+    print("  ⚠️ DSH 只在启动时发现 preset ⇒ 装完必须重启 `dsh web` 才会生效")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="只比对，不写盘")
+    ap.add_argument(
+        "--install",
+        action="store_true",
+        help="生成后装到 $DSH_HOME/.agent-presets/<id>/（DSH_HOME 默认 ~/.dsh）",
+    )
     args = ap.parse_args()
 
     if not SRC.is_file():
@@ -86,17 +110,22 @@ def main() -> int:
 
     if old == new:
         print(f"→ 已是最新（{len(new)} 字节），未改动")
-        return 0
+    else:
+        DEST.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=DEST.parent, delete=False, suffix=".tmp"
+        ) as f:
+            f.write(new)
+            tmp = pathlib.Path(f.name)
+        tmp.replace(DEST)          # 原子替换（⛔ 不要 open(dest,'w') 直接截断）
+        n = len(SRC.read_text(encoding="utf-8").splitlines())
+        print(f"→ 已写入 {rel}（{len(new)} 字节；persona 源 {n} 行）")
 
-    DEST.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=DEST.parent, delete=False, suffix=".tmp"
-    ) as f:
-        f.write(new)
-        tmp = pathlib.Path(f.name)
-    tmp.replace(DEST)          # 原子替换（⛔ 不要 open(dest,'w') 直接截断）
-    n = len(SRC.read_text(encoding="utf-8").splitlines())
-    print(f"→ 已写入 {rel}（{len(new)} 字节；persona 源 {n} 行）")
+    if args.install:
+        import os
+
+        dsh_home = pathlib.Path(os.environ.get("DSH_HOME") or pathlib.Path.home() / ".dsh")
+        return install(dsh_home / ".agent-presets" / PRESET_ID)
     return 0
 
 
