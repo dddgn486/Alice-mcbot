@@ -6463,14 +6463,14 @@ Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**
 
 ⇒ ⭐ **本断点之后，波 4 的卡点表述应从"8 格待裁"改为"6 格已裁未落地 / 2 格无需动作"**（`O139`）。
 
-### §B ⭐⭐ 外部调研（用户 ② 的委派；**出处均已核实**）
+### §B ⭐⭐ 外部调研（用户 ② 的委派；⚠️ **出处核实状态以 §B′ 为准 —— 本节有已被推翻的行**）
 
 **权威材料 = [`agent-engineering-toolkit` / `DESIGN-GUIDELINES.md`](https://raw.githubusercontent.com/rodrigorjsf/agent-engineering-toolkit/refs/heads/development/DESIGN-GUIDELINES.md)**
 —— 15 条准则，**每条挂出处**。它引的三份源头我逐条核过：
 
 | 出处 | 关键读数 | 状态 |
 |---|---|---|
-| **ETH Zurich《Evaluating AGENTS.md》**（2026-02，138 个基准实例） | **LLM 自动生成的"全面"配置文件 ⇒ 成功率 −3% / 成本 +20%**；**人写的极简文件 ⇒ +4%** | ⚠️ **我未能独立核实**（原文 PDF 在 GitHub，当日 GitHub 503）⇒ **按"外部主张"记录，不得当已核实事实引用** |
+| **ETH Zurich《Evaluating AGENTS.md》**（2026-02，138 个基准实例） | **LLM 自动生成的"全面"配置文件 ⇒ 成功率 −3% / 成本 +20%**；**人写的极简文件 ⇒ +4%** | ⛔⛔ **本行已被推翻 —— 见下方 §B′ 复查记录（2026-10-02 实测）**：原文是 `arXiv:2602.11988`、我引的是**已被 v3 取代的 v1**，且**"极简文件"这一组根本不存在**。**⛔ 不要再用本行的任何数字或"15–40 行"那把尺子。** |
 | [**Lost in the Middle**（TACL 2023）](https://arxiv.org/abs/2307.03172) | 信息在**上下文的首/尾**时表现最好，**中部最差** | ✅ **已核 arXiv 原文**（v3，18 页，TACL 2023） |
 | [Anthropic context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-agents) | "找**最小的高信号 token 集**" | ⚠️ 仅经二手转述，**未直取** |
 
@@ -6525,6 +6525,184 @@ Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**
 | **`package-info.java`** | **仅 9 份**（顶层包 30 个 / 子包 24 个）；最长 100 行（`region/`） | ⚠️ **覆盖远不够**，但**上限很宽**（见 §F 的"设计住哪"） |
 | `.alice-supervision/skills/` | **21 份**；最长 **592 行** | ⚠️ skill 是**按需加载**（preset 走注册表 ＋ 加载器）⇒ ⭐ **常驻成本 ≈ 0** ⇒ **"太大"不是它的病，"装错了东西"才是** |
 | **不变量** | `src/`、`tools/` **零改动** · `check-all` **`failed=0`** | ✅ |
+
+### §B′ ⛔⛔ **外部调研复查 —— §B 的 ETH 那一行被推翻**（2026-10-02，独立会话对抗性核实 ＋ 我逐条复验）
+
+> ⚠️ **性质**：这是**纠错**，不是新增想法。起因 = 用户令"先自己复检一遍，没调查的先去调查"。
+> **三处独立印证**：① 独立会话（无本会话上下文）从 arXiv 取原文；② 我本人取 `arxiv.org/abs/2602.11988`（HTTP 200）；
+> ③ 我取 `arxiv.org/html/2602.11988v3` 正文原句。三者互相独立、结论一致。
+
+**论文真实身份**：
+`Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?`
+Gloaguen · Mündler-Sasahara · Müller · Raychev · Vechev（ETH Zurich CS ＋ LogicStar.ai）·
+**`arXiv:2602.11988 [cs.SE]`** · **v1 = 2026-02-12 / v2 = 06-23 / v3 = 09-29（现行）** · **arXiv 预印本** ·
+规模 = **CTXbench 138 实例（12 个冷门 Python 仓）＋ SWE-bench Lite 300 题 = 438**。
+
+**⛔ 结论：那份 toolkit 钉的是已被取代的 v1，而 v3 推翻了它赖以立论的框架。**
+
+| toolkit 的说法 | 复核判定 | 依据 |
+|---|---|---|
+| 无配置文件 = 基线 | ✅ 成立 | v1/v3 §4.1（`None`） |
+| LLM 生成 ⇒ 成功率 **−3%** | ⛔ **不成立（作为研究级结论）** | "−3%" **只在 v1 引言散文**里；v1 §4.2 **自己**写 **−0.5% / −2%**，v3 同数、**p=0.87 / p=0.37（不显著）** |
+| LLM 生成 ⇒ 成本 **+20%** | ✅ **成立** | v3 §4.2「+20% 与 +23%」，p<0.00001 / p=0.00064 |
+| **「人写的极简文件」⇒ +4%** | ⛔⛔ **该实验组根本不存在** | v3 正文原句：**「We consider three context file settings」= `None` / `LLM` / `Developer`**。Dev 组 = **开发者提交的、原样的**文件（**均值 641 词 / 9.7 节 / 最大 2003 词**）—— **⛔ 不是"极简"** |
+| 人写文件 ⇒ 成功率 **+4%** | ⛔ 被取代（且不显著） | v3 = **+2.4%，p=21%**；v3 结论原句：「**neither statistically significant**」 |
+
+**⭐⭐ 对我们最要命的一条（原本支撑整个文档改革的那把尺子，被拆了）**：
+> v3 附录 B 有一节标题就叫 **「The length of context files does not influence our findings」**
+> ⇒ **论文里没有任何证据支持"根文件要 15–40 行""越短越好"**。
+> ⇒ ⛔ **§B 里"按上下文成本分档（根文件 15–40 行）"必须降级为"那份 toolkit 的项目约定"**，⛔ **不是研究结论**。
+
+**✅ 论文真正的主张（比我引错的那些更贴我们）**：
+
+| v3 的结论 | 对我们的意义 |
+|---|---|
+| **提供上下文文件总体上不改善成功率，但把推理成本抬 >20%** | 风险面：**加规则是有确定成本的，收益不确定** |
+| ⭐ **「instructions in the context files are well followed」** | ⭐ **"合规"是保证的、"有用"不是** —— 这条**成立**，正是"每条无用指令都在白占预算"的依据 |
+| ⭐⭐ **「repository overviews… are not helpful」** | ⭐⭐ **直接支持文档改革**：`START_HERE` 的"项目定位"节、`docs/README` 的目录表、各处"本项目是……"的复述，**属于最该删的那一类** |
+| 消融：删掉 **`testing` 类**内容 ⇒ **成本显著下降、准确率无损失** | ⭐ 支持"测试入口零参数＋夹具化" |
+| ⭐ **上下文文件只在"它是唯一文档"时才有效** | ⭐ **正面支持 `AGENTS.md` 该留着** |
+| 开发者文件对**除 Claude Code 外**的 agent 有帮助 | ⚠️ 与我们的形态（DSH）相关性**未知**，⛔ 不可照搬 |
+
+**⚠️ 论文自陈局限（引用必须带）**：仅 Python · 只测"任务是否解决" · 每实例**单样本** · 4 个 agent 里 3 个 T=0 ·
+基准测试**由 LLM 生成**（覆盖 75% 被改代码）· **成功率的差异全部不显著**（只有 LLM-vs-Dev 的 p=0.038 显著）· **只有成本/步数的上升显著**。
+
+**⛔ 另一条要改标签的（§B 的"过期信息比没有信息更糟"）**：
+- ⛔ **不来自这篇论文** —— 论文从头到尾**没讨论**陈旧信息或跨文件矛盾（它说的是**反面**：指令通常被遵守）。
+- 「矛盾时 **pick one arbitrarily**」真实出处 = **Anthropic 官方 Claude Code memory 文档的逐字断言**（**厂商声明，无公开数据/方法**）。
+- 「**without warning**」这一半：**没有任何研究测过** —— **无人确立**。
+- 「旧路径 ⇒ 高置信度找错地方」= 那份 toolkit **自己的 practitioner 散文**，无实验。
+- 有**同行评议**的相邻工作（`Control Illusion`，AAAI-26，`arXiv:2502.15851`）讲的是**提示角色冲突**，只支持"**不一致**"。
+- ⭐ **那份 toolkit 自己打自己**：它的 research 文档写「Context poisoning formal studies: …**lack rigorous quantification specific to coding agents**」。
+- ⇒ ⭐ **判定 = "厂商声明 ＋ 从业者经验"**。⚠️ **但不影响我据它推出的工程决定** —— "重复/矛盾的文件要合并"这件事**我们有自己的活样本**（`START_HERE:21-22` vs `AGENTS.md:8`），**⛔ 不需要外部背书**。
+
+### §C′ ✅ **文档/门禁普查 —— §C/§D/§H 的复算记录**（2026-10-02，用户令"先自己复检一遍"）
+
+> ⚠️ 本节是**读数**，⛔ 不是新想法。凡与 §C/§D/§H 冲突处，**以本节为准**（那几节是**抽样/归纳**，本节是**统计**）。
+> ⭐ **可复算工具**：`python3 tools/gate-inventory.py`（本轮新建，生成物）。
+
+**① 门禁规模（§C 的"85 脚本/40 调用"复核）**
+
+| 项 | 我原先写的 | ⭐ 复算 |
+|---|---|---|
+| `check-all` 直挂 | 40 | ⭐ **40 道** = `run_gate` **39** ＋ 特殊挂法 **1**（`run_doc_budget`）⇒ ✅ **40 是对的** |
+| 另有特殊挂法 | — | `run_machine_map` · `run_headless_battery` · `run_expected_reds`（自带三态收口，⛔ 不经 `run_gate`） |
+| `tools/` 脚本数 | 85 | **89**（含本轮新增 3 个）⇒ 原 **86**；⚠️ 口径：只算 `.sh`+`.py` = 86 |
+| 实测汇总 | — | **`pass=39 warning=2 failed=1`** ⇒ `run_gate` 39 道里 37 PASS ＋ 1 WARN（`machine-map`）＋ 1 FAIL（`redline-gates`）；`doc_budget` PASS · `headless` WARN · `expected_reds` 未触发 |
+| ⚠️ 计数口径 | — | **三类计数不闭合**（39+2+1=42 ≠ 39 道 `run_gate`）⇒ ⭐ **这是"门禁没长脸"的第一个具体症状** |
+
+**② ⭐ 结构发现：门禁有"**两个文件**"，而自述通常在壳上**
+
+`check-all` 直挂的 40 道里，**11 道是 4–6 行的薄壳**，断言在**另一个** `.py` 里：
+`check-exec-record.sh`(4)→`exec-record.py`(217) · `check-policy-matrix.sh`(4)→`policy-map.py`(613) ·
+`check-authz-registry.sh`(4)→`authz-map.py`(368) · `check-kernel-predicates.sh`(4)→**`kernel-predicates.py`(5768)** ·
+`check-fixture-hygiene.sh`(4) · `check-transfer-clock.sh`(4) · `check-goal-vocabulary.sh`(5) · `check-ref-integrity.sh`(5) ·
+`check-risk-surface.sh`(5) · `check-station-mapping.sh`(5) · `check-step-names.sh`(5)
+⇒ ⭐ **"管不动门禁因为它没长脸"的机制解释更精确了：脸（1 行注释的壳）和心脏（断言）不在同一个文件里。**
+⇒ 任何"自述块"若放壳上 ⇒ 与断言**跨文件**，会立刻不同步。
+
+**③ 脚本分类（§C 的"42 个未被调用"复核）**
+
+| 类 | 全部 | 其中被 `check-all` 直挂 |
+|---|---|---|
+| **GATE** | 56 | 38 |
+| **GEN**（生成物） | 3 | 0 |
+| **TOOL**（构建/同步/镜像） | 6 | 0 |
+| **?**（未分类） | 23 | 1 |
+
+⭐ **未被 `check-all` 调用 = 49 个** ⇒ **有二级调用者 32 个**、**疑似孤儿 17 个**（⛔ 我原先笼统说"42 个未区分"，**那个数也不对**）。
+⚠️ 「疑似孤儿」**⛔ 不等于该删** —— 含云端/codespace 工具链、一次性分析件、人工调用件；**须逐个人工归类**（本轮**未做**）。
+
+**④ ⭐ 决策记录「状态字段」实测（§D 第 ③ 类复核）**
+
+| 项 | 读数 |
+|---|---|
+| 决策条目 | **670**（`#{2,3}` 口径；`####` 另有 54 个**不是**条目） |
+| ⭐ 带 `状态：`（**用 `decisions-index.py` 自己那行正则**） | **111 / 670 = 16.6%** ⇒ ✅ **"~15%"坐实** |
+| ⭐⭐ **状态取值种类** | **37 种** —— `已实施`(19) · `稳定`(17) · `已实施，待客户端验证`(16) · `已验收`(11) · `当前生效`(9) · `已裁`(4) · `已决策`(2) · `已裁定`(2) · `待重新定义` · `冻结，实验设计基线` · `USER_ACCEPTED，证据已归档` … |
+| 条目长度 | 最短 **5** 行 · 中位 **35** · 均值 **42** · 最长 **230**（`D-469`）；**≤6 行的占位条目 15 个（2.2%）** |
+
+⇒ ⭐⭐ **不只是"覆盖不足"，而是"有字段、字段本身没有受控词表"** —— 同一状态位 **37 种写法**，无法按状态检索。
+⇒ **这正是用户④"自己造学术词"的病害在裁定文件里的样本。**
+
+**⑤ ⭐ 跨包设计（§F 里我"没能回答"的那一问）**
+
+| 项 | 读数 |
+|---|---|
+| 顶层包 | **30** 个；`package-info.java` **仅 9 份**（9/54 包 = 16.7%） |
+| 最大的包 | `fixture/` 155 · `item/` 80 · `pathing/` 71 · `job/` 40 |
+| ⭐ 裁定引到 **≥2 个包**的 | **36 / 670 = 5%**（判据：把 `Xxx.java` 按路径**逐文件归属**，比词匹配可靠） |
+
+⇒ ⭐ **结论：绝大多数裁定是"单包或零包"的** ⇒ `package-info.java` 当设计主序**对 95% 可行**；
+⚠️ 但**剩下 5% 是真跨包**（如"世界修改授权"横跨 `write`/`region`/`action`/`job`）⇒ **是少数问题，⛔ 不是结构性问题**，但仍需一个**非包**的家。
+
+**⑥ 入口（§D 第 ② 类"三处打架"复核）**
+
+| 文件 | 自称 | 行数 |
+|---|---|---|
+| `README.md`（根） | 项目介绍（**面向「人」**） | 115 |
+| `docs/README.md` | 「**第一入口**：`START_HERE.md`」＋列"每次 AI 会话先读"**6 份** | 85 |
+| `docs/START_HERE.md` | 「这是 Alice 项目的**永久性协作规范**…作为新会话的 **preset**」 | 143 |
+
+⇒ ⭐ **精确判定：不是"三处都自称入口"，而是"入口有两义、其中一义有两个声索人"**：
+· 「给人看的项目入口」= `README.md`（唯一，⛔ 无争）· 「读文档的入口」← `docs/README.md` 与 `START_HERE.md` **两处声索**
+
+**⑦ ⭐ `[gate:]` 标签到底有没有人校验（§H(3) 复核）**
+
+```
+grep -rl '未门禁\|\[gate' tools/   ⇒  只有 3 个文件：check-redline-gates.sh · redline-gates.py · check-all.sh
+```
+⇒ ⭐ **坐实**：全仓**只有一处**解析这些标记，而它做的**仅是"结构/准入"检查**（条目必须带标记 · 基线不许静默消失 · 带路径的钉子必须真实存在/版本一致）；
+⛔ **没有任何东西校验「标记指向的命令是否真的覆盖那条规则」** ⇒ `[gate: X]` = **声明/索引**，**⛔ 不是执法**。
+
+**⑧ 术语面（批次 3 判据②复核）**
+
+| 项 | 读数 |
+|---|---|
+| `docs/GLOSSARY.md` | **82 行**（`O10` 记的是"最小版 12 行" ⇒ ⭐ **它长大了，而没有任何门禁盯着它**） |
+| 「已否决词」登记表 | ⛔ **实测不存在**（只在散文里被"登记为待建"）⇒ 原判定**成立** |
+| ✅ 唯一一枚"废法"活样本 | `墓碑` → `退役说明`（2026-09-29，9 文件 34 处，同行替换） |
+
+### §C″ ⚠️ 一个**独立会话无法发现**的读数：**入口的真身不在仓里**
+
+| 入口 | 载体 | 谁加载它 |
+|---|---|---|
+| ⭐ **真正生效的** | `~/.dsh/.agent-presets/alice-forge-assistant/agent.cordis.yml`（**15053 字节 / 234 行**，**⛔ 不在仓库里**） | DSH 会话启动时 |
+| `AGENTS.md` | 仓根（**142 行**） | 客户端惯例（本会话实测：**已加载**） |
+| `docs/START_HERE.md` | 仓内（143 行） | ⛔ **无**：`tools/` ＋ `.github/` **0 命中**；preset 里**搜不到** `接手`/`START_HERE` |
+| `docs/README.md` | 仓内（85 行） | ⛔ 无（纯索引） |
+
+⭐ **补充实测（2026-10-02）**：那个 15053 字节里**真正的 Alice 内容只有 2 行**（`:29` 人格句 ＋ `:31` 定位句）
+—— 其余是 **DSH 交付版 `standard` preset 自带的壳**（`…/dsh-agent-presets/presets/standard/agent.cordis.yml` 里 `Alice` 出现 **0 次**）。
+⇒ ⭐⭐ **`START_HERE.md:141` 那句「用户说『接手 Alice』…就执行本文件的启动流程」当前是个空钩子** —— **它描述的那个联动不存在**。
+⇒ ⭐ **这解释了用户③「常驻规范…现在明显不达标」的一半**：**有一段常驻规范住在仓库外面，任何人都 review 不到它。**
+
+### §C‴ ⛔ **一个我必须自己更正的读数**
+
+用户要求"证据必须能指向一次**当场复算**"。本轮实测：
+`ls -la /home/` ⇒ 下面**只有 `vscode`**；`touch /home/.alice-write-probe` ⇒ **`Permission denied`** ⇒ **`/home/fb486` 建不出来，这条成立 ✅**（已落成 `tools/cloud-restore-env.sh` 的 `SKIP` 分支）。
+
+⛔ **但另两条我给不出当场证据**：①「`/home/fb486` 曾存在且预置着 `projects/alice`」②「重置前 `超界=0`、重置后 `超界=28`」
+—— 那是**压缩之前**的读数，**当前上下文里没有**。
+⇒ ⭐ **处置：降级为"上一轮会话的记录"，⛔ 不作为本轮实测**。结论不受影响（`ref-integrity` 现在 PASS 是**当场复算**的），
+但"到底是什么把超界从 0 变成 28"**我没有本轮证据** —— ⚠️ 这本身是**证据链上的一个洞**。
+
+### §C⁗ ⛔ **我自己新造的词，主动登记**（用户 2026-09-29 裁定：用新词须先经用户审批）
+
+| 词 | 出自 | 现状 |
+|---|---|---|
+| **门禁自述块** | §H(5) | ⛔ 我造的词，未经审批 |
+| **执法器 / 声明** | §H(3) | ⛔ 同上 |
+| **装载类 / 指针类** | §F | ⛔ 同上（⚠️ 借计算机术语，**最该换**） |
+| **保鲜期** | §D/§F（描述 ④ 类文档的属性） | ⛔ 同上 |
+| ~~**普查**~~ | §C′ | ⛔ **登记本身错了**：它不是新词 ⇒ **撤回这一条** |
+
+⛔ **用户 2026-10-02 追加点名的一枚（比我这 5 个更该被判）**：⭐ **`AGENTS.md:26`「规则与流程的准入尺子」**
+- **全仓足迹 = 1 处**（只有那个标题 ＋ 我在断点里的引用）
+- 「**尺子**」是**我造的隐喻** —— 它实际是**三条问句 ＋ 一条冻结约束**，⛔ 不是"量一个连续量"
+- ⛔ **"准入"在本项目已背 4 个义项**：`D-132`「未加载区块/世界边界**准入**」· `D-151/152`「可回收性改变**准入**结果」· `D-167`「目标**准入**」· `AGENTS.md:26`「规则的**准入**」⇒ **O10 记的"一词多义"里未被登记的第 5 组**
+- ⭐ **最讽刺**：那个标题自己括号里写着「**净增≈0**」—— 它是 2026-09-14 为了**不增加行数**而**塞进一个既存标题位置**的改写产物 ⇒ **连名字都是行数预算挤出来的**
+- ⇒ ⛔ **全部挂"待批"标记**：未获批准前**不许进 `AGENTS.md`/`GLOSSARY.md`/裁定**。
 
 ### §D ⭐⭐ 核心想法一：**六类文档 ＋ 一条"加载轴"**
 
@@ -6712,7 +6890,9 @@ Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**
 **我恢复了什么**（按 `§20.6` 清单）：
 
 1. ✅ `git clone --depth 1 --branch 1.20.1 … ~/reference/baritone-1.20.1` ⇒ 判据 **`MovementHelper.java` = 863 行** ✅
-2. ✅ `/home/fb486/projects/alice -> /workspaces/Alice-mcbot`
+   （⚠️ **2026-10-02 自查更正**：判据文件的**真路径**是 `src/main/java/baritone/pathing/movement/MovementHelper.java`
+   —— 我原先写的是 `utils/pathing/…`，**行数对、路径错**。）
+2. ✅ `/home/fb486/projects/alice -> /workspaces/Alice-mcbot`（⚠️ **该目录在 2026-10-02 17:24 的二次 rebuild 后再次消失**，见 §M）
 
 **我恢复不了什么（⛔ 需要 root，本轮做不到）**：
 
@@ -6728,18 +6908,162 @@ Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**
 
 ### §K ⏭ **下一步 / 接续锚点**
 
-⛔ **压缩后不要重读本节之外的推理** —— 事实在 §C、想法在 §D–§I、未做在 §J。
+⛔ **压缩后不要重读本节之外的推理** —— 事实在 §C，**复算在 §C′/§C″/§C‴/§C⁗**，**调研在 §B′/§L**，想法在 §D–§I，未做在 §J。
 
-1. ⭐ **用户已明示"文档整顿必须最严格"**（逐字 ⑫）⇒ 它是**下一个主线的强候选**，但**⛔ 施工计划"还不能开始做，因为问题非常多"**（逐字 ①）⇒ **先讨论、后计划**。
+> ⭐ **2026-10-02 追加**（用户令"先自己复检一遍，没调查的先去调查，这次文档改革要彻底地改革"＋"裁定范围去调查别的项目"）：
+> **§J 的 6 条"没做"里已有 3 条被 §C′ 结清**（见第 7 条）；**裁定范围已调研完**（见第 10 条）。
+
+1. ⭐ **用户已明示"文档整顿必须最严格"**（逐字 ⑫）＋ ⭐⭐ **"这次文档改革要彻底地改革"**（2026-10-02）＋ ⭐ **"现在需要先把新的文档体系设计出来"**（2026-10-02）
+   ⇒ 它是**下一个主线的强候选**，但**⛔ 施工计划"还不能开始做，因为问题非常多"**（逐字 ①）⇒ **先设计、后计划**。
 2. ⭐ **用户已确认两条方向**（逐字 ③⑪）：**① 常驻规范只留一个 `AGENTS.md`** · **② skills 里"规则/约定"部分要拆出来**。
-   ⚠️ 但 §C 实测显示 **`AGENTS.md` 不算超标**（142 行 / 42 条指令）⇒ ⭐ **拆的对象可能不是 `AGENTS.md` 本身，而是"混进它 / 绕过它"的那些载体**（`START_HERE.md` · `AI_PROJECT_STATE.md`）。**这一点尚未与用户对齐。**
-3. ⏳ **未裁清单（⛔ 下个会话不要当成已裁）**：入口唯一怎么落地 · 设计住哪（`package-info` 是否成立）· 裁定文件怎么分桶 · 门禁自述块的具体形状 · 术语"来源"怎么落（**新词须用户批**）· `plans/` 是否按批次退场。
-4. ⏳ **文档整顿的三条既有判据仍在册**（`O41` 批次 3）：① 四条检查落地（同刀义务）· ② 术语面收工（`已否决词`登记表 ⛔ **实测不存在** ＋ 门禁 ⏳）· ③ `AI_TEST_MATRIX` 重复块消解（✅ 我已验 `:339` ≡ `:451`）。
-5. ⚠️ **`START_HERE.md` 处置：用户已裁 = （甲）改**「降为"只有接手口令 ＋ 恢复流程"」（2026-10-02，⏳ **未落地**）。
-6. ⚠️ **【新登记，⛔ 待裁】`AGENTS.md` 钉绝对路径这件事本身**（起因见 **§J′**）：
-   `AGENTS.md:62` 钉 `/home/fb486/projects/reference/baritone-1.20.1/` —— 而
-   **① 这个路径依赖镜像层预置的 `/home/fb486`（重置即失、⛔ 需 root 才能重建）**；
-   **② `check-redline-gates` 不认任何兜底路径**（对比：`ref-integrity` 认 `ALICE_BARITONE_DIR` 与 `$HOME/reference/baritone*`）。
-   ⇒ 待裁：改成**工作区相对**钉法 · 还是让 `check-redline-gates` 也认兜底 · 还是接受"云端这道理线门禁恒红"。
-   ⚠️ **本条是"环境件 vs 仓库"边界的第一个具体案例**，与 §D 第 ① 类（常驻规范里不该有会腐烂的东西）同源。
+   ⚠️ 但 §C 实测显示 **`AGENTS.md` 不算超标** ⇒ ⭐ **拆的对象不是 `AGENTS.md` 本身，而是"绕过它"的那些载体** ——
+   ⭐ **已实测坐实**：`START_HERE.md`（**空钩子**，§C″）· `AI_PROJECT_STATE.md`（**头部落后**）· ⭐ **`preset`（⛔ 在仓外，review 不到）**。
+3. ⏳ **未裁清单**：入口唯一怎么落地 · 设计住哪 · 裁定文件怎么分桶 · 门禁抬头（自述块）的具体形状 · 术语"来源"怎么落 · `plans/` 是否按批次退场。
+4. ⏳ **文档整顿的三条既有判据仍在册**（`O41` 批次 3）：① 四条检查落地（同刀义务）· ② 术语面收工（⭐ 复算：`已否决词`登记表 ⛔ **确实不存在**；⚠️ `GLOSSARY.md` **已从 12 行长到 82 行，且无门禁盯着**）· ③ `AI_TEST_MATRIX` 重复块消解（✅ 已验）。
+5. ✅ **`START_HERE.md` 处置：用户 2026-10-02 改裁 = 删**（推翻原先的"（甲）改"）。
+   ⭐ **连同三条约束**：㈠ **仍可做一个 preset 加速器** ㈡ ⛔ **但必须保留"仅用标准 preset 也能接手"的入口**（本项目**吃过一次丢 preset 的亏**，且 **preset 修改要开新会话**）
+   ㈢ ⇒ **入口的久期排序**：`AGENTS.md`（跟 git 走，永不丢）**必须自足** > `docs/README.md` > preset（**只是加速器**）。
+   ⚠️ **执行顺序约束**：**先把口令写进 `AGENTS.md`，再删文件、再清引用、最后同步 preset** —— ⛔ **不能先删**（否则口令真空）。
+   ⚠️ **重量约束**：`check-doc-budget` 实测 **余额 = 0**（1476/1476）⇒ 加行必须**同刀删等量行**。
+6. ✅ **【用户 2026-10-02 已裁】`AGENTS.md:62` 改"相对钉法"** —— ⚠️ 动手前**必须实测 `check-redline-gates` 的 `resolve_pin()` 认不认相对路径**（⛔ 不实测就改 = 又一个假边界）。
+7. ✅⭐ **§J 结清 3 条（2026-10-02，读数在 §C′）**：
+   - **§J 第 2 条「40 道门禁没盘点」⇒ 已盘点**（§C′ ①②⑦）。⚠️ **四档强度的归类仍是归纳**，但规模/结构/标记校验面**已是统计**。
+   - **§J 第 3 条「42 个未调用脚本未区分」⇒ 已区分**（§C′ ③：**49 个未直挂 ⇒ 32 有二级调用 / 17 疑似孤儿**）。⚠️ 逐个人工归类**仍未做**。
+   - **§J 第 4 条「ETH Zurich 原文没读到」⇒ 已读到并复核**（**§B′**）—— ⛔ **代价是发现我引错版本、且"极简文件"那组不存在**。
+   - **仍挂**：§J 第 5 条（`AI_DECISIONS` 全文未读）· §J 第 6 条（**跨包设计** ⇒ ⭐ **已量出是 5% 问题**，§C′ ⑤，但**"它们住哪"仍未解**）。
+8. ⛔ **本轮新增的"洞"**：**§C‴** —— 「`/home/fb486` 曾存在」与「超界 0→28」两条**拿不出本轮证据**，已降级为"上一轮记录"。
+9. ⛔ **待批词**：**§C⁗**（门禁自述块 · 执法器/声明 · 装载类/指针类 · 保鲜期）；
+   ⛔ **用户追加点名**：⭐ **`AGENTS.md:26`「规则与流程的准入尺子」**（全仓足迹 1 处；「尺子」是隐喻；「准入」已背 4 个义项；标题自称"净增≈0"⇒ **名字是行数预算挤出来的**）。
+10. ⭐⭐ **§L 裁定范围调研（用户点名要的）—— 修正了我原来那版判据**：
+    - 我原提「只有"以后不许改"的才需要裁定」⇒ ⚠️ **太窄**（漏了"**选择**"与"**具名的人批**"）
+    - **改为（⛔ 待裁）三条同时满足**：㈠ **在具名方案之间做的选择**（含被否的替代）㈡ **影响结构/非功能/依赖/接口/构造手法**（Nygard 逐字）㈢ **由具名的人明确同意**
+    - ⭐⭐ **最强新机制**：**编号是"挣来的"** —— Rust「**Don't assign an RFC number yet**」· PEP「**Once approved**, they will assign your PEP a number」· KEP 编号 = tracking issue ⇒ **这解释了 670 个编号为何膨胀**
+    - ⭐⭐ **第二机制**：必须有一条**"不具约束力"的记录层**（Python `Informational`：**可忽略** / IETF `Experimental`：「**archival record**」/ Rust `pre-RFC` / K8s `provisional`）
+11. ⭐ **§L″ 勘测报告机制**（用户新提）⇒ **4 层：正文标记 → 分流四档 → 生成式登记表 → 未裁不许进排期**。⛔ **未答**：`survey/`（50 份）与 `docs/reviews/`（78 份）**是不是同一类**。
+12. ⚠️ **§M**：二次 rebuild 丢了两个未推送提交 ⇒ ⭐ **纪律：每次提交立刻 push**。
 
+### §L 🆕 **裁定范围：7 个成熟系统的调研结论**（2026-10-02，独立会话取一手出处）
+
+> ⚠️ 用户对该条原话：「**'裁定'的范围我还拿不准，你最好再调查一下其他项目的管理方案**」。
+> **调研对象**：Nygard ADR(2011) · `adr.github.io`＋MADR · AWS Prescriptive Guidance · Rust RFC(＋MCP/RFC 2904) ·
+> Python PEP 1 · Kubernetes KEP · IETF RFC 2026/6410/1796 · OpenStack specs · `joelparkerhenderson/ADR` 集。
+> ⚠️ **Log4j = 负结果**（GitHub API 递归树 grep 无 `adr|decision`）⇒ **不存在可引的 ADR 实践**。
+
+**① ⭐⭐ 收敛判据（出现于 ≥3 个系统的，加粗）**
+
+| # | 判据 | 系统数 |
+|---|---|---|
+| **A1** | ⭐ **它是一个"在若干具名方案里做的选择"，且**替代方案被考虑过 | **4** |
+| **A2** | ⭐ **架构显著**（Nygard 逐字：影响 **structure / non-functional characteristics / dependencies / interfaces / construction techniques**） | **3–4** |
+| **A3** | ⭐ **效应超出这次改动本身 —— 它约束后续工作** | **4** |
+| **A4** | ⭐ **跨边界**（影响别人／公开契约／用户可见） | **4** |
+| A5 | **有争议／被谈判过** | 3 |
+| A6 | **昂贵或难以逆转** | 2–3 |
+| **A7** | ⭐⭐⭐ **有一个"具名的人"真的同意了它** | **5＋** ⇒ ⭐ **单一最强的闸门** |
+| **A8** | ⭐ **它不只是复述／重组／改形状** | **4** |
+
+**NNygard 的原文范围句**：「records for **"architecturally significant"** decisions: those that affect the structure, non-functional characteristics, dependencies, interfaces, or construction techniques.」
+
+**② ⭐⭐⭐ 最可复制的一条机制：编号是"挣来的"，⛔ 不是写的时候发的**
+
+| 系统 | 逐字 |
+|---|---|
+| **Rust** | 「**Don't assign an RFC number yet**；This is going to be the PR number and we'll **rename the file accordingly if the RFC is accepted**」 |
+| **Python PEP** | 「**Once approved**, they will assign your PEP a number」 |
+| **K8s KEP** | 编号 = **tracking issue 号**（⛔ 不是作者起的） |
+
+⇒ ⭐⭐ **这解释了我们的 `AI_DECISIONS.md` 为什么膨胀**：**670 个编号是"谁写的谁就发号"**。
+⇒ ⭐ **建议（⛔ 待裁）**：**`D-###` 只在"具名的人把它移到 `生效`"那一刻才分配**；在那之前**没有编号**（只有草稿位置）。
+
+**③ ⭐⭐ 第二条机制：必须有一条"不具约束力"的记录层**
+
+| 系统 | 那层的名字 | 逐字 |
+|---|---|---|
+| **Python** | **`Informational` PEP** | 「users and implementers are **free to ignore Informational PEPs** or follow their advice」 |
+| **IETF** | **`Informational` / `Experimental` RFC** | 「**does not represent an Internet community consensus or recommendation**」·「published… **as an archival record of the work**」 |
+| **IETF** | **Internet-Draft**（更轻） | 「have **no formal status**」·「**Under no circumstances should an Internet-Draft be referenced** by any paper, report, or RFP」 |
+| **Rust** | **pre-RFC** / 标 `experimental` 的 PR | 「these are **not actively looked at by the teams**」·「marked as **experimental** and **they should not land**」 |
+| **K8s** | `provisional` KEP ＋ `<<[UNRESOLVED]>>` 围栏 | 「a `provisional` KEP is a **working document and subject to change**」 |
+| **OpenStack** | `specs/backlog/approved` | 「do not have a developer assigned… or are not targeted for the current release」 |
+
+⇒ ⭐⭐⭐ **这就是我们缺的那个"泄压阀"**：**AI 的结论与勘测报告可以"有编号、可引、⛔ 但不是法"**。
+
+**④ ⭐ 类型分级（⛔ 只有 3/7 个系统有正式的 type 字段）**
+
+| 系统 | 类型名 | 效力 |
+|---|---|---|
+| **Python** | `Standards Track` / `Informational` / `Process` | Informational = **可忽略**；Process = **不可忽略** |
+| **IETF** | Standards Track / Informational / Experimental / Historic / BCP | 见上 |
+| K8s · Rust · ADR 全家 · OpenStack | ⛔ **没有 type 字段**（K8s 用 `status` ＋ `stage: alpha|beta|stable`） | — |
+
+**⑤ 状态词表（7 系统的收敛集）**：`proposed` · `provisional` · `draft` · `active` · `accepted` · `implementable` · `implemented` ·
+`deferred`/`postponed` · `rejected` · `withdrawn` · `superseded` · `replaced` · `deprecated` · `final` · `Historic`
+⇒ ⭐ 三条观察：㈠ **每个有状态字段的系统都有一个"不再现行"的终态** ㈡ ⭐ **只有 IETF 把"已过时但刻意保留"（`Historic`）与"被 X 取代"分开** ㈢ ⛔ 大小写/标点各家不一致 ⇒ **必须挑一种并让门禁强制**。
+
+**⑥ 取代/废弃的机制（7 种，全部是机械的，⛔ 不是散文）**
+`C1` 状态值**自己带指针**（MADR：字面串 `superseded by ADR-0123`）· `C2` ⭐ **成对的双向头**（PEP：旧 `Superseded-By:` ⇄ 新 `Replaces:`，**规范逐字要求"必须配对"**；KEP：`superseded-by` ⇄ `replaces`，**"应配对"**）·
+`C3` **不可改＋另开一条**（AWS：接受后**immutable**，新 ADR 取代时才改旧的状态）· `C4` **搬目录＋链接重定向**（OpenStack：`approved/`→`implemented/`→`abandoned/`，配 `redirects` 文件，**URL 永不断**）·
+`C5` ⭐ **不另开记录、只改状态**（IETF 6410：**reclassified without publication of a new RFC** ⇒ **编号永久稳定、状态是可变属性** —— ⭐ **与我们 `D-###` 与位置解耦同构**）·
+`C6` **拒绝也要永久留痕＋写理由**（AWS：「adds a reason for the rejection **to prevent future discussions on the same topic**」）· `C7` **到期而非取代**（OpenStack：spec **只对一个 release 有效**，未实现须**重新批准**）。
+
+**⑦ ⛔ "不该有编号记录"的原文清单（对我们最有用的一节）**
+- **Rust**：「Some changes **do not require an RFC**: Rephrasing, reorganizing, refactoring, or otherwise **"changing shape does not change meaning"** · Additions that strictly improve objective, numerical quality criteria · **只在 rust 开发者之间被注意到、对用户不可见**的追加 · `std` 的小追加」
+- **Python**：「**Most enhancements and bug fixes don't need a PEP** and can be submitted directly to the issue tracker」
+- **OpenStack Nova**：「A spec is needed for any feature that **requires a design discussion**… If a new feature is straightforward enough that it **doesn't need any design discussion**, then no spec is required」
+- **joelparkerhenderson**：「skip an ADR when a decision is **limited in scope and time and risk and cost**, or is **already covered elsewhere**」
+- ⭐ **K8s 的元建议**：「SIGs may find it more helpful to **enumerate what _does not_ require a KEP, than what does**」
+
+**⑧ ⭐ 勘测/调查报告的既定做法（用户新问题的直接依据）**
+`F3` **Python `Informational` PEP** = 有编号、可引、**可忽略** · `F4` **IETF Experimental/Informational RFC** = 「published… **as an archival record of the work**」·
+`F5` **Internet-Draft** = 无编号、无正式身份 · `F1/F2` **Rust pre-RFC / `experimental` PR** = 「**should not land**」·
+`F6` **K8s `provisional`** · `F7` **OpenStack `backlog/approved`** = 「**not targeted for the current release**」
+⚠️ `F10` **找了但不存在**：「research RFC」·「investigation ticket」·「spike」作为正式的记录类型 —— 这三样在 7 个系统里**都不是正式的产物**（`spike` 只作为散文出现在 ADR 文献里）。
+
+**⑨ ⭐ 对我原来那版判据的修正**
+我原先提的是「**只有"以后不许改"的才需要裁定**」⇒ ⚠️ **太窄**：它把"**选择**"和"**具名的人批**"这两条都漏了。
+⇒ **改为（⛔ 待裁）**：**一条陈述要拿到永久编号，必须同时满足三条** ——
+**㈠ 它是在具名方案之间做的选择（含被否掉的方案）㈡ 影响结构/非功能/依赖/接口/构造手法 ㈢ 由具名的人明确同意过**。
+**其余一切 —— 调查、发现、复述、重构、改形状 —— ⛔ 一律不进裁定**，去设计文档 / 报告 / 提交信息 / **"不具约束力"那一层**。
+
+### §L″ 🆕 **勘测报告的机制**（用户 2026-10-02 新提；⛔ 未裁）
+
+**用户逐字**：「本项目有一个**勘测员**，只写报告，不过每次她的报告虽然很有用，但**容易干扰主线**，能专门给勘测报告加点机制吗，能够针对性地符合报告并按情况落档」
+
+**⭐ 查实：勘测侧不缺纪律，缺的是"分流"与"登记"**：
+
+| 已有（✅ 很成熟） | 实测证据 |
+|---|---|
+| 基线 commit ＋ 要求读者 `git log -1` 对一下 | `survey/35` `survey/42` `survey/49` 头部均有 |
+| ⭐ **性质声明**：「**不是排期、不是待办、不是授权**。主工作流可采纳 / 部分采纳 / 不采纳」 | `survey/49` 头部逐字 |
+| ⭐ **防重复提案节**：「与既有裁定的对齐（**防重复提案**，主工作流先读这节）」 | `survey/49 §8` |
+| **诚实边界节**：「本报告**没**做的 / 风险声明」·「⚠️ 未跑过的一律不许当事实」 | `survey/49 §9` `§6` |
+| ⭐ **拉取登记表（已有雏形！）** | `OPEN_ITEMS_LEDGER.md:71` ——「拉取登记：`survey/19`＋`survey/20`」，含**来源 / 待拍板 N 项 / 主线异议 / 待澄清 / 待回写** |
+
+| ⛔ 缺什么（= "干扰主线"的机制原因） | 读数 |
+|---|---|
+| ⛔ **没有分流** —— 报告是"整份"被对待的，⛔ 不区分「**必须裁**」与「**只是证据**」 | `survey/` **50 份**，无一份带分级标记 |
+| ⛔ **没有登记** —— 拉取登记只**散在台账正文里**，**⛔ 没有一张"报告 → 载体"的表** | `survey/` 下只有 `README.md` ＋ `INTENT.md`，**无索引** |
+| ⇒ ⛔ 后果：**每来一份报告都带出 N 条"待拍板"，直接压到主线判断面上** | 用户逐字：「容易干扰主线」 |
+
+**🆕 我提的机制（4 层，⛔ 待裁；⭐ 依据 = §L 的 ⑥⑧）**：
+
+| 层 | 做什么 | 关键规定 |
+|---|---|---|
+| **① 报告正文** | 保持现状（勘测侧已有好纪律） | ⭐ **新增**：头部必须有 **`落档判定`** 一行 |
+| **② 分流（核心）** | 每份报告**开头就自我判定**，⛔ 而非读完整份才知道 | 四档：🔴 **需裁**（含不可逆/跨包/偏离方向的主张）· 🟡 **挂账**（有用，但**必须先答"怎么降低那个数"**，且**复活条件**写清）· 🟢 **参考**（只是事实/证据，⛔ 不产生待办）· ⚪ **数据**（读数类） |
+| **③ 登记（解决"找不到"）** | ⭐ **`survey/README.md` 变成一张表**：`编号 · 标题 · 落档判定 · 已裁/未裁 · 落到了哪（台账行 / D-### / 设计文档）` | ⛔ **必须是生成物**（从 ② 的标记生成），否则又是一份会过期的手写表 |
+| **④ 落档** | 🔴 → 你的裁定 → **只有裁完才进排期**；🟡 → 台账挂账 ＋ **复活条件**；🟢⚪ → 存档，**⛔ 不作为依据** | ⭐ **强保证：⛔ 未裁的报告一律不许直接变成工作项** |
+
+⭐ **与已接受的"分支线入口闸"同源**：🔴 的入口闸 = 「**它怎么降低『从改一行到知道对不对』这个数**」——
+
+**⛔ 本节没回答的**：`survey/`（50 份）与 `docs/reviews/`（78 份，**100% 日期打头**）**是不是同一类**？两份目录为什么并存？
+
+### §M ⚠️ **二次 rebuild 实录：两个未推送的提交丢失**（2026-10-02 17:24）
+
+**症状**：`git reflog` 只有两条 —— `clone`（`3897d786`）→ `pull -q: Fast-forward`（`e68982da`）。`.git` 目录 mtime = **2026-10-02 17:24**。
+⇒ ⛔ **本会话的 `fbe41883`（`tools/cloud-restore-env.sh` ＋ 判据路径更正）与 `a583edef`（复检报告）不在对象库里**，`origin/master` 也没有。
+⇒ ✅ **代码/历史完好**：`3897d786` 及之前全在，`src/`、`tools/` 无内容丢失。
+⇒ ⭐ **原因（用户 2026-10-02 说明）**：**搬迁到新 codespace 时打包只带已推送的内容**，未推送的本地提交随之消失。
+⚠️ `.devcontainer/devcontainer.json` 里**没有自动 clone**；新环境是**重新 clone ＋ pull** 来的。
+⇒ ⭐ **纪律（我已采纳）**：**每次提交立刻 push，⛔ 不再把 push 攒到最后。**
+⇒ ✅ **已重建**：两个脚本按原样重写；§B′/§C′/§C″/§C‴/§C⁗ 按原内容补回。
