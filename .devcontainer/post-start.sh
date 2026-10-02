@@ -28,8 +28,13 @@ say() { echo "[post-start] $*"; }
 # ① 信箱目录（幂等）
 mkdir -p "$HOME/bus/to-win" "$HOME/bus/to-cloud" "$HOME/client-info" "$HOME/outbox" 2>/dev/null
 
+# ①.5 记下「启动前日志里已有的最后一条令牌」＋「dsh web 是否本来就在跑」（见 ③ 的说明）
+TOKEN_BEFORE="$(grep -o 'token=[A-Za-z0-9_-]\{8,\}' "$LOG" 2>/dev/null | tail -1 | cut -d= -f2)"
+ALREADY=0
+
 # ② 起 dsh web（已经在跑就不动它）
 if pgrep -f "[d]sh web" >/dev/null 2>&1; then
+    ALREADY=1
     say "dsh web already running (pid=$(pgrep -f '[d]sh web' | head -1))"
 else
     D="$(command -v dsh || echo /usr/local/share/nvm/current/bin/dsh)"
@@ -44,10 +49,22 @@ else
 fi
 
 # ③ 抓令牌（DSH 启动时会打印一次的带令牌 URL；日志里可能有多条 ⇒ 取最后一条）
+# ⚠️ 2026-10-02 本机管家实测报的 **真 bug**（旧实现：取最后一条、一找到就 break）：
+#    `$LOG` **跨 stop/start 是留存的**（只有 rebuild 才清）⇒ 新进程还没打印时，
+#    日志尾**还是上一轮的旧令牌** ⇒ 钩子会把**旧令牌**发到 `steward/entry`。
+#    ⇒ 症状：**睡眠唤醒（stop→start）后 `steward/entry` 一直是旧的**、点开 401。
+#      （此前文档里记的「entry 在 stop→start 后仍是旧的、原因不明」就是这个。）
+#    ⇒ 修法：启动前先记下旧令牌 `$TOKEN_BEFORE`，只有拿到**与它不同**的令牌才算数；
+#      但若 dsh web **本来就在跑**（`$ALREADY=1`），日志尾就是它自己的令牌 ⇒ 允许相等。
 TOKEN=""
 for _ in $(seq 1 20); do
     TOKEN="$(grep -o 'token=[A-Za-z0-9_-]\{8,\}' "$LOG" 2>/dev/null | tail -1 | cut -d= -f2)"
-    [ -n "$TOKEN" ] && break
+    if [ -n "$TOKEN" ]; then
+        if [ "$ALREADY" -eq 1 ] || [ "$TOKEN" != "$TOKEN_BEFORE" ]; then
+            break
+        fi
+    fi
+    TOKEN=""
     sleep 2
 done
 if [ -z "$TOKEN" ]; then
