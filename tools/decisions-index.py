@@ -8,6 +8,9 @@
   （活例 = `D-455` 漏引 `D-080`，`survey/43 §10.2` —— 不是理论风险，是**已经发生**过的）。
 * 它还没有索引，且**标题级别不统一**：161 个编号用 `##`、378 个用 `###`
   ⇒ ⚠️ `grep "^### D-"` **漏掉 114 个编号**（这就是"靠名字找东西静默少给一半"的同一族）。
+  ⚠️ **2026-10-02 实测扩展**：**54 条用 `####`**，其中 **`D-203` 三次出现全是 `####`** ⇒
+  只认 `#{2,3}` 会**让 `D-203` 在索引里彻底不可见**（`grep -c 'D-203' docs/DECISIONS_INDEX.md` = **0**）。
+  ⇒ 本文件认 **`#{2,4}`**（⚠️ 与 `D-166` 无关 —— 曾有一版说"`D-166` 未闭合罩 17,437 行"，那是错命令造出来的，真值 **124 行**）。
 
 ## 两个反向纪律（照 `tools/capability-list.py` 的模子）
 * **不引入第二个真相源**：本索引**不新增任何事实** —— 标题 / 状态 / 追加数全从 `AI_DECISIONS.md` 读，
@@ -42,11 +45,11 @@ SCAN_SOURCES: list[tuple[str, Path, set[str], set[str]]] = [
     ("survey", ROOT / "survey", {".md"}, set()),
 ]
 
-#: ⚠️ 人口下限：解析崩塌 ⇒ 响亮失败（2026-09-28 实测值 = 378 / 598，留足余量但拦得住崩塌）
+#: ⚠️ 人口下限：解析崩塌 ⇒ 响亮失败（2026-10-02 实测 = **565 / 724**，留足余量但拦得住崩塌）
 #: ⚠️ 键必须与 `build()` 里 `stats` 的键**逐字相同**（不一致 ⇒ `KeyError` 崩溃，这比静默通过好）
 ASSERTIONS = {"决策编号数": 300, "标题数": 400}
 
-HEADING = re.compile(r"^(#{2,3})\s+(D-\d+)\s*(.*)$")
+HEADING = re.compile(r"^(#{2,4})\s+(D-\d+)\s*(.*)$")
 STATUS = re.compile(r"状态[：:]\s*\*{0,2}\s*([^\n*（(]+)")
 DNUM = re.compile(r"\bD-\d+\b")
 #: （保留：仅用于文档说明；判定追加条目现在按"同编号的第 2+ 个标题"数，不再做文字匹配）
@@ -64,21 +67,28 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def parse_decisions(text: str) -> tuple[list[dict], int]:
-    """→ ([{num,title,status,followups,cites,line}], 标题总数)。
+def parse_decisions(text: str) -> tuple[list[dict], int, dict[str, int]]:
+    """→ ([{num,title,status,followups,cites,line}], 标题总数, 各级别标题数)。
 
-    ⚠️ **编号总数必须把 `##` 与 `###` 两种标题都算上**（2026-09-28 实测：`##` 独有 114 ·
-    `###` 独有 331 · 两者都有 47 ⇒ **并集 492**）。只数 `###` 会**漏 114 个编号** ——
+    ⚠️ **编号总数必须把 `##` / `###` / `####` 三种标题都算上**（2026-09-28 实测：
+    `##` 独有 114 · `###` 独有 331 · 两者都有 47 ⇒ **并集 492**）。只数 `###` 会**漏 114 个编号** ——
     这正是 `O12` 里那个"靠名字找东西静默少给一半"的错，**我自己第一版就犯了一次**。
+
+    ⚠️ **2026-10-02 再修一次**：还有 **54 条用 `####`**，其中 **`D-203` 三次全是 `####`** ⇒
+    认 `#{2,3}` 时它**在索引里完全不存在**。⇒ 现在认 `#{2,4}`（2026-10-02 实测 **565 编号 / 724 标题**：
+    h2 **205** · h3 **465** · h4 **54**）。
+    ⛔ **但仍拦不住"真缺号"**：`D-178` `D-316` `D-367` `D-411` 在任何级别都扫不到 ⇒ 正则改不掉。
     """
     lines = text.splitlines()
     heads: list[tuple[int, str, str]] = []  # (行号, 编号, 标题原文)
+    level_census: Counter = Counter()
     for i, line in enumerate(lines):
         m = HEADING.match(line)
         if m:
             heads.append((i, m.group(2), m.group(3).strip()))
+            level_census[len(m.group(1))] += 1
     if not heads:
-        return [], 0
+        return [], 0, {}
 
     per_num: Counter = Counter(h[1] for h in heads)
     entries: list[dict] = []
@@ -112,7 +122,7 @@ def parse_decisions(text: str) -> tuple[list[dict], int]:
             "cites": len({n for n in DNUM.findall(block) if n != num}),
             "line": line_no + 1,
         })
-    return entries, len(heads)
+    return entries, len(heads), dict(level_census)
 
 
 def scan_refs() -> dict[str, Counter]:
@@ -143,7 +153,8 @@ def esc(cell: str) -> str:
     return cell.replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render(entries: list[dict], heading_total: int, refs: dict[str, Counter]) -> str:
+def render(entries: list[dict], heading_total: int, refs: dict[str, Counter],
+           levels: dict[str, int]) -> str:
     declared = {e["num"] for e in entries}
     src = refs["src"]
     in_force = sum(1 for n in declared if src.get(n))
@@ -151,7 +162,11 @@ def render(entries: list[dict], heading_total: int, refs: dict[str, Counter]) ->
     followups = sum(e["followups"] for e in entries)
     with_status = sum(1 for e in entries if e["status"] != "—")
     no_cite = sorted(e["num"] for e in entries if e["cites"] == 0)
-    level_note = "`### D-###` 与早期 `## D-###` 两种标题"
+    #: ⚠️ 级别读数**每次从文件算**、⛔ 不写死 —— 写死必然腐烂（曾写死成"`###` 与 `##` 两种"，而实际有三种）
+    level_note = " ＋ ".join(
+        f"`{'#' * lv} D-###` {levels.get(lv, 0)}"
+        for lv in (2, 3, 4) if levels.get(lv)
+    ) + " 三种标题" if len(levels) > 1 else "一种标题"
 
     lines: list[str] = []
     lines.append("# 决策索引（**生成物，禁手改**）")
@@ -227,7 +242,7 @@ def render(entries: list[dict], heading_total: int, refs: dict[str, Counter]) ->
 
 def build() -> tuple[str, dict]:
     text = read_text(DECISIONS)
-    entries, heading_total = parse_decisions(text)
+    entries, heading_total, levels = parse_decisions(text)
     stats = {"决策编号数": len(entries), "标题数": heading_total}
     for key, floor in ASSERTIONS.items():
         if stats[key] < floor:
@@ -235,7 +250,7 @@ def build() -> tuple[str, dict]:
                   f"（少读一截不许悄悄过）", file=sys.stderr)
             raise SystemExit(1)
     refs = scan_refs()
-    return render(entries, heading_total, refs), stats
+    return render(entries, heading_total, refs, levels), stats, levels
 
 
 def main() -> int:
@@ -245,11 +260,13 @@ def main() -> int:
     g.add_argument("--check", action="store_true", help="校验是否陈旧（陈旧 ⇒ 非零退出）")
     args = ap.parse_args()
 
-    rendered, stats = build()
+    rendered, stats, levels = build()
+    lvz = " · ".join(f"h{lv} {levels.get(lv, 0)}" for lv in (2, 3, 4) if levels.get(lv))
 
     if args.write:
         OUTPUT.write_text(rendered, encoding="utf-8")
-        print(f"DECISIONS_INDEX_RESULT WROTE: {stats['决策编号数']} 决策 / {stats['标题数']} 标题 → {OUTPUT.relative_to(ROOT)}")
+        print(f"DECISIONS_INDEX_RESULT WROTE: {stats['决策编号数']} 决策 / {stats['标题数']} 标题"
+              f"（{lvz}）→ {OUTPUT.relative_to(ROOT)}")
         return 0
 
     if not OUTPUT.exists():
@@ -277,7 +294,7 @@ def main() -> int:
               + (f"，首个不同在第 {first} 行" if first else "") + "）"
               f" ⇒ 跑 `python3 tools/decisions-index.py --write` 并提交", file=sys.stderr)
         return 1
-    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题"
+    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz}）"
           f" / 结构列与 {OUTPUT.relative_to(ROOT)} 逐字节相同"
           f"（⚠️ 附录「引用热度」**不在**比对范围）")
     return 0
