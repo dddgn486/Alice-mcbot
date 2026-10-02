@@ -6309,3 +6309,117 @@ Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**
    **人自己**开 `dsh web` 时看到的也是这个人格，若觉得别扭要改回（**待用户裁**）。
 5. ⚠️ **新设备排错时最容易骗人的坑**（本轮被咬两次）：**中文不要经 ssh 传给 Windows PowerShell**
    （GBK 拆坏 ⇒ 报"引号/括号没闭合"而肉眼看着明明闭合）⇒ 远程脚本**全 ASCII**。
+
+---
+
+## 断点六十二（2026-10-02）⭐ **主工作流接手云端 ＋ 波 4 两刀（craft 整簇 / 两个夹具）**（本条由**主工作流**写）
+
+> ⚠️ **归属**：本条 = **主工作流**（云端 codespace）这一轮的产出。上一份**主工作流**断点是**断点六十**；
+> 断点六十一是**助手会话**写的（它自己逐字标了「⛔ 不是主工作流」）⇒ ⛔ 别把六十一当主线进度。
+
+> ⭐ 用户本轮逐字（按序，⛔ 这是本断点的**唯一裁定来源**）：
+> ①「你现在是云端的主工作流，你要接手主工作流的事务」
+> ②「先理解现状，现在是项目的大重构期…**项目内非常混乱**，文档改革也还没开始，讨论文件到处都是，
+> check 脚本也乱七八糟。但是你要**先在这个条件下接手项目的重构**」
+> ③「允许 **action 包里的动作自足，放自己的依赖部件**」
+> ④「（`GridDiscovery`）**（甲）跟着进 `action/craft/`**」·「（craft）**（甲）10 个类整簇搬**」
+> ⑤「（`ScaffoldLifecycleTask`）**（甲）确实是夹具 ⇒ 两个一起搬**」
+> ⑥「你可以干脆**直接拉取 Baritone 的源代码**，如果你找不到的话；**收发协议在你做完需要测试的时候再弄**」
+
+### §A ⭐ 开工第一件：基线是**红的**，而交接记的是绿的
+
+接手时 `check-all` = **`pass=38 warning=2 failed=2`**，而断点六十 §G 记的是 `failed=0`。
+⭐ **两条红同源、都不是"文档腐烂"，是云端缺件**（已修好并落盘 `docs/CLOUD_MIGRATION.md` **§20**）：
+
+| 门禁 | 症状 | 根因 |
+|---|---|---|
+| `check-ref-integrity` | `行号超界=24`（全是 `MovementHelper.java:600`–`843`） | 云端**没有 Baritone 参照树** ⇒ 拿 **597 行**的 Alice 副本量 **Baritone** 的 606/843 行 |
+| `check-redline-gates` | `problems=1`：版本钉无法复算 | `AGENTS.md` 钉的**旧机绝对路径** `/home/fb486/projects/reference/baritone-1.20.1` 在云端不存在 |
+
+修法（**零仓库改动**）：① 拉 `baritone-1.20.1`（`MovementHelper.java` **863 行** = 判据，`minecraft_version=1.20.1` ✓）；
+② 补**既有链接网**里漏掉的一环 —— 实测 `/home/fb486/projects/alice -> /workspaces/Alice-mcbot` **早就存在**
+（有人故意复刻旧机路径），只差 `reference` ⇒ `ln -s ~/reference /home/fb486/projects/reference`。
+⇒ `ref-integrity` 校验量 **1663 → 2020** 处、超界 **24 → 0**；`check-all` = **`pass=40 warning=2 failed=0`**。
+⚠️ **与 `c871137a`「云端 `.agent-presets` 丢失」同族：云端家目录内容不持久** ⇒ 复现清单见 `§20.6`，
+⛔ 下个会话别把这 24 条当新缺陷再查一遍。
+
+### §B ✅ 落地两刀（全部已推 `master`）
+
+| 提交 | 内容 |
+|---|---|
+| `9399c447` | ⭐ **`task/craft/` 整簇 10 类 → `action/craft/`**（波 4；见 §C） |
+| `5af13832` | ⭐ **两个夹具归位**：`ScaffoldLifecycleTask`＋`FixtureClaim` → `fixture/`（见 §D） |
+
+### §C ⭐⭐ 为什么 craft 是**整簇**搬（⛔ 不是图省事）
+
+原分类按"是不是动作"切 7 搬 + `CraftStation`（待裁）+ 3 个只读件去 `staging/`。
+但依赖边**闭合且跨过那条分类线**：
+`TableCraft`·`InventoryCraft`·`FurnaceStation`·`StationProvision` → `GridDiscovery`（4 处）·
+`InventoryCraft`·`StationProvision`·`MachineCycle` → `RecipeQuery.countInInventory`（4 处）·
+`RecipeQuery` → `MachineRecipeFacts`
+⇒ 只搬"动作"那半，**当场造出 `action/craft/ → task/craft/` 的向上边**。
+⚠️ 且**门禁抓不到**：`check-layer-direction` 的域规则断的是「**低层** ✗→ `action/<域>`」，`task/` 不在低层表里（`O90` §⑤ 同缺口）。
+⚠️ **根因 = 同包耦合看不见**：`action/craft/package-info.java` 原断言这 6 类"无真上层依赖"，
+那是按 **`import` 行**量的；同包简单名**没有 import 行**（`O91` ⑥ 同族，**本轮又中一次**）。
+⭐ 用户裁定「允许 action 动作自足」= 把这条判据放宽到**能自足** ⇒ 三个只读件随域进包（**撤销**去 `staging/`），
+`CraftStation` 也随簇（**撤销**去 `compat/<mod>/`）。
+
+**连带撤销两处旧裁（⛔ 不埋）**：三个只读件**不再**去 `staging/`（且若去，会违 `staging/` §三 禁令
+「**新代码不许 import 它**」）· `CraftStation` **不再**去 `compat/<mod>/`（`D-568` #5 随之作废）。
+
+### §D ⭐ 两个夹具是**同一个结**（⛔ 不能只搬一个）
+
+- `ScaffoldLifecycleTask`（558 行）唯一**真生产**引用 = `bot/BotManager` 第 705-706 行**代码级 `new`**。
+  按判据（`check-layer-direction.py:347`）：`bot` **既不在** `REGISTRATION_POSITIONS` **也不在** `R3_EXCLUDED`
+  ⇒ 算生产包 ⇒ `bot/` 依赖 `fixture/` **红**。
+- `FixtureClaim` 在台账里被判 `生产`，**理由逐字 = 「有标记但被生产引用(`ScaffoldLifecycleTask`)」**
+  ⇒ 它的"生产性"**完全来自那一个人**（其余 6 个引用者全是夹具）。
+⇒ 只搬 `FixtureClaim` ⇒ `task/ScaffoldLifecycleTask → fixture/`（`D-557` 红）。
+
+**解结 = 复刻项目里已有的先例**（⛔ 不是新设计）：`bot/BotManager.beginIdleTask(bot, factory, target)` 桥
+＋ `fixture/FixtureDispatch` 派发 ＋ `item/` 是注册位置。把 `assignScaffoldCheck` 那 8 行原样挪进 `FixtureDispatch`。
+⭐ **行为等价已逐行对照**（同样的 `null||busy` 守卫 → 同样构造 → 同样 `beginTask` → 同样 `broadcastTarget` → 同样 `return true`）。
+⇒ ⭐ **`bot/` 对 `fixture/`／`debug/` 的代码级依赖 = 0**（本刀复算；正是 `D-512` 刀 2 想要的终点）。
+
+### §E ⚠️ 本轮**门禁抓到我两次**（如实记；⭐ 纪律比结论重要）
+
+1. `task-retirement-map` 拦下「`FixtureClaim` **未定家就搬走了**」—— 我搬完没同步 `PROD_HOME`。
+   ⇒ ⭐ 这正是 `O92` ⑥「`?` 只表示**还没裁定**，不是**随便搬**」那条判据在干活。
+2. 我自己写的替换脚本，**断言**拦下了我猜的锚点数（我猜 11 处，实际 10 处）——
+   文件**没被改**（断言在写之前）。⇒ ⭐ 「锚点必须 `assert`，成功信息只在 assert 之后打印」再次生效。
+⚠️ 另记一处**编译期**抓到的：搬出 `task/` 的类**失去同包访问**（`Task`·`TaskTarget`·`MineTask`·`RestoreScopeTask`
+原本靠同包隐式可见 ⇒ 要显式 import）。同 `O88` ⑥(c)。
+
+### §F 读数（全部当场复算）
+
+| 项 | 开工前 | 收工 |
+|---|---|---|
+| `check-all`（静态） | **`failed=2`** ⚠️ | **`pass=40 warning=2 failed=0`** |
+| 台账行 | 32（`生产 28`） | **20**（`生产 16`） |
+| 台账不一致 | — | **0 条** · 未建成的目的地包：无 |
+| `task/` 顶层 | 15（== 冻结名单） | **13**（== 冻结名单 13 行） |
+| `task/craft/` | 10 类 | **目录已删**（空） |
+| `bot/` 开发期依赖 | 1 处（`fixture/ScaffoldLifecycleTask`） | **0** |
+
+⭐ **真树注入臂**：`action/craft/` 人口 12 ⇒ 绿；**移除一个真类 ⇒ 红**且报精确理由「只有 10 个（下限 11）」；
+还原后 PASS。`check-layer-direction` 红臂 **34/34**（含「`bot/` 依赖开发期桶 ⇒ 红」那一臂）。
+
+### §G ⏭ **下一步 / 接续锚点**
+
+⛔ **压缩后不要重读本节之外的推理** —— 进度在 §F、卡点在 §G、规矩在 `D-569`。
+
+1. ⏳ **波 4 的真卡点 = `PROD_HOME` 还有 16 格 `?`**，其中**按纪律必须问用户**的 5 类：
+   运动 3（`WalkToTask`·`FarWalkTask`·`FollowTask`）· `ToolMaintenanceTask` ·
+   `GainStepRunner`（⚠️ `O111` 逐字"**两套计划**"，必须那一刀一次性裁掉）。
+   ✅ `CraftStation` 那一格**本刀已消**（随簇落地）。
+2. ✅ **`step/` 那一支仍被 `O65` §② 三条件挡着**（用户 2026-09-30「不动 `step/` 搬家」）；
+   `P1 立家待办` 读数仍在：`CollectStep → step/` 但被生产包 `transfer` 引用
+   （`transfer/CollectDropsTask.java` 真有 `private final CollectStep step` + `new CollectStep(...)`）。
+3. ⚠️ **云端两个 warning 是"未执行"不是通过**：`check-machine-map`（缺上游 jar）·
+   `check-headless-battery`（**无头测试在本地端**，云端无 `run/`）。
+   ⛔ 收发协议（信箱）**用户 2026-10-02 明确说：等需要测试时再弄**。
+4. ⚠️ **纯文字残留**（不构成依赖，随批次 3 清）：`MiningProfile` 的 javadoc · `WritePolicyMatrix:507` 注释
+   仍写 `ScaffoldLifecycleTask` 的旧位置。
+5. ⛔ **`WINDOWS_CLIENT` 未验**：本两刀都是零行为增量（`D-425` 口径"结构性无感"），
+   但 `assignScaffoldCheck` 改了 **`bot/` 的公开静态入口**、`/give alice:scaffold_check` 那条路**没人跑过真机**。
+
