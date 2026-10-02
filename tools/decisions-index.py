@@ -49,7 +49,13 @@ SCAN_SOURCES: list[tuple[str, Path, set[str], set[str]]] = [
 #: ⚠️ 键必须与 `build()` 里 `stats` 的键**逐字相同**（不一致 ⇒ `KeyError` 崩溃，这比静默通过好）
 ASSERTIONS = {"决策编号数": 300, "标题数": 400}
 
-HEADING = re.compile(r"^(#{2,4})\s+(D-\d+)\s*(.*)$")
+#: ⚠️ **末尾那个 `\b` 是必须的，⛔ 不是装饰**：写成 `(D-\d+)\s*(.*)` 时，
+#: `### D-250X：…` 会被解析成编号 **`D-250`** ⇒ **畸形编号被静默吞成合法编号**
+#:（于是"缺号"判据永远看不到它，而且它还会**冒充**一个真编号）。
+#: 2026-10-02 由**注入臂自证**抓出：我故意写了个 `### D-250X：` 去测缺号断言，
+#: 结果**条目数一条没变、缺口一个没多** —— 解析器把它读成了 `D-250`。
+#: ⇒ 加 `\b` 后 `D-250X` **不匹配** ⇒ 该编号真的变成缺口（⇒ 断言③ 响亮报出来）。
+HEADING = re.compile(r"^(#{2,4})\s+(D-\d+)\b\s*(.*)$")
 #: ⚠️ **状态只认"整行的状态声明"**，⛔ 不在正文里到处找 `状态：`
 #: 2026-10-02 实测教训：旧写法 `状态[：:]\s*\*{0,2}\s*(…)` 带**两个静默错** ——
 #:   ① ⛔ **假阳性 3 条**：`**挖掘状态**:` / `重启状态：` / `**阶段状态：**` 都含"状态" ⇒ 把
@@ -68,6 +74,106 @@ FOLLOWUP_KEYS = ("附注", "修正", "修订", "验收", "补遗", "追加", "�
 #:（我刚改完台账它就"陈旧"）⇒ 照那样**几乎每把刀都得跑一次 `--write`**，门禁会退化成"例行敲一下"。
 #: ⇒ **结构列（编号 / 标题 / 状态 / 追加 / 引前）进比对；热度列只生成、不比对**（`--write` 顺手刷新）。
 APPENDIX_MARKER = "## 附录：全仓引用热度（**不计入门禁比对**）"
+
+# ==================== C1 三条断言（2026-10-02，用户批准；`docs/HANDOVER.md` 断点六十四 §H-4） ====================
+#
+# ⭐ 为什么这三条值得加：它们**机械可判、⛔ 不需要定义新词、⛔ 不需要语义**，
+#    而且挡住的都是**已经真实发生过**的错（不是假想风险）。
+#
+# ⛔ **必须带基线白名单**（借 `tools/redline-gates.py` 的 `BASELINE_PROSE` 模子）：
+#    这三条判据**今天就红**（旧账）⇒ 直接加会让门禁当场红 ⇒ 必须把旧账列出来并：
+#      · ⭐ **只许变短**：条目被修掉后不必删它（指纹仍在也能过）；但**新出现的**会被抓；
+#      · ⚠️ 若某个指纹**不在**任何地方 ⇒ 说明判据漏了东西（或正则写坏）⇒ **响亮失败**，
+#        ⛔ 不许"基线还在、判据已经扫不到了"却照样绿（这正是"扫不到就报绿"那一族）。
+
+#: 【断言①】重复标题 ⇒ **警告**（⛔ 不是红：2026-10-02 实测 79 个编号 / 159 条额外标题，全是合法的"附注"写法）
+#: ⚠️ 断点六十三记的"会红 57 处"是**旧的 h2/h3 口径**，按 `#{2,4}` 是 **79 个编号**。
+DUPLICATE_IS_WARNING = True
+
+#: 【断言②】⛔ **归错档** ⇒ **红**。判据 = 出现不相邻（中间夹着别的编号）。
+#: ⚠️ 这不是"编号被重复" —— 重复是合法的（附注），**归错档才是病**。
+#: 基线 = 2026-10-02 实测 23 条（`(编号, 行号)` 指纹，行号参与比对 ⇒ 正文一挪动就会重新报 ⇒ 那是对的）。
+BASELINE_MISFILED: frozenset[tuple[str, int]] = frozenset({
+    ("D-043", 567), ("D-073", 1225), ("D-077", 1377), ("D-114", 3072),
+    ("D-133", 4448), ("D-153", 5564), ("D-152", 5585), ("D-166", 6274),
+    ("D-165", 6311), ("D-170", 6555), ("D-180", 6940), ("D-176", 6954),
+    ("D-202", 8216), ("D-205", 8396), ("D-204", 8413), ("D-205", 8427),
+    ("D-204", 8440), ("D-205", 8451), ("D-269", 10930), ("D-330", 12937),
+    ("D-334", 13116), ("D-351", 14825),
+})
+#: ⚠️ 人口下限：基线 23 条 ⇒ 判据至少得扫出这么多，否则说明它**坏了**（⛔ 不许"扫不到就报绿"）
+MISFILED_FLOOR = 22
+
+#: 【断言③】编号缺口 ⇒ **红**（先用基线白名单）。
+#: ⚠️ 「跳号」与「被删掉的条目」机械上分不开 ⇒ ⛔ 白名单是**唯一**能落地的口径；
+#: ⛔ 白名单只许变短（真补上一条 ⇒ 它的指纹消失，门禁**仍然绿** —— 见上面的"只许变短"）。
+BASELINE_MISSING: frozenset[int] = frozenset({178, 316, 367, 411})
+MISSING_FLOOR = len(BASELINE_MISSING)
+
+
+def assert_duplicates(heads: list[tuple[int, str, str]]) -> list[str]:
+    """断言①：重复标题 ⇒ **警告文案**（⛔ 不进 `problems`，⛔ 不让门禁红）。"""
+    per: Counter = Counter(h[1] for h in heads)
+    dups = sorted((n for n, c in per.items() if c > 1), key=lambda s: int(s[2:]))
+    if not dups:
+        return []
+    extra = sum(per[n] - 1 for n in dups)
+    return [f"⚠️ 重复标题 **{len(dups)}** 个编号 / 额外标题 **{extra}** 条"
+            f"（合法写法：同编号的 `附注/修正`）—— 例：{', '.join(dups[:8])}"
+            f"{' …' if len(dups) > 8 else ''}"]
+
+
+def assert_misfiled(found: list[dict]) -> tuple[list[str], list[str]]:
+    """断言②：**归错档** ⇒ 红。基线之外的每一条都是**新病**。返回 (problems, warnings)。
+
+    ⚠️⚠️ **指纹按「编号」判旧账，⛔ 不用「(编号, 行号)」—— 这是注入臂自证逼出来的修法。**
+    2026-10-02 实测：第一版用 `(编号, 行号)` ⇒ 在文件里**插入任意一行**，
+    基线全体行号错位 ⇒ 门禁同时报"22 条是新病"和"22 条已消失" ⇒ **两个方向全误报**。
+    ⇒ 现在：**编号在基线里 = 旧账**（行号变了也放行）；**编号不在基线里 = 新病（红）**。
+    ⇒ 少报的风险（同一编号**换个位置**再犯）由「基线只许变短」这条纪律兜底，⛔ 不靠行号自动判。
+    """
+    problems: list[str] = []
+    if len(found) < MISFILED_FLOOR:
+        problems.append(f"⛔ 归错档判据**扫不到东西**了：扫出 {len(found)} < 人口下限 {MISFILED_FLOOR}"
+                        " ⇒ 不是『病好了』，是**判据坏了**（标题格式变了？`HEADING` 写坏了？）"
+                        "—— 照这样它会对新病**静默报绿**")
+    known = {num for num, _line in BASELINE_MISFILED}
+    for m in found:
+        if m["num"] not in known:
+            problems.append(f"⛔ **归错档**：`{m['num']}` 的标题 @行 {m['line']} 落在 `{m['parent']}`"
+                            " 的条目体里 ⇒ 它的正文/`状态：` 会被算到别人头上"
+                            "（读者拿到的是**拼接出来的假条目**）"
+                            " ⇒ 修法：把它移到自己编号的段里（与首条相邻）")
+    warnings: list[str] = []
+    gone = sorted(known - {m["num"] for m in found}, key=lambda s: int(s[2:]))
+    if gone:
+        warnings.append(f"⚠️ 基线里 {len(gone)} 个编号的归错档已消失（修好了 ⇒ 好事）："
+                        f"{', '.join(gone)}；⚠️ 若**不是**修的、而是正文挪动导致的 ⇒ 同刀更新基线")
+    shifted = sum(1 for m in found if (m["num"], m["line"]) not in BASELINE_MISFILED)
+    if shifted:
+        warnings.append(f"⚠️ {shifted} 条归错档的**行号**与基线不同（正文挪过）——"
+                        " 仍按旧账放行（指纹按编号）；要精确到行请同刀刷新基线")
+    return problems, warnings
+
+
+def assert_missing(entries: list[dict]) -> list[str]:
+    """断言③：编号缺口 ⇒ 红（基线之外）。
+
+    ⚠️ 口径：只在 `1..max(已见编号)` 里找缺口 ⇒ **新增编号不会误报**。
+    ⛔ 「跳号」与「被删掉的条目」机械上分不开 ⇒ 基线白名单是唯一能落地的口径。
+    """
+    ids = {int(e["num"][2:]) for e in entries}
+    if not ids:
+        return ["⛔ 一条编号都没读到 ⇒ 判据失效"]
+    gaps = sorted(n for n in range(1, max(ids) + 1) if n not in ids)
+    problems: list[str] = []
+    if len(gaps) < MISSING_FLOOR:
+        problems.append(f"⛔ 缺号判据**扫不到东西**了：只有 {len(gaps)} 个 < 下限 {MISSING_FLOOR}"
+                        " ⇒ 判据坏了，照这样会对新缺口静默报绿")
+    for n in sorted(n for n in gaps if n not in BASELINE_MISSING):
+        problems.append(f"⛔ **编号缺口**：`D-{n:03d}` 在 `1..{max(ids)}` 里不存在任何标题"
+                        " ⇒ 要么是被删的条目（须登记基线），要么是漏号")
+    return problems
 
 
 def read_text(path: Path) -> str:
@@ -148,8 +254,35 @@ def parse_decisions(text: str) -> tuple[list[dict], int, dict[str, int]]:
             "followups": per_num[num] - 1,
             "cites": len({n for n in DNUM.findall(block) if n != num}),
             "line": line_no + 1,
+            "lines": [ln + 1 for ln, nm, _ in heads if nm == num],
         })
-    return entries, len(heads), dict(level_census)
+    misfiled = detect_misfiled(heads)
+    return entries, len(heads), dict(level_census), misfiled
+
+
+def detect_misfiled(heads: list[tuple[int, str, str]]) -> list[dict]:
+    """⛔ **归错档**：一条追加条目的标题写的是 `D-XXX`，但它物理上落在**别的编号**的条目体里。
+
+    **机械判据（无需语义、无需新词）**：取本编号**连续两次**出现（第 k 次与第 k+1 次），
+    若这两次之间夹着**任何一个别的编号的标题** ⇒ 后一次那条就落在别人体里了。
+
+    ⚠️ **⛔ 不许写错成"本编号的所有出现两两之间"**（我第一版就犯了这个错）：
+    `D-166` 的四次出现是 `6274 / 6325 / 6355 / 6377`，**两次之间**当然夹着别的编号
+    （后面还有 `### D-167`），但**连续两次之间没有** ⇒ 它是**正常的相邻附注**，⛔ 不是归错档。
+    ⇒ 判据必须看**连续两次**，⛔ 不是任意两次。
+    """
+    seen: dict[str, list[int]] = {}
+    for pos, (_line_no, num, _rest) in enumerate(heads):
+        seen.setdefault(num, []).append(pos)
+    out: list[dict] = []
+    for num, poss in seen.items():
+        for a, b in zip(poss, poss[1:]):
+            #: ⚠️ 归错档的是 `heads[b-1]`**那一条**（它写着自己的编号，却落在 `num` 的体里），
+            #: ⛔ 不是 `num` 自己（`num` 只是**受害的父条目**）。我第一版把这两个搞反了。
+            if any(heads[j][1] != num for j in range(a + 1, b)):
+                out.append({"num": heads[b - 1][1], "line": heads[b - 1][0] + 1,
+                            "parent": num})
+    return sorted(out, key=lambda x: x["line"])
 
 
 def scan_refs() -> dict[str, Counter]:
@@ -267,9 +400,9 @@ def render(entries: list[dict], heading_total: int, refs: dict[str, Counter],
     return "\n".join(lines) + "\n"
 
 
-def build() -> tuple[str, dict]:
+def build() -> tuple[str, dict, dict, list[str], list[str]]:
     text = read_text(DECISIONS)
-    entries, heading_total, levels = parse_decisions(text)
+    entries, heading_total, levels, misfiled = parse_decisions(text)
     stats = {"决策编号数": len(entries), "标题数": heading_total}
     for key, floor in ASSERTIONS.items():
         if stats[key] < floor:
@@ -279,7 +412,19 @@ def build() -> tuple[str, dict]:
     refs = scan_refs()
     stats["状态条数"] = sum(1 for e in entries if e["status"] != "—")
     stats["状态取值"] = len({e["status"] for e in entries if e["status"] != "—"})
-    return render(entries, heading_total, refs, levels, stats), stats, levels
+    stats["归错档"] = len(misfiled)
+    #: C1 三条断言（⛔ 基线之外的**新病**才红）—— 判据在文件头部常量区，逐条带注释
+    p_mis, w_mis = assert_misfiled(misfiled)
+    problems = p_mis + assert_missing(entries)
+    warnings = assert_duplicates(parse_heads(text)) + w_mis
+    return (render(entries, heading_total, refs, levels, stats), stats, levels,
+            problems, warnings)
+
+
+def parse_heads(text: str) -> list[tuple[int, str, str]]:
+    """只取标题表（断言①用；`parse_decisions` 里那份是局部的，不想为它改签名）。"""
+    return [(i, m.group(2), m.group(3).strip())
+            for i, line in enumerate(text.splitlines()) if (m := HEADING.match(line))]
 
 
 def main() -> int:
@@ -289,15 +434,20 @@ def main() -> int:
     g.add_argument("--check", action="store_true", help="校验是否陈旧（陈旧 ⇒ 非零退出）")
     args = ap.parse_args()
 
-    rendered, stats, levels = build()
+    rendered, stats, levels, problems, warnings = build()
     lvz = " · ".join(f"h{lv} {levels.get(lv, 0)}" for lv in (2, 3, 4) if levels.get(lv))
     stz = f"状态 {stats.get('状态条数', 0)} 条 / {stats.get('状态取值', 0)} 种"
+    mfz = f"归错档 {stats.get('归错档', 0)} 条（基线 {len(BASELINE_MISFILED)}）"
 
     if args.write:
         OUTPUT.write_text(rendered, encoding="utf-8")
         print(f"DECISIONS_INDEX_RESULT WROTE: {stats['决策编号数']} 决策 / {stats['标题数']} 标题"
-              f"（{lvz} · {stz}）→ {OUTPUT.relative_to(ROOT)}")
-        return 0
+              f"（{lvz} · {stz} · {mfz}）→ {OUTPUT.relative_to(ROOT)}")
+        for w in warnings:
+            print(f"  {w}")
+        for p in problems:
+            print(f"  {p}", file=sys.stderr)
+        return 1 if problems else 0
 
     if not OUTPUT.exists():
         print(f"DECISIONS_INDEX_RESULT FAIL: {OUTPUT.relative_to(ROOT)} 不存在"
@@ -324,8 +474,17 @@ def main() -> int:
               + (f"，首个不同在第 {first} 行" if first else "") + "）"
               f" ⇒ 跑 `python3 tools/decisions-index.py --write` 并提交", file=sys.stderr)
         return 1
-    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz} · {stz}）"
+    for w in warnings:
+        print(f"  {w}")
+    if problems:
+        for p in problems:
+            print(f"  {p}", file=sys.stderr)
+        print(f"DECISIONS_INDEX_RESULT FAIL: {len(problems)} 处 C1 断言未过"
+              f"（判据见 `tools/decisions-index.py` 头部常量区；⛔ 基线白名单只许变短）", file=sys.stderr)
+        return 1
+    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz} · {stz} · {mfz}）"
           f" / 结构列与 {OUTPUT.relative_to(ROOT)} 逐字节相同"
+          f" / C1 三断言过（①重复标题=警告 · ②归错档=红 · ③缺号=红）"
           f"（⚠️ 附录「引用热度」**不在**比对范围）")
     return 0
 
