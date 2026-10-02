@@ -39,6 +39,11 @@
   ⭐ **入口标称的 codespace 与本机配置不一致时，本脚本会自动启用这条**（多花几秒，
      但这样给出的链接才是对的）—— 见下面 DESCRIPTION 里的「两台共用入口」那段。
 
+.PARAMETER NoCheck
+  跳过「实测这条链接通不通」那一步（默认会实测，~1 秒）。
+  ⚠️ 强烈建议别跳 —— 光看 HTTP 状态码会骗人：端口是 private 时 GitHub 的登录页
+     也是 200，DSH 的 401 也是 200 的 HTML；只有看响应体才分得清。
+
 .EXAMPLE
   alice-url.cmd
   alice-url.cmd -Open
@@ -52,7 +57,8 @@ param(
     [switch]$Open,
     [switch]$Token,
     [switch]$Json,
-    [switch]$Verify
+    [switch]$Verify,
+    [switch]$NoCheck
 )
 $ErrorActionPreference = "Continue"
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
@@ -152,6 +158,35 @@ if ($Verify) {
     }
 }
 
+# ---------- 实测这条链接到底通不通 ----------
+# ⚠️ 2026-10-02 血泪教训：**别只看 HTTP 状态码**。端口是 private 时，转发域名前面挡着
+#    GitHub 自己的登录页（302 → github.dev/pf-signin），那个页面**也是 200**，
+#    于是"HTTP 200 就算服务活着"成了**假阳性**；而真正的 DSH 401（authentication
+#    required）也照样是 200 的 HTML。⇒ 只有**看响应体内容**才分得清。
+#    另一层：private 端口的登录流程是**跨站**跳转（github.dev → 本域名），而 DSH 的
+#    会话 cookie 是 `SameSite=Strict` ⇒ 浏览器不回传 ⇒ 永远 401。所以端口必须是 public。
+$checkTxt = ""
+$checkOk = $false
+if (-not $NoCheck) {
+    try {
+        $sess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $resp = Invoke-WebRequest -Uri $eUrl -WebSession $sess -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
+        $body = [string]$resp.Content
+        if ($body -match 'authentication required') {
+            $checkTxt = "HTTP $($resp.StatusCode)，但返回的是 DSH 的 401 页（authentication required）—— 令牌失效或被别处用掉了？重启后重跑本命令"
+        } elseif ($body -match '<!doctype html') {
+            $checkOk = $true
+            $checkTxt = "HTTP $($resp.StatusCode)，$($body.Length) 字节，确认是 DSH 应用界面"
+        } else {
+            $checkTxt = "HTTP $($resp.StatusCode)，但内容不像 DSH 应用（可能是 GitHub 的登录/转发页）"
+        }
+    } catch {
+        $code = $null
+        try { $code = $_.Exception.Response.StatusCode.value__ } catch { }
+        if ($code) { $checkTxt = "HTTP $code —— $($_.Exception.Message)" } else { $checkTxt = "请求失败：" + $_.Exception.Message }
+    }
+}
+
 # ---------- 输出 ----------
 if ($Token) { Write-Output $tok; exit 0 }
 if ($Json) {
@@ -163,6 +198,8 @@ if ($Json) {
         generated_at    = $eAt
         stale_codespace = $staleCs
         verify          = $verifyTxt
+        check_ok        = $checkOk
+        check           = $checkTxt
     } | ConvertTo-Json -Depth 3
     exit 0
 }
@@ -174,6 +211,10 @@ Write-Host "=======================================" -ForegroundColor Cyan
 Write-Host ("  入口发布：{0}（{1}）" -f $eAt, $ageTxt) -ForegroundColor DarkGray
 Write-Host ("  入口标称 codespace：{0}" -f $eCs) -ForegroundColor DarkGray
 if ($verifyTxt) { Write-Host ("  活令牌核对：" + $verifyTxt) -ForegroundColor DarkGray }
+if ($checkTxt) {
+    if ($checkOk) { Write-Host ("  ✅ 链接实测：" + $checkTxt) -ForegroundColor Green }
+    else { Write-Host ("  ❌ 链接实测：" + $checkTxt) -ForegroundColor Red }
+}
 Write-Host "  （要改设置页 / 模型 / 工作区 ⇒ 必须用隧道版 alice-cloud.cmd，DSH 只认回环）" -ForegroundColor DarkGray
 
 if ($staleCs) {
