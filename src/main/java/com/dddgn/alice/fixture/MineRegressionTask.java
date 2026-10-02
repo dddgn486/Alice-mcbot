@@ -27,7 +27,7 @@ import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureClaim;
+import com.dddgn.alice.fixture.FixtureClaim;
 
 /**
  * 挖掘专项串联回归（{@code alice:mine_regression}，批次 5）：一次右键跑完挖掘链路的全部必要复测项。

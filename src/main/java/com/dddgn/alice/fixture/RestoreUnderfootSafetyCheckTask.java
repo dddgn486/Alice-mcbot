@@ -19,7 +19,7 @@ import java.util.Map;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.FixtureClaim;
+import com.dddgn.alice.fixture.FixtureClaim;
 
 /**
  * ⭐ `C2`（`D-399` 的强判据）：**回收自己放的柱子时不许把 bot 摔下去**。

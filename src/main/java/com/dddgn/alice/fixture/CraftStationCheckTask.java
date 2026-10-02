@@ -19,7 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import com.dddgn.alice.task.FixtureClaim;
+import com.dddgn.alice.fixture.FixtureClaim;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;

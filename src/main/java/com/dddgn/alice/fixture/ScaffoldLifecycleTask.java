@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
@@ -11,6 +11,10 @@ import com.dddgn.alice.pathing.calc.CorePathPlanner;
 import com.dddgn.alice.pathing.calc.PathPlan;
 import com.dddgn.alice.pathing.calc.PathRequest;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.MineTask;
+import com.dddgn.alice.task.RestoreScopeTask;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.mining.MiningBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -18,7 +22,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Set;
 import com.dddgn.alice.pathing.path.PathRetryRunner;
-import com.dddgn.alice.task.FixtureClaim;
 import com.dddgn.alice.transfer.CollectDropsTask;
 
 /**

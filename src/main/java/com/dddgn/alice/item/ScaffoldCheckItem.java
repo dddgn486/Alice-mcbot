@@ -2,7 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.ScaffoldLifecycleTask;
+import com.dddgn.alice.fixture.ScaffoldLifecycleTask;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -59,7 +59,7 @@ public class ScaffoldCheckItem extends Item {
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignScaffoldCheck(bot, observer)) {
+        if (!com.dddgn.alice.fixture.FixtureDispatch.assignScaffoldCheck(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

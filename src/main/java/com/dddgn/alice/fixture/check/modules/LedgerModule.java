@@ -4,7 +4,7 @@ import com.dddgn.alice.fixture.ClearGuardCheckTask;
 import com.dddgn.alice.fixture.ClearRetryCheckTask;
 import com.dddgn.alice.fixture.LedgerScopeCheckTask;
 import com.dddgn.alice.fixture.LossyWriteAccountedCheckTask;
-import com.dddgn.alice.task.ScaffoldLifecycleTask;
+import com.dddgn.alice.fixture.ScaffoldLifecycleTask;
 import com.dddgn.alice.fixture.QuotaCheckTask;
 import com.dddgn.alice.fixture.check.CheckContext;
 import com.dddgn.alice.fixture.check.CheckModule;

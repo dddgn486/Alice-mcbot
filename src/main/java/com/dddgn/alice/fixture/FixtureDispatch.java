@@ -365,4 +365,18 @@ public final class FixtureDispatch {
         return assignRegressionBattery(bot, observer, false);
     }
 
+    /**
+     * 脚手架生命周期自检（J7 Step 1）：搭柱子爬上去 → 高处干活 → 仍在顶上拆掉 → 落地。
+     *
+     * <p>⭐ 2026-10-02 从 `bot/BotManager` **原样挪来**（`D-512` 刀 2 的同一形状）：
+     * 任务类 `ScaffoldLifecycleTask` 实测是**夹具**（台账 `§D` 第 3 条 / 用户 2026-10-02 裁定），
+     * 而旧位置让 `bot/` 代码级 `new` 了 `fixture/` 的类 ⇒ 违反 `R3`（`bot/` 不是注册位置，
+     * `check-layer-direction.py:347`）。⇒ 分派跟着任务类走，`bot/` 那一侧改为零类型名。
+     * ⚠️ 语义与旧实现**逐字一致**（同样的"忙就 false"、同样的 `CLIMB_GOAL_FOOT`、同样广播目标）。
+     */
+    public static boolean assignScaffoldCheck(BotPlayer bot, ServerPlayer observer) {
+        return BotManager.beginIdleTask(bot, s -> new ScaffoldLifecycleTask(bot, s.scope()),
+                TaskTarget.block(ScaffoldLifecycleTask.CLIMB_GOAL_FOOT));
+    }
+
 }

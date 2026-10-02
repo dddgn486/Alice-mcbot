@@ -2,7 +2,6 @@ task_class,task_path,dest,prod_pkg,reason
 BlockerClearPlanner,src/main/java/com/dddgn/alice/task/mining/BlockerClearPlanner.java,生产,?,生产:refs=job/lumber,task
 CollectStep,src/main/java/com/dddgn/alice/task/collecting/CollectStep.java,step,-,step:implements Step
 FarWalkTask,src/main/java/com/dddgn/alice/task/FarWalkTask.java,生产,?,生产:refs=bot,survival
-FixtureClaim,src/main/java/com/dddgn/alice/task/FixtureClaim.java,生产,?,生产:有标记但被生产引用(ScaffoldLifecycleTask)
 FixtureScript,src/main/java/com/dddgn/alice/task/FixtureScript.java,fixture,-,fixture:命名标记+外部引用(debug)
 FollowTask,src/main/java/com/dddgn/alice/task/FollowTask.java,生产,?,生产:refs=bot,client/render
 GainStepRunner,src/main/java/com/dddgn/alice/task/mining/GainStepRunner.java,生产,?,生产:refs=task,task/collecting
@@ -14,7 +13,6 @@ MiningProfile,src/main/java/com/dddgn/alice/task/mining/MiningProfile.java,生�
 PermissionDemoTask,src/main/java/com/dddgn/alice/task/PermissionDemoTask.java,生产,?,生产:refs=bot
 PlaceTask,src/main/java/com/dddgn/alice/task/PlaceTask.java,生产,?,生产:refs=bot
 RestoreScopeTask,src/main/java/com/dddgn/alice/task/RestoreScopeTask.java,生产,?,生产:refs=bot,job/lumber,task,write
-ScaffoldLifecycleTask,src/main/java/com/dddgn/alice/task/ScaffoldLifecycleTask.java,生产,?,生产:refs=bot,item
 Step,src/main/java/com/dddgn/alice/task/Step.java,step,-,step:Step.java(注册口)
 Task,src/main/java/com/dddgn/alice/task/Task.java,生产,?,生产:refs=bot,debug,job,job/collect,job/fishbone,job/lumber,job/mine,road,survival,task,transfer
 TaskNode,src/main/java/com/dddgn/alice/task/TaskNode.java,生产,?,生产:refs=decision,job,job/collect,job/lumber,job/mine

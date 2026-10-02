@@ -698,15 +698,9 @@ public final class BotManager {
         return true;
     }
 
-    /** 脚手架生命周期自检（J7 Step 1）：搭柱子爬上去 → 高处干活 → 仍在顶上拆掉 → 落地。 */
-    public static boolean assignScaffoldCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.ScaffoldLifecycleTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.ScaffoldLifecycleTask.CLIMB_GOAL_FOOT));
-        broadcastTarget(session.target);
-        return true;
-    }
+    // ⭐ 2026-10-02：脚手架生命周期自检的**分派**已挪进 `fixture/FixtureDispatch.assignScaffoldCheck`
+    //    —— 与 `assignWalkToDiagnostic` 等 40 处同形（`D-512` 刀 2 的先例：`bot/` ⛔ 不依赖开发期桶）。
+    //    走 `beginIdleTask(bot, factory, target)` 桥，工厂在 `fixture/` 侧，`bot/` 连类型名都不出现。
 
 
 

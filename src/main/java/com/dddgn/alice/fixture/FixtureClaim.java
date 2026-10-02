@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;

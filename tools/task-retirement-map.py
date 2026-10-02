@@ -136,7 +136,6 @@ PROD_HOME: dict[str, str] = {
     # ——— `task/` 顶层 20 个（`docs/TASK_TOP_LEVEL_FREEZE.txt` 的 22 行里除去 `Step`／`FixtureScript`）———
     "CollectDropsTask": "com.dddgn.alice.transfer",
     "FarWalkTask": UNDECIDED,
-    "FixtureClaim": UNDECIDED,
     "FollowTask": UNDECIDED,
     "MineTask": UNDECIDED,
     "PermissionDemoTask": UNDECIDED,
@@ -144,7 +143,6 @@ PROD_HOME: dict[str, str] = {
     "RestoreScopeTask": UNDECIDED,
     "RoadBuildTask": "com.dddgn.alice.road",
     "SafeReturnTask": "com.dddgn.alice.survival",
-    "ScaffoldLifecycleTask": UNDECIDED,
     "SurvivalExit": "com.dddgn.alice.survival",
     "SurvivalExitTask": "com.dddgn.alice.survival",
     "SurvivalFloatTask": "com.dddgn.alice.survival",
