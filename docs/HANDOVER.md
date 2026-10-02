@@ -6712,6 +6712,8 @@ Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**
 **我恢复了什么**（按 `§20.6` 清单）：
 
 1. ✅ `git clone --depth 1 --branch 1.20.1 … ~/reference/baritone-1.20.1` ⇒ 判据 **`MovementHelper.java` = 863 行** ✅
+   （⚠️ **2026-10-02 自查更正**：判据文件的**真路径**是 `src/main/java/baritone/pathing/movement/MovementHelper.java`
+   —— 我原先写的是 `utils/pathing/…`，**行数对、路径错**。同一处笔误也出现在断点六十二 §A，一并以此为准。）
 2. ✅ `/home/fb486/projects/alice -> /workspaces/Alice-mcbot`
 
 **我恢复不了什么（⛔ 需要 root，本轮做不到）**：
