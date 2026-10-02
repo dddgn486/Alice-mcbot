@@ -7227,6 +7227,8 @@ return p if p.is_absolute() else ROOT.parent / p
 |---|---|---|---|
 | A1 | `tools/cloud-restore-env.sh` 的参照树目标 **`$HOME/reference` → `/workspaces/reference`** | 🟢 | 幂等，可复跑 |
 | A2 | 上一条的**配套**：**参照树迁到 `/workspaces/reference/baritone-1.20.1`** | 🟢 | 实测判据：`MovementHelper.java` = **863 行** |
+| A2′ | ⚠️ **必须是"真拷/真 clone"，⛔ 不能是软链** —— 现在那个 `/workspaces/reference/baritone-1.20.1` 是**指向家目录的软链** ⇒ 家目录一没，**软链就断，相对钉法照样失败**。真搬 **4.0 MB**（含 784KB 浅历史），磁盘余量 **27 GB** ⇒ 空间不是问题 | 🟢 | — |
+| A2″ | ⚠️ **rebuild 的残余风险**：`/workspaces` **挂载被重建**时，`/workspaces/reference` 与 `/workspaces/Alice-mcbot` **一起没** ⇒ **不是这条能解决的**，登记为已知残余 | ⚠️ 已登记 | — |
 | A3 | ⭐ `AGENTS.md:62` **改相对钉法**（`/home/fb486/…` → `reference/baritone-1.20.1/`） | 🔴 | `check-redline-gates` **必须转 PASS**（§O-1 已实测：**FAIL → PASS**）· `check-doc-budget` 不许超 |
 | **判据** | A1–A3 全做 ⇒ **`check-all` 从 `failed=1` 变 `failed=0`**（§O-1 实测读数） | | |
 
