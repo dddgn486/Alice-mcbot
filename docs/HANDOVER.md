@@ -7138,3 +7138,72 @@ grep -rl '未门禁\|\[gate' tools/   ⇒  只有 3 个文件：check-redline-ga
 （`ALICE_PATHING_CORE_ARCHITECTURE.md` · `JOB_LAYER_DESIGN.md` · `MINING_STAND_SELECTION_DESIGN.md` · `DECISION_LAYER_DESIGN.md` …）
 ⇒ 它们**该不该并入**这个体系？（我的倾向：**能下沉到包的下沉，剩下的归"顶层策略"或 `archive/`**，⛔ 但这是清理，属施工、不属设计）
 
+### §O ✅ **施工前最简勘测**（2026-10-02，用户令"做一次最简化的施工勘测，一定要最简易，目的是用来最后一次施工前修订草案"）
+
+> **勘测口径**：只查「**错了就要重画草案**」的东西，⛔ 不做全量盘点。⛔ 全程零仓库改动（唯一临时改的 `AGENTS.md` 已还原）。
+> **读数的性质**：下面每一条都带**当场跑出来的命令/数字**。
+
+#### §O-1 ⛔⛔ **推翻草案的一处：`AGENTS.md:62` 改相对钉法 —— 可行，但必须配套**
+
+| 试验 | 结果 |
+|---|---|
+| 相对钉法 + 参照树**不在** `/workspaces` | **FAIL** —— 报「钉的路径 `reference/baritone-1.20.1`（解析为 **`/workspaces/reference/baritone-1.20.1`**）读不到 `gradle.properties`」 |
+| 相对钉法 + 参照树**在** `/workspaces/reference/` | ⭐ **PASS · `problems=0`** |
+| 两者齐备时的整体读数 | ⭐ **`CHECK_ALL_RESULT PASS_WITH_WARNINGS: pass=40 warning=2 failed=0`** |
+
+**机制**：`tools/redline-gates.py:183` `resolve_pin()` 逐字 ——
+```python
+p = pathlib.Path(path_text)
+return p if p.is_absolute() else ROOT.parent / p
+```
+`ROOT` = `/workspaces/Alice-mcbot` ⇒ **`ROOT.parent` = `/workspaces`**（⛔ 不是仓库根，是仓库的**上一层**）。
+
+⇒ ⭐⭐ **结论（修正 §K 第 6 条）**：相对钉法**可行**，但**必须同时把参照树放到 `/workspaces/reference/`**。
+⭐ **而这恰好是对的** —— **`/workspaces` 是持久的、家目录不是** ⇒
+这把参照树从「**rebuild 即失的仓外环境件**」变成「**和仓库同级、持久**」，**正是本轮丢提交那个坑的正解**。
+⛔ **配套动作（否则新会话照样红）**：`tools/cloud-restore-env.sh` 的参照树目标要从 `$HOME/reference` **改成 `/workspaces/reference`**。
+
+#### §O-2 ⛔ **推翻草案的第二处：§N-3 我自己定的"顶层 ≤ package-info 之和的 1/10"不成立**
+
+| 实测 | 读数 |
+|---|---|
+| **全部 9 份 `package-info.java` 之和** | **589 行** |
+| `docs/` 下自称 design/architecture 的件 | **10–12 份 · 合计 2745 行**（`JOB_LAYER_DESIGN` 464 · `ALICE_PATHING_CORE_ARCHITECTURE` 440 · `DECISION_LAYER_DESIGN` 270 · `MINING_STAND_SELECTION_DESIGN` 221 …） |
+| ⭐ **10 份设计件之间的重复度**（8-gram Jaccard） | **中位 = 0.000**，最高对也是 **0.000** |
+
+⇒ ⭐⭐ **两个结论**：
+1. **"1/10"是坏判据** —— 它等于要求顶层 ≤59 行，而现实是 `README.md` 就已经 115 行。**废掉这条**。
+2. ⭐ **10 份设计件内容互不重复（Jaccard 0.000）** ⇒ **"合并它们"不廉价** ——
+   它们**不是"同一件事写了两遍"，而是 10 份各自独立的资产** ⇒ ⛔ **不许用"合并"当省事手段**。
+
+**替代判据（我提，⛔ 待裁）**：
+- ㈠ ⭐ **顶层策略文档 ≤400 行**（依据：**一次能从头读完**，与"会话预算"同源；⛔ 不用比例）
+- ㈡ ⭐ **只引不抄 —— 可门禁**：顶层文档与任一 `package-info` 之间**不许有 8-gram 重复**（现成算法，见本次勘测脚本）
+- ㈢ ⭐ **10 份设计件不是"合并"，而是"归位"**：能下沉到包的**下沉**，剩下的**原样保留**，由**生成式 `DESIGN_INDEX.md` 统一索引**
+  ⇒ 用户要的「**一下子就找到**」由 **索引**满足，⛔ **不靠"变小"**
+
+#### §O-3 ✅ 低风险项（顺带查实的，不会改方案）
+
+| 项 | 读数 | 含义 |
+|---|---|---|
+| 生成 `DESIGN_INDEX.md` 会不会踩门禁？ | `ref-integrity.py:130` 扫 `(ROOT/"docs").rglob("*.md") + AGENTS.md`，**递归含子目录** | ✅ **放在 `docs/` 下就会自动被扫**（好事：生成物的引用也受检）；⚠️ 若放 `docs/design/` 同样被扫 |
+| `docs/design/` 现在存在吗 | ⛔ **不存在** | 新目录可自由议 |
+| `docs/*.md` 总数 | **51** | 设计件占 ~20% |
+| `check-doc-budget` 覆盖哪些文件 | **只有 3 份**：`AGENTS.md` + `PLAYBOOK` + `STATE`（逐字 `cat` 那三个） | ⭐ 加新顶层文档**不占**这个预算；⚠️ 但也不受它约束 ⇒ **顶层策略文档要自己给自己定上限** |
+| 相对钉法会不会连带影响别的门禁 | `ref-integrity` 认 `ALICE_BARITONE_DIR` + `$HOME/reference/baritone*`；`check-baritone-anchor` 不看该路径 | ✅ 相对钉法只影响 `redline-gates` 一处 |
+
+#### §O-4 ⛔ 本次勘测**没有**查的（诚实边界）
+
+1. ⛔ **没查** `survey/`（50 份）与 `docs/reviews/`（78 份）**是不是同一类**（§L″ 遗留）
+2. ⛔ **没查** 那 10–12 份设计件**逐份该下沉到哪个包**（属清理，不是勘测）
+3. ⛔ **没查** 17 个"疑似孤儿"脚本当中有几个真能退役
+4. ⛔ **没读** `AI_DECISIONS.md` 全文（27,946 行）
+5. ⛔ **没查** 顶层策略文档里**具体该写哪几条**（那是**内容**，要你参与）
+
+#### §O-5 ⏭ 勘测给出的**待裁三条**（施工前的最后一次修订）
+
+1. ⭐ **`AGENTS.md:62` 相对钉法 ＋ 参照树迁到 `/workspaces/reference/`**（两条必须同刀）—— 已实测可行
+2. ⭐ **废掉"1/10"判据，换成**：顶层策略 ≤400 行 · 只引不抄（8-gram 可门禁）· 设计件**归位不合并**
+3. ⭐ **顶层入口形态**：`docs/DESIGN_INDEX.md`（生成）＋ 一份 ≤400 行策略，⛔ 还是**把它们并进 `docs/README.md`**（少一个文件）？
+   ⚠️ 我的倾向：**分开放** —— `docs/README.md` 是"文档索引"（②类入口），`DESIGN_INDEX.md` 是"设计索引"（★ 新的一类），**两义不同不该共用一个文件**。
+
