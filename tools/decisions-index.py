@@ -50,7 +50,14 @@ SCAN_SOURCES: list[tuple[str, Path, set[str], set[str]]] = [
 ASSERTIONS = {"决策编号数": 300, "标题数": 400}
 
 HEADING = re.compile(r"^(#{2,4})\s+(D-\d+)\s*(.*)$")
-STATUS = re.compile(r"状态[：:]\s*\*{0,2}\s*([^\n*（(]+)")
+#: ⚠️ **状态只认"整行的状态声明"**，⛔ 不在正文里到处找 `状态：`
+#: 2026-10-02 实测教训：旧写法 `状态[：:]\s*\*{0,2}\s*(…)` 带**两个静默错** ——
+#:   ① ⛔ **假阳性 3 条**：`**挖掘状态**:` / `重启状态：` / `**阶段状态：**` 都含"状态" ⇒ 把
+#:      `target= …` / `未恢复上次的请示/任务` / `sweepStarted` 当"状态"写进了索引；
+#:   ② ⛔ **漏收 20 条**：`**状态**：…`（**加粗**写法）旧正则**完全不认** ⇒ 这些条目的状态显示成 `—`（= "没写"），
+#:      而它**明明写了** —— 这正是"少给一半还看起来正常"的同一族。
+#: ⇒ 现在要求：`状态` 前只能是行首 ＋ 可选列表符 `-`/`*` ＋ 可选 `**`，紧跟 `：`/`:`。
+STATUS = re.compile(r"^\s*[-*]?\s*(?:\*\*)?状态(?:\*\*)?\s*[：:]\s*(?:(?<!\*)\*{1,2}\s*)?([^\n（(]+?)\s*(?=\*\*|（|\(|$)", re.MULTILINE)
 DNUM = re.compile(r"\bD-\d+\b")
 #: （保留：仅用于文档说明；判定追加条目现在按"同编号的第 2+ 个标题"数，不再做文字匹配）
 FOLLOWUP_KEYS = ("附注", "修正", "修订", "验收", "补遗", "追加", "更正", "补充")
@@ -105,14 +112,34 @@ def parse_decisions(text: str) -> tuple[list[dict], int, dict[str, int]]:
                 break
         block = "\n".join(lines[line_no:end])
         title = re.sub(r"^[：:\s]+", "", rest)
+        #: ⚠️ **状态行被当成标题**：标题位置写的是 `状态：…` ⇒ 它**不是标题**，要往下找真标题。
+        #: 2026-10-02 实测活例：`## D-533` 下一行是 `状态：生效（…）` ⇒ 索引里 D-533 的"标题"成了一整条状态
+        #:（而它**明明有**状态，「状态」那列也是对的 ⇒ 同一份数据在两张表里语义不同，读者没法判断哪个是标题）。
+        if re.match(r"^\**状态\**\s*[：:]", title):
+            title = ""
         if not title:
-            # 裸标题（如 `### D-374` 换行后才写标题）⇒ 取第一段非空文本
+            # 裸标题（如 `### D-374` 换行后才写标题）⇒ 取第一段**正文**
             for probe in lines[line_no + 1:end]:
                 s = probe.strip().lstrip("#").strip()
-                if s:
-                    title = s
-                    break
+                #: ⛔ 跳过纯**结构行**（空 / 围栏 / 表格 / 引用 / 分隔线 / 状态行 / 粗体小标题）——
+                #:    它们都不是"标题"，早期版本会把 `**（2026-09-21，P0）**` 这类小标题抓成标题
+                if not s or s.startswith(("```", "|", ">", "---")):
+                    continue
+                cand = s.lstrip("*").strip()
+                cand = re.sub(r"^[-*+]\s*", "", cand).lstrip("*").strip()
+                if not cand or cand.startswith("**") or re.match(r"^状态\**\s*[：:]", cand):
+                    continue
+                title = cand
+                break
         title = re.sub(r"[*`]", "", title).strip()
+        #: ⚠️ **剥掉打在标题位置上的结构前缀**（它们不是标题内容）：2026-10-02 实测 3 条
+        #:（`标题：…` ×1 · `一、决定（日期）：…` ×2）—— 全是"裸标题 + 正文写成了章节"的残留。
+        #: ⛔ 只剥**机械可判**的前缀（写死的几个），⛔ 不做通用启发式。
+        for _pre in (r"^标题\s*[：:]\s*", r"^一、决定\s*(?:[（(][^）)]*[）)])?\s*[：:]\s*"):
+            title = re.sub(_pre, "", title).strip()
+        #: ⛔ 剥完若为空 ⇒ 说明原句就是那个前缀 ⇒ 退回原文（别把标题弄丢）
+        if not title:
+            title = re.sub(r"[*`]", "", rest).strip()
         statuses = [s.strip() for s in STATUS.findall(block) if s.strip()]
         entries.append({
             "num": num,
@@ -154,7 +181,7 @@ def esc(cell: str) -> str:
 
 
 def render(entries: list[dict], heading_total: int, refs: dict[str, Counter],
-           levels: dict[str, int]) -> str:
+           levels: dict[str, int], stats: dict) -> str:
     declared = {e["num"] for e in entries}
     src = refs["src"]
     in_force = sum(1 for n in declared if src.get(n))
@@ -250,7 +277,9 @@ def build() -> tuple[str, dict]:
                   f"（少读一截不许悄悄过）", file=sys.stderr)
             raise SystemExit(1)
     refs = scan_refs()
-    return render(entries, heading_total, refs, levels), stats, levels
+    stats["状态条数"] = sum(1 for e in entries if e["status"] != "—")
+    stats["状态取值"] = len({e["status"] for e in entries if e["status"] != "—"})
+    return render(entries, heading_total, refs, levels, stats), stats, levels
 
 
 def main() -> int:
@@ -262,11 +291,12 @@ def main() -> int:
 
     rendered, stats, levels = build()
     lvz = " · ".join(f"h{lv} {levels.get(lv, 0)}" for lv in (2, 3, 4) if levels.get(lv))
+    stz = f"状态 {stats.get('状态条数', 0)} 条 / {stats.get('状态取值', 0)} 种"
 
     if args.write:
         OUTPUT.write_text(rendered, encoding="utf-8")
         print(f"DECISIONS_INDEX_RESULT WROTE: {stats['决策编号数']} 决策 / {stats['标题数']} 标题"
-              f"（{lvz}）→ {OUTPUT.relative_to(ROOT)}")
+              f"（{lvz} · {stz}）→ {OUTPUT.relative_to(ROOT)}")
         return 0
 
     if not OUTPUT.exists():
@@ -294,7 +324,7 @@ def main() -> int:
               + (f"，首个不同在第 {first} 行" if first else "") + "）"
               f" ⇒ 跑 `python3 tools/decisions-index.py --write` 并提交", file=sys.stderr)
         return 1
-    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz}）"
+    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz} · {stz}）"
           f" / 结构列与 {OUTPUT.relative_to(ROOT)} 逐字节相同"
           f"（⚠️ 附录「引用热度」**不在**比对范围）")
     return 0
