@@ -1,11 +1,11 @@
 # 云端入口（每次启动自动重写 —— 别手改这个文件）
 
-generated_at: 2026-10-02T14:58:54Z
+generated_at: 2026-10-02T15:13:45Z
 codespace: alice-cloud-02-v6x4rvjwr5jgcpj9q
 state: Available
 
 ## 新设备用这个（HTTPS 转发域名；不需要 SSH 密钥）
-url: https://alice-cloud-02-v6x4rvjwr5jgcpj9q-3081.app.github.dev/?token=Za9vK3SFHb4L3ICvRomeyRHpsh29x0Mzwb0TGi5lVhU
+url: https://alice-cloud-02-v6x4rvjwr5jgcpj9q-3081.app.github.dev/?token=P4NdEuO_Kelki4UgwutLI8GUHQtfn-UNZVXpxRTfo5U
 
 ## 挂了隧道的老机器用这个（回环）
-loopback: http://127.0.0.1:3081/?token=Za9vK3SFHb4L3ICvRomeyRHpsh29x0Mzwb0TGi5lVhU
+loopback: http://127.0.0.1:3081/?token=P4NdEuO_Kelki4UgwutLI8GUHQtfn-UNZVXpxRTfo5U
