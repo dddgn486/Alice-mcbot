@@ -26,13 +26,10 @@ CHECK_ALL_OUT="$(bash tools/check-all.sh 2>&1)"
 # ① 门禁总体（本次之后 failed 必须 = 0）
 go "check-all"        "$(printf '%s' "$CHECK_ALL_OUT" | grep -o 'CHECK_ALL_RESULT.*')"
 
-# ② 常驻规范行数 —— ⚠️ 2026-10-02 用户裁定：**重构期只报读数，不报红**
-#    （原话「硬上限已经没有意义，因为现在反而是优先考虑这个文档要留什么，然后再想删什么」）
-#    ⇒ 现在看的是下面 ②′ 那一行；② 这一行只是把数摆出来
-go "AGENTS+PLAYBOOK+STATE" "$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l) / 1476（原冻结上限，⛔ 重构期不红）"
-
-# ②′ 冻结是否已真的降为警告（判据：门禁输出里是 `[WARN]` 而不是 `[FAIL]`）
-go "doc-budget 级别" "$(printf '%s' "$CHECK_ALL_OUT" | grep -c 'WARN. check-doc-budget')/1（1=只警告 · 0=又变红了）"
+# ② 常驻规范行数 —— ⚠️ **草案的硬约束是"净增 ≤ 0"，它仍在红**
+#    （云端主工作流曾把它降为警告，**已按用户指示回退** —— 用户的「先留什么」是**施工偏好**，
+#      ⛔ 不是裁定，不能拿来改草案。术语纠正见 commit。）
+go "AGENTS+PLAYBOOK+STATE" "$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l) / 1476（⛔ 超了就是红）"
 
 # ③ 入口声索：必须**恰好 1 个文件**在**声明自己是入口**
 #    ⚠️ 判据不能只数 `grep -l`：`AGENTS.md` 与 `docs/README.md` 里各有 1 处是在**说明"过去有两处"**，
@@ -51,7 +48,7 @@ go "状态取值种类"     "$(grep -oh '状态[：:][^（(]*' docs/AI_DECISIONS
 | 读数 | 施工前 |
 |---|---|
 | `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=40 warning=3 failed=0`** |
-| `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ⚠️ 现在 **1508**，**WARN 不红**（用户 2026-10-02 裁定） |
+| `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ⛔ 现在 **1501**，**红**（草案硬约束，⛔ 不许靠降级过关 —— 待你裁定怎么补） |
 | 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
 | `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |
 | 状态取值种类 | **37** → ✅ 现在 **47**（旧读数是**又少又脏**：见 §六 勘误） |
