@@ -39,7 +39,66 @@ OUTPUT = ROOT / "docs" / "DESIGN_INDEX.md"
 
 #: ⚠️ 人口下限：2026-10-02 实测 **30** 个顶层包。留余量但拦得住崩塌
 #:（写坏路径 ⇒ 扫到 0 个包 ⇒ 必须**响亮失败**，⛔ 不许"索引里只剩一个包"也照样绿）
-ASSERTIONS = {"顶层包数": 25}
+ASSERTIONS = {"顶层包数": 25, "顶层设计件": 8}
+
+#: ═══════════════════════════════════════════════════════════════════════════
+#: ⭐⭐ 第二层：`docs/` 根下的**设计件**（2026-10-02 用户裁定后新增）
+#: ═══════════════════════════════════════════════════════════════════════════
+#: 用户 2026-10-02 逐字（纠正我的 `docs/designs/` 建议）：
+#: 「`docs/designs/` **不太适合当「施工设计书」**，**会被误认为是项目的设计文档**，
+#:  实际上**大型施工只有草案或者说定案，加上施工计划书**，这两个**不是"设计的载体"，是设计的结果**，
+#:  是要**被反复修正**的。」
+#: ⇒ ⭐ **不建 `docs/designs/`** —— **它已经有了，就是 `docs/` 根**：
+#:   系统级／包级设计件（`*_DESIGN.md` / `*_ARCHITECTURE.md` / `*_CONTRACT.md` …）一直住在 `docs/` 根。
+#: ⇒ ⛔ **但今天它们一份都没进索引**（本文件原来只收 `package-info.java`）⇒ 这就是本层的由来。
+DESIGN_GLOBS = ("*_DESIGN.md", "*_DESIGN_DRAFT.md", "*_ARCHITECTURE.md", "*_CONTRACT.md",
+                "*_FORM.md", "*_COMPARISON.md", "*_SELECTION_DESIGN.md",
+                # ⭐ 族式命名（一份设计被拆成 R1/R2/… 时用）—— 2026-10-02 由覆盖自证当场抓出来
+                "ALICE_PATHING_CORE_*.md",
+                # ⚠️ 名字里没有 DESIGN 字样、但内容是设计（「仅记录后续接入时必须保留的身份边界」= 定案）
+                "MULTI_BOT_INTERFACE_RESERVATION.md")
+
+#: ⛔ **反向**：`docs/` 根里**不是设计件**的，必须逐类点名。
+#: ⭐ 双向自证：**(a)** 磁盘上每个 `docs/*.md` 要么进表、要么在这里被点名；
+#:            **(b)** 这里点名的每个模式**必须在磁盘上真能命中**（⛔ 拼错 = 静默失效 ⇒ 响亮失败）。
+NON_DESIGN_PATTERNS: list[tuple[str, str]] = [
+    ("CLOUD_MIGRATION.md", "基础设施手册（⛔ 不是设计件；自述「不改项目契约、不进开发排期、不构成实现授权」）"),
+    ("DECISIONS_INDEX.md", "③ 类生成物（裁定索引）"),
+    ("DESIGN_INDEX.md", "④ 类生成物（本文件自己）"),
+    ("DOC_REFACTOR_PLAN.md", "施工计划书（**施工期唯一执行入口**）"),
+    ("ACCEPTANCE_GUIDE.md", "验收指引"),
+    ("AI_*.md", "常驻件 ／ 旧态文档（`AI_DECISIONS` `AI_PROJECT_STATE` `AI_DEVELOPMENT_PLAYBOOK` `AI_CHANGELOG` `AI_TEST_MATRIX`）"),
+    ("OPEN_ITEMS_LEDGER.md", "⑥ 类（进行中状态 · 待办总账）"),
+    ("QUESTIONS_LEDGER.md", "⑥ 类（进行中状态 · 问题账）"),
+    ("HANDOVER.md", "⑥ 类（进行中状态 · 断点历史）"),
+    ("README.md", "文档地图（⛔ 不自称入口）"),
+    ("EXPECTED_REDS.md", "预期红清单（门禁的基线数据）"),
+    ("GLOSSARY.md", "术语表"),
+    ("BARITONE_*.md", "Baritone 对照 ／ 锚点数据"),
+    ("TESTING_GUIDE.md", "操作指南"),
+    ("CAPABILITY_LIST.md", "生成物（能力清单）"),
+    ("RISK_*.md", "风险系统件族（含 1 份 `RISK_SYSTEM_DESIGN_DRAFT.md` ⇒ ⚠️ 它**像**设计件但是**草案**，见下注）"),
+    ("ALIGNMENT_OPEN_QUESTIONS.md", "未裁清单"),
+    ("BARITONE_CONTRAST_TESTING.md", "对照测试说明"),
+    ("BATTERY_CURATION.md", "电池策展说明"),
+    ("CLIENT_AGENT_*.md", "客户端 agent 通道说明"),
+    ("MEKANISM_FACTS.md", "上游事实（读数）"),
+    ("THERMAL_*.md", "上游事实（读数）"),
+    ("KNOWLEDGE_RECIPE_GRAPH_NOTES.md", "笔记（构想类）"),
+    ("RISK_MODES_DISCUSSION.md", "讨论记录（构想类）"),
+    ("MOD_ADAPTER_PROTOCOL.md", "协议说明"),
+    ("MOD_COMPAT_CRAFT_STATION_PLAN.md", "计划（刀级 · ⚠️ 像设计件但按用户裁定属「施工域」）"),
+    ("STAGE3A_CRAFT_PLAN.md", "计划（刀级）"),
+    ("STAGE2_MODS_READABILITY.md", "审查件"),
+    ("REVIEW_*.md", "审查件"),
+    ("R4_BARITONE_ALIGNMENT_AUDIT.md", "审计件"),
+    ("TRANSFER_MODULE_AUDIT.md", "审计件"),
+    ("MINE_SURVEY_PROTOCOL.md", "勘测协议（方法，⛔ 不是某一次勘测的结果）"),
+    ("WORLD_WRITE_AUTHORIZATION.md", "授权底账"),
+]
+DESIGN_DIRS = [("plans/", "刀级设计产出 ＋ 参考（**自述：讨论记录/草案/设计单**）⇒ 见 `docs/plans/README.md`"),
+               ("reviews/", "报告 ／ 复核 ／ 审查（⑤ 类，**可引不可依据**）⇒ 见 `docs/reviews/README.md`")]
+
 
 DNUM = re.compile(r"\bD-\d+\b")
 HEADING = re.compile(r"^\s*\*\s*<h2>(.*?)</h2>\s*$")
@@ -153,11 +212,60 @@ def collect() -> list[dict]:
     return [seen[k] for k in sorted(seen)]
 
 
+def read_design_doc(f: Path) -> dict:
+    """→ 一份 `docs/` 根设计件的摘要。⛔ 只读，不改任何文件。"""
+    lines = f.read_text(encoding="utf-8").splitlines()
+    title = next((re.sub(r"^#\s*", "", l).strip() for l in lines if l.startswith("# ")), f.stem)
+    cites = sorted(set(DNUM.findall("\n".join(lines))), key=lambda s: int(s[2:]))
+    return {"file": f.name, "rel": f.relative_to(ROOT).as_posix(), "title": strip_md(title),
+            "lines": len(lines), "cites": cites}
+
+
+def design_docs() -> list[dict]:
+    """`docs/` 根下命中 `DESIGN_GLOBS` 的设计件（⭐ 显式清单，⛔ 不用模糊匹配）。"""
+    out, seen = [], set()
+    for pat in DESIGN_GLOBS:
+        for f in sorted(ROOT.joinpath("docs").glob(pat)):
+            if f.name in seen or not f.is_file():
+                continue
+            seen.add(f.name)
+            out.append(read_design_doc(f))
+    return sorted(out, key=lambda d: d["file"])
+
+
+def design_coverage_check() -> list[str]:
+    """⭐⭐ **双向自证**（这是本层最重要的东西，⛔ 不是那张表）：
+
+    **(a) 磁盘 → 名单**：`docs/*.md` 每份都必须**要么**是设计件、**要么**被 `NON_DESIGN_PATTERNS` 点名；
+    **(b) 名单 → 磁盘**：点名的每个模式**必须在磁盘上真能命中**（⛔ 拼错一个字母 = 静默失效）。
+
+    ⚠️ 为什么必须有 (a)：本项目最贵的那族错是「**索引少列了东西，而它读起来完全正常**」
+    （2026-10-02 实测过两次：`package-info` 子包漏出表外 · 设计件一份都没进索引）。
+    ⚠️ 为什么必须有 (b)：名单里写错一个字 ⇒ 那一类**静默不被检查**，而**没有任何东西会红**。
+    """
+    problems: list[str] = []
+    disk = {f.name for f in ROOT.joinpath("docs").glob("*.md")}
+    designed = {d["file"] for d in design_docs()}
+    covered: set[str] = set()
+    for pat, _why in NON_DESIGN_PATTERNS:
+        hit = {f.name for f in ROOT.joinpath("docs").glob(pat)}      # ⛔ 目录要排除
+        if not hit:
+            problems.append(f"名单里的模式 **一条都没命中**：`docs/{pat}` ⇒ "
+                            f"拼错？文件被删/被改名？⛔ 这类**不会自己报错**，所以在这里响亮失败")
+        covered |= hit
+    unclassified = sorted(disk - designed - covered)
+    if unclassified:
+        problems.append(f"**{len(unclassified)} 份 `docs/*.md` 既不是设计件、也没在名单里被点名**："
+                        f"{', '.join(unclassified[:8])}{' …' if len(unclassified) > 8 else ''} ⇒ "
+                        f"加进 `DESIGN_GLOBS`（它是设计件）或 `NON_DESIGN_PATTERNS`（它不是）")
+    return problems
+
+
 def esc(cell: str) -> str:
     return cell.replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render(pkgs: list[dict]) -> str:
+def render(pkgs: list[dict], docs: list[dict]) -> str:
     tops = [p for p in pkgs if p["depth"] == 1]
     subs = [p for p in pkgs if p["depth"] > 1]
     have = [p for p in tops if p["has"]]
@@ -182,10 +290,39 @@ def render(pkgs: list[dict]) -> str:
     lines.append("2. 想知道**为什么这么切** ⇒ 读它的 `package-info.java`（`设计位置` 列有路径）；")
     lines.append("3. 想知道**它受哪些裁定约束** ⇒ 看 `受约束` 列（⚠️ 这是从 `package-info.java` **扫出来的引用**，不是判断）。")
     lines.append("")
+    lines.append("## ⭐⭐ 第 ① 层：`docs/` 根下的**设计件**（2026-10-02 新增）")
+    lines.append("")
+    lines.append("⚠️ 用户 2026-10-02 逐字（**纠正**我建议的 `docs/designs/`）：")
+    lines.append("> 「`docs/designs/` **不太适合当「施工设计书」**，**会被误认为是项目的设计文档**，")
+    lines.append("> 实际上**大型施工只有草案或者说定案，加上施工计划书**，这两个**不是「设计的载体」，是设计的结果**，")
+    lines.append("> 是要**被反复修正**的。」")
+    lines.append("")
+    lines.append("⇒ ⭐ **不建 `docs/designs/`** —— **它已经有了，就是 `docs/` 根**。")
+    lines.append("⛔ 而本索引**原来一份都没收它们**（只收 `package-info.java`）⇒ 这一层就是那个缺口的补丁。")
+    lines.append("")
+    lines.append(f"| 设计件（`docs/` 根） | 行数 | 受约束（**扫出来的** `D-###`） |")
+    lines.append("|---|---:|---|")
+    for d in docs:
+        cites = " ".join(f"`{c}`" for c in d["cites"]) if d["cites"] else "—"
+        lines.append(f"| **`{d['file']}`** —— {esc(d['title'])[:70]} | {d['lines']} | {esc(cites)} |")
+    lines.append("")
+    lines.append(f"**入选口径**（⛔ 显式清单，不是模糊匹配）：文件名命中 "
+                 + " / ".join(f"`{g}`" for g in DESIGN_GLOBS) + "。")
+    lines.append("")
+    lines.append("**⛔ 与「施工域」的分界（用户 2026-10-02 划定）**：")
+    lines.append("")
+    lines.append("| 层 | 住哪 | 是什么 |")
+    lines.append("|---|---|---|")
+    lines.append("| **设计件** | `docs/` 根（本表） | 系统级 / 包级设计的**结果**（⛔ 不是「载体」）|")
+    lines.append("| **刀级设计产出 ＋ 参考** | `docs/plans/` | 草案 / 讨论记录 / 设计单（用户：「**只适合当记录，施工时不适合拿来看**」）|")
+    lines.append("| ⭐ **施工依据** | `docs/DOC_REFACTOR_PLAN.md` | **施工计划书**（施工期唯一执行入口）|")
+    lines.append("| **报告 / 复核** | `docs/reviews/` · `survey/` | ⑤ 类：**可引、⛔ 不可当依据** |")
+    lines.append("")
     lines.append("## 读数（**只从 `package-info.java` 与目录结构算**）")
     lines.append("")
     lines.append("| 量 | 值 |")
     lines.append("|---|---|")
+    lines.append(f"| 顶层设计件（`docs/` 根） | **{len(docs)}** |")
     lines.append(f"| 顶层包数 | **{len(tops)}** |")
     lines.append(f"| ⭐ **顶层包有设计说明**（`package-info.java`） | **{len(have)} / {len(tops)}**（{len(have) / len(tops) * 100:.0f}%） |")
     lines.append(f"| ⛔ **顶层包没有设计说明** | **{len(miss)} / {len(tops)}** ⇒ 见下表 `设计位置 = —` 的行 |")
@@ -212,8 +349,11 @@ def render(pkgs: list[dict]) -> str:
     lines.append("")
     lines.append(f"1. ⛔ **{len(miss)} 个顶层包没有设计说明** —— 表里显示 `—`。本索引**只暴露**这件事，"
                  "⛔ 不代替你去补；补一份 = 在那个包里加一个 `package-info.java`。")
-    lines.append("2. ⛔ **首节的编号风格不统一**（`一 ·` / `零 ⭐⭐ ` / 无编号）—— "
-                 "本索引**照原样抄**，⛔ 不做归一（归一是 `D1` 那一刀，改了才算）。")
+    lines.append("2. ⛔ **首节的编号风格不统一** —— ⚠️ **本条已在前一版之后被施工修掉**："
+                 "9 份 `package-info.java` 的节名与次序已按 8 角色骨架统一（2026-10-02 `W4-2`），"
+                 "节号**按角色固定** ⇒ 某份文件里**会跳**（那不表示缺内容）。")
+    lines.append("3. ⛔ **`docs/` 根的设计件只有 14 份进表** —— 本索引**不判断它们是不是好的设计**，"
+                 "⛔ 也不判断「这个包的设计该不该写」；它只回答「**在哪**」。")
     lines.append("")
     lines.append(APPENDIX_MARKER)
     lines.append("")
@@ -230,12 +370,21 @@ def render(pkgs: list[dict]) -> str:
 
 def build() -> tuple[str, dict, list[dict]]:
     pkgs = collect()
-    stats = {"顶层包数": len(pkgs)}
+    docs = design_docs()
+    stats = {"顶层包数": len(pkgs), "顶层设计件": len(docs)}
     for key, floor in ASSERTIONS.items():
         if stats[key] < floor:
             print(f"DESIGN_INDEX_RESULT FAIL: 解析崩塌 —— {key}={stats[key]} < 下限 {floor}"
                   f"（路径写坏 / 包没了 ⇒ 少读一截不许悄悄过）", file=sys.stderr)
             raise SystemExit(1)
+    #: ⭐⭐ **双向覆盖自证**（第二层）：`docs/*.md` 每份都被分类 ÷ 名单里每个模式都真能命中。
+    cov = design_coverage_check()
+    if cov:
+        print("DESIGN_INDEX_RESULT FAIL: `docs/` 根的设计件**覆盖自证失败**：", file=sys.stderr)
+        for c in cov:
+            print(f"  · {c}", file=sys.stderr)
+        raise SystemExit(1)
+
     #: ⭐ **完整性自证**：两张人口必须对上 —— ⛔ 只要有一个包被漏出表外，就**响亮失败**。
     #: （2026-10-02 实测：第一版只取顶层目录 ⇒ `action/craft/` 与 `region/authz/` 两个**子包漏出表外**，
     #:  而**没有任何东西会红** —— 索引自己少列了包，读起来却完全正常。这正是「扫不到就报绿」那一族。）
@@ -251,7 +400,7 @@ def build() -> tuple[str, dict, list[dict]]:
         print(f"DESIGN_INDEX_RESULT FAIL: **顶层包漏出表外** —— 磁盘上顶层包 {n_top} 个，"
               f"而索引里顶层行只有 {stats['顶层包数'] - sum(1 for p in pkgs if p['depth'] > 1)} 个", file=sys.stderr)
         raise SystemExit(1)
-    return render(pkgs), stats, pkgs
+    return render(pkgs, docs), stats, pkgs
 
 
 def main() -> int:
@@ -265,7 +414,7 @@ def main() -> int:
     n_top = sum(1 for p in pkgs if p["depth"] == 1)
     have = sum(1 for p in pkgs if p["has"] and p["depth"] == 1)
     subs = sum(1 for p in pkgs if p["has"] and p["depth"] > 1)
-    summary = (f"{n_top} 顶层包 · 有设计说明 {have} · 缺 {n_top - have}"
+    summary = (f"顶层设计件 {stats['顶层设计件']} · {n_top} 顶层包 · 有设计说明 {have} · 缺 {n_top - have}"
                f" · 子包有 {subs}（`package-info.java` 共 {have + subs} 份）")
 
     if args.write:

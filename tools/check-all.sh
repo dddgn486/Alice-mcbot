@@ -194,6 +194,12 @@ run_gate             "check-survey-index" bash tools/check-survey-index.sh
   # 人口下限：活读数 ≥ 5 · 工序 ≥ 5 波 / 25 条（清单被删空 ⇒ 响亮失败）。
   # ⚠️ 它**不**管进度（哪条做完没做完）—— 那是人写的状态列，⛔ 门禁不猜。
 run_gate             "check-plan-doc-refactor" bash tools/check-plan-doc-refactor.sh
+  # 门禁（2026-10-02，用户定「两个目录都是参考」）：
+  # **`docs/plans/` 与 `docs/reviews/` 的登记表不许与实际分叉** —— 每行从文件自己头部读出来。
+  # ⭐ 两个目录的共同病是**看不出来里面是什么** ⇒ 把「每份自称是什么」摆上台面。
+  # 人口下限：plans ≥ 10 · reviews ≥ 60（⛔ 目录搬了不许「只剩几行」也绿）。
+  # ⚠️ 它**不是**效力门禁 —— 效力仍是「可引、⛔ 不可当依据」，⛔ 不靠门禁维持。
+run_gate             "check-doc-registry" bash tools/check-doc-registry.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh

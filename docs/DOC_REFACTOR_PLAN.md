@@ -80,6 +80,9 @@
 | `src/` 顶层包数 | **30** | 30 ✅ | `docs/DESIGN_INDEX.md` |
 | 顶层包有设计说明 | **7** | 7 ✅ | `docs/DESIGN_INDEX.md` |
 | 骨架有图例的 `package-info` 份数 | **9** | 9 ✅ | `grep -l '@alice-skeleton' $(find src -name package-info.java) | wc -l | tr -d ' '` |
+| `docs/plans/` 份数（含本目录 README） | **14** | 14 ✅ | `ls docs/plans/*.md | wc -l | tr -d ' '` |
+| `docs/reviews/` 份数（含本目录 README） | **75** | 75 ✅ | `ls docs/reviews/*.md | wc -l | tr -d ' '` |
+| `docs/` 根设计件份数 | **14** | 14 ✅ | `docs/DESIGN_INDEX.md` |
 | `survey/` 报告份数 | **49** | 49 ✅ | `survey/README.md` |
 | 常驻件当前总行数 | **1501** | 1501 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
 
@@ -170,6 +173,7 @@
 |---|---|---|---|---|---|---|
 | `W2-1` | 生成器 `tools/design-index.py` ⇒ `docs/DESIGN_INDEX.md` | 🟢 | — | 三臂注入自证（陈旧／人口下限／完整性自证） | `tools/design-index.py` | 已完成 |
 | `W2-2` | 门禁 `check-design-index.sh` 挂 `check-all` | 🟢 | W2-1 | 完整性自证：磁盘上有 `package-info.java` 的包一个都不许不在表里 | `tools/check-design-index.sh` | 已完成 |
+| `W2-4` | ⭐ **`DESIGN_INDEX` 扩成两层**：① `docs/` 根的**设计件**（14）② `package-info`（30 包）＋ **双向覆盖自证** | 🟢 | W2-1 | ✅ 用户 2026-10-02 纠正「不建 `docs/designs/` —— 它已经有了，就是 `docs/` 根」；⭐ 覆盖自证**当场抓出两个真错**（`ALICE_PATHING_CORE_R2` 漏收 · 名单里 `AGENTS.md`/`TASK_*.md` 两条**点错名**的模式） | `tools/design-index.py` | 已完成 |
 | `W2-3` | 设计层缺口摆上台面（23/30 个顶层包没有设计说明） | 🟢 | W2-1 | 索引只暴露、不代替人去补；补一份 = 在那个包里加一个 `package-info.java` | `docs/DESIGN_INDEX.md` | 已完成 |
 
 ### W3 · ⑤ 类：报告（可引不可依据）—— 规矩立了一半
@@ -177,9 +181,11 @@
 | # | 工序 | 档 | 前置 | ⭐ 判据（做完怎么知道对了） | 落点 | 状态 |
 |---|---|---|---|---|---|---|
 | `W3-1` | `survey/README.md` 变生成式登记表（`采纳读数` 列只从磁盘复算） | 🟢 | — | 两臂注入自证（陈旧／人口下限）· 实测 48 份、被提到过 47、一次都没提到 1 | `tools/survey-index.py` | 已完成 |
-| `W3-2` | `Q-021`：`survey/` 与 `docs/reviews/` 是不是同一类 | 🔴 | — | 答不了就不动手（它卡着 `W3-4`） | `docs/QUESTIONS_LEDGER.md` `Q-021` | 阻塞（判据不可分辨，待用户裁） |
-| `W3-3` | E4「报告被当规则引用 ⇒ 红」 | 🟢 | W3-2 | 实测判据不可分辨：10 处引用里 3 处无标记，逐条看全是「取证见」式证据指针 ⇒ 机械判据分不开「取证见」与「采纳自」 ⇒ 硬做只会误报或形同虚设 | `HANDOVER.md` §K-2 | 阻塞（判据不可分辨，登记不做） |
-| `W3-4` | `survey/` 48 份 ＋ `docs/reviews/` 80 份逐份补 `落档判定` 行 | 🟡 | W3-2 | 🔴需裁／🟡挂账／🟢参考／⚪数据 —— 不改报告正文 | 待做 | 未开始 |
+| `W3-2` | `Q-021`：`survey/` 与 `docs/reviews/` 是不是同一类 | 🔴 | — | ✅ **用户 2026-10-02 已裁**（分层答案）：**效力上是同一类**（都 ⑤ 类 · 可引不可依据）；**内容上不是**（`docs/reviews/` 混着**施工设计单/讨论记录** ⇒ 已把 6 份搬到 `docs/plans/`） | `HANDOVER.md` §J-12 · `docs/reviews/README.md` | 已完成 |
+| `W3-3` | E4「报告被当规则引用 ⇒ 红」 | 🟢 | W3-2 | ⚠️ 原判「判据不可分辨」（§K-2）；⭐ **用户 2026-10-02 裁完 `Q-021` 后判据变得可分辨了** —— **「哪份是报告」由它自己的自称决定**（自称写在文件里、可复算），而原先分不开是因为**「施工设计单」这类非报告件也住在同一目录、也被引**（已搬走）⇒ ⛔ 本刀仍未做，登记 `O147` 待排 | `HANDOVER.md` §K-2 ＋ §J-12 | 阻塞（判据已可分辨，但未做 ⇒ 登记 O147） |
+| `W3-4` | `survey/` 49 份 ＋ `docs/reviews/` 74 份逐份补 `落档判定` 行 | 🟡 | W3-2 | 🔴需裁／🟡挂账／🟢参考／⚪数据 —— 不改报告正文 | 待做 | 未开始 |
+| `W3-5` | **6 份草案/讨论件从 `docs/reviews/` 搬到 `docs/plans/`** | 🟢 | W3-2 | ✅ 已搬；**0 处残留错路径**（逐份 grep 复算）；每份加了一行「移入说明」；`docs/reviews` 80 → **74** · `docs/plans` 7 → **13** | `docs/plans/` | 已完成 |
+| `W3-6` | 两个参考目录各补**生成式登记表** ＋ 门禁 `check-doc-registry` | 🟢 | W3-5 | ✅ 每行**从文件自己头部读出来**（标题/自称类型/声明的性质/行数）；人口下限 plans ≥ 10 · reviews ≥ 60；逐字节比对到附录前 | `tools/doc-registry.py` | 已完成 |
 
 ### W4 · 设计层归位（D1/D5/D6/D7 的重编）—— 勘测前置
 
