@@ -125,9 +125,20 @@ def render(reports: list[dict], adopt: Counter, others: list[Path]) -> str:
     L.append("| 量 | 值 |")
     L.append("|---|---|")
     L.append(f"| 报告份数 | **{len(reports)}** |")
-    L.append(f"| ⭐ **在本仓里被提到过**（`门禁读数 ≥ 1`） | **{len(cited)} / {len(reports)}** |")
-    L.append(f"| ⛔ **一次都没被提到**（`门禁读数 = 0`） | **{len(never)} / {len(reports)}** |")
     L.append(f"| 头部带 `基线` 字段 | **{sum(1 for r in reports if r['base'] != '—')} / {len(reports)}** |")
+    L.append("")
+    #: ⚠️⚠️ **2026-10-02 修一个真缺陷（本门禁自己的假红）**：
+    #: 「被提到过 / 一次都没被提到」这两行**原来在这张表里** —— 而它们来自 `采纳读数`
+    #: （＝报告 id 在**全仓**被引几次）⇒ ⭐ **本仓任何一处引用了某个 `survey/NN`，这两行就变**
+    #: ⇒ 门禁**逐字节比对**就会红，而**没有任何东西真的错**（写入 `survey/50` 这一份新报告
+    #: 就当场触发了它：`47/49` → `48/49`）。
+    #: ⇒ ⭐ **修法 = 把它们挪出比对区**（本表只留**完全确定**的量：份数 / 基线覆盖率），
+    #:    读数挪进**附录**（那份的排除**是有意的、写在标记里的**）。
+    #: ⚠️ **这是一处 🔴 级动作（改已有门禁的判据）的记账**：判据从"这两行也要一致"
+    #:    改成"这两行不进比对" ⇒ ⚠️ **已按纪律登记**（`docs/OPEN_ITEMS_LEDGER.md` `O145`），
+    #:    ⛔ 不是偷偷放宽 —— **它放宽的是"必然漂移的东西"，收紧没变**（份数/基线仍逐字节比对）。
+    L.append(f"| ⭐ **在本仓里被提到过** | 见**附录**（⚠️ **不进门禁比对** —— 它会随任何引用变） |")
+    L.append(f"| ⛔ **一次都没被提到** | 见**附录**（同上） |")
     L.append("")
     L.append("## 表（**门禁逐字节比对的就是这一段**：id / 标题 / 基线 / 行数）")
     L.append("")
@@ -173,6 +184,15 @@ def render(reports: list[dict], adopt: Counter, others: list[Path]) -> str:
         n = r["id"]
         tot = adopt.get(n, 0)
         L.append(f"| **`survey/{n}`** | {'✅' if tot else '⛔'} {tot or ''} | | | |")
+    L.append("")
+    L.append("**汇总（⚠️ 同样**不在**比对范围）**：")
+    L.append("")
+    L.append(f"- ⭐ **在本仓里被提到过**：**{len(cited)} / {len(reports)}**")
+    L.append(f"- ⛔ **一次都没被提到**：**{len(never)} / {len(reports)}**"
+             + (" —— `survey/" + '` `survey/'.join(str(r["id"]) for r in never) + "`" if never else ""))
+    L.append("- ⚠️ **这两个数**每次全仓引用一变就变**（实测：写一份新报告 `survey/50` 就把它从 "
+             "47/49 变成 48/49）⇒ 所以它们**只活在这里**，⛔ 不进上面的比对区 —— "
+             "否则门禁会为「有人引了一份报告」这种正常事报红。")
     L.append("")
     return "\n".join(L) + "\n"
 
