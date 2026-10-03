@@ -173,6 +173,10 @@ run_gate             "check-design-index" bash tools/check-design-index.sh
   # 旧账基线 33 条只许变短；人口下限 30（扫不到 ⇒ 响亮失败）。
   # ⭐ 它防的是"新增一条 `生效` 但谁也说不清谁批的裁定"= 本项目最大的病灶。
 run_gate             "check-effective-trace" bash tools/check-effective-trace.sh
+  # 门禁（2026-10-02，草案 §P-5 `E3`）：**勘测报告登记表不许与 survey/ 分叉**。
+  # ⭐ 用户定的方向「索引从下往上维护」⇒ 每行从报告头部读出来，⛔ 不靠手维护。
+  # 人口下限 40 份（实测 48）；报告文件名必须以编号开头；不陈旧。
+run_gate             "check-survey-index" bash tools/check-survey-index.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh
