@@ -13,7 +13,7 @@
 
 ---
 
-## 一、验收的 5 个"看数"（⭐ 只花两分钟，先做这个）
+## 一、验收的 6 个"看数"（⭐ 只花两分钟，先做这个）
 
 ```bash
 cd /workspaces/Alice-mcbot
@@ -26,10 +26,10 @@ CHECK_ALL_OUT="$(bash tools/check-all.sh 2>&1)"
 # ① 门禁总体（本次之后 failed 必须 = 0）
 go "check-all"        "$(printf '%s' "$CHECK_ALL_OUT" | grep -o 'CHECK_ALL_RESULT.*')"
 
-# ② 常驻规范行数 —— ⚠️ **草案的硬约束是"净增 ≤ 0"，它仍在红**
-#    （云端主工作流曾把它降为警告，**已按用户指示回退** —— 用户的「先留什么」是**施工偏好**，
-#      ⛔ 不是裁定，不能拿来改草案。术语纠正见 commit。）
-go "AGENTS+PLAYBOOK+STATE" "$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l) / 1476（⛔ 超了就是红）"
+# ② 常驻规范行数 —— ✅ **2026-10-02 用户裁定 (c)：上限 1476 → 1501**
+#    （我原先报"仍红、待裁"；用户裁了 (c) 并要求**先与草案原理由核对** ⇒ 理由三条已落在
+#      `tools/check-all.sh` 的 `run_doc_budget` 注释里。⛔ 不是"降级过关"，是**改上限 ＋ 写理由**。）
+go "AGENTS+PLAYBOOK+STATE" "$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l) / 1501（⛔ 超了就是红）"
 
 # ③ 入口声索：必须**恰好 1 个文件**在**声明自己是入口**
 #    ⚠️ 判据不能只数 `grep -l`：`AGENTS.md` 与 `docs/README.md` 里各有 1 处是在**说明"过去有两处"**，
@@ -41,19 +41,24 @@ bash tools/check-design-index.sh 2>&1 | grep DESIGN_INDEX_RESULT
 
 # ⑤ 裁定状态词表（收敛后应当只剩 4 种取值）
 go "状态取值种类"     "$(grep -oh '状态[：:][^（(]*' docs/AI_DECISIONS.md | sort -u | wc -l)"
+
+# ⑥ ⭐ 施工计划书 —— **施工期唯一执行入口**（用户 2026-10-02：「还没有载体就先创一个」）
+#    ⭐ 它自己会报"活读数漂没漂"（判据 C-2「停下重勘」）。⛔ 进度不看它，看它 §六 的状态列。
+bash tools/check-plan-doc-refactor.sh 2>&1 | grep PLAN_DOC_REFACTOR_RESULT
 ```
 
 **基准（施工前）**，供你对比：
 
 | 读数 | 施工前 |
 |---|---|
-| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=40 warning=3 failed=0`** |
-| `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ⛔ 现在 **1501**，**红**（草案硬约束，⛔ 不许靠降级过关 —— 待你裁定怎么补） |
+| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=44 warning=2 failed=0`** |
+| `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ✅ 现在 **1501 / 1501**（上限已按用户裁 (c) 上调；⚠️ 遗留「清点机制」= `O143`） |
 | 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
 | `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |
 | 状态取值种类 | **37** → ✅ 现在 **47**（旧读数是**又少又脏**：见 §六 勘误） |
 | 编译 | ⭐ **`BUILD SUCCESSFUL in 3m 8s`**（11 warnings / 0 error）—— 这是 **`src/` 改动前的对照臂** |
 | `AI_DECISIONS.md` 真条目 | ⭐ **565**（不是 670 —— 「670」把 `####` 子标题也数了进去） |
+| ⭐ 施工计划书 | ⛔ **施工前不存在** → ✅ 现在 `docs/DOC_REFACTOR_PLAN.md`（生成物 ＋ 门禁 ＋ 四臂注入自证） |
 
 ⚠️ **`warning` 不是"通过"** —— 它意思是**那条断言本轮没有执行**。规矩是"别把这一行读成全绿"。
 
