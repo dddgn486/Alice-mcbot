@@ -104,38 +104,6 @@ BASELINE_MISFILED: frozenset[tuple[str, int]] = frozenset({
 #: ⚠️ 人口下限：基线 23 条 ⇒ 判据至少得扫出这么多，否则说明它**坏了**（⛔ 不许"扫不到就报绿"）
 MISFILED_FLOOR = 22
 
-#: 【断言④】⭐ **`生效` 必须带批准痕迹**（`D-532` 排期里的 C4；2026-10-02 落地）。
-#:
-#: **判据（机械、无需语义）**：状态以 `生效` 开头的条目，其**条目体**里必须至少有**一处**批准痕迹：
-#:   · `[用户确认: YYYY-MM-DD]`，或 · 用户 ＋ 日期 ＋ 裁定词（裁定/拍板/钦定/定案/否决/确认/同意），
-#:   或 · `用户逐字` / `用户「…」`。
-#:
-#: ⚠️⚠️ **为什么必须带基线（实测，不是偏好）**：按字面挂 ⇒ **立刻红 28 处**，
-#: 而它们**全是早期条目**（`D-001`…`D-050`）—— 那些裁定当年是**靠会话记录**批准的，
-#: 条目体内本来就没有痕迹。⛔ 直接挂会逼出一件事：**为了消红而给历史编批注**（那比不挂更坏）。
-#: ⇒ 与断言②③ 同一套模子：**旧账进基线 ⇒ 只对「新出现的」红**；基线**只许变短**。
-#:
-#: ⭐ **这道门禁真正防的是什么**：防**新增**一条"`生效` 但谁也说不清谁批的"裁定 ——
-#: 那正是本项目最大的病灶（用「用户在别处做过一个选择」当引子，把 AI 的判断办成永久件）。
-#: ⚠️ 它**不**声称那 28 条是假的：它只说"**这些条目的批准行为不在条目里**"。
-BASELINE_NO_TRACE: frozenset[str] = frozenset({
-    "D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009",
-    "D-010", "D-011", "D-012", "D-013", "D-014", "D-016", "D-017", "D-018", "D-020",
-    "D-025", "D-026", "D-029", "D-030", "D-031", "D-032", "D-033", "D-034", "D-035",
-    "D-036", "D-039", "D-050", "D-067", "D-208", "D-209",
-})
-#: ⚠️ 人口下限：判据至少得扫出这么多"`生效` 条目"，否则说明它坏了（⛔ 不许扫不到就报绿）
-EFFECTIVE_FLOOR = 30
-
-#: 批准痕迹（表驱动，⛔ 不散落判断）
-APPROVAL_TRACES: tuple[tuple[str, str], ...] = (
-    (r"\[用户确认[:：]", "`[用户确认:]`"),
-    (r"用户\s*20\d\d-\d\d-\d\d\s*(?:裁定|拍板|钦定|定案|否决|确认|同意|决定)", "用户＋日期＋裁定词"),
-    (r"用户\s*逐字", "`用户逐字`"),
-    (r"用户\s*[「『]", "用户「…」"),
-    (r"20\d\d-\d\d-\d\d\s*用户", "日期＋用户"),
-)
-
 #: 【断言③】编号缺口 ⇒ **红**（先用基线白名单）。
 #: ⚠️ 「跳号」与「被删掉的条目」机械上分不开 ⇒ ⛔ 白名单是**唯一**能落地的口径；
 #: ⛔ 白名单只许变短（真补上一条 ⇒ 它的指纹消失，门禁**仍然绿** —— 见上面的"只许变短"）。
@@ -185,33 +153,6 @@ def assert_misfiled(found: list[dict]) -> tuple[list[str], list[str]]:
     if shifted:
         warnings.append(f"⚠️ {shifted} 条归错档的**行号**与基线不同（正文挪过）——"
                         " 仍按旧账放行（指纹按编号）；要精确到行请同刀刷新基线")
-    return problems, warnings
-
-
-def assert_effective_trace(entries: list[dict]) -> tuple[list[str], list[str]]:
-    """断言④：⭐ `生效` 必须带批准痕迹（基线之外的**新**无痕条目 ⇒ 红）。返回 (problems, warnings)。
-
-    ⚠️ 只查**状态以 `生效` 开头**的条目 —— 它是"这条裁定现在作数"的**唯一**声称。
-    `已实施` / `已验收` 说的是"做完了 / 验过了"，**不是**"谁批的"，⛔ 不查它们。
-    """
-    eff = [e for e in entries if e["status"].startswith("生效")]
-    problems: list[str] = []
-    if len(eff) < EFFECTIVE_FLOOR:
-        problems.append(f"⛔ `生效` 痕迹判据**扫不到东西**了：只认出 {len(eff)} 条 < 下限 {EFFECTIVE_FLOOR}"
-                        " ⇒ 状态口径变了？照这样它会对新条目**静默报绿**")
-    for e in eff:
-        if any(re.search(pat, e["block"]) for pat, _n in APPROVAL_TRACES):
-            continue
-        if e["num"] in BASELINE_NO_TRACE:
-            continue
-        problems.append(f"⛔ **`{e['num']}` 声称 `生效`，但条目里找不到任何批准痕迹**"
-                        f"（@行 {e['line']}）⇒ 读者无法判断**谁批的**。"
-                        " 要么补 `[用户确认: YYYY-MM-DD]`，要么把状态改成 `待定` / `裁定已落`")
-    warnings: list[str] = []
-    gone = sorted(BASELINE_NO_TRACE - {e["num"] for e in eff}, key=lambda s: int(s[2:]))
-    if gone:
-        warnings.append(f"⚠️ 基线里 {len(gone)} 条『`生效` 无痕迹』已消失（补了痕迹或改了状态 ⇒ 好事）："
-                        f"{', '.join(gone[:8])}{' …' if len(gone) > 8 else ''}")
     return problems, warnings
 
 
@@ -473,13 +414,12 @@ def build() -> tuple[str, dict, dict, list[str], list[str]]:
     stats["状态条数"] = sum(1 for e in entries if e["status"] != "—")
     stats["状态取值"] = len({e["status"] for e in entries if e["status"] != "—"})
     stats["归错档"] = len(misfiled)
-    stats["生效无痕"] = sum(1 for e in entries if e["status"].startswith("生效")
-                            and not any(re.search(p, e["block"]) for p, _n in APPROVAL_TRACES))
     #: C1 三条断言（⛔ 基线之外的**新病**才红）—— 判据在文件头部常量区，逐条带注释
     p_mis, w_mis = assert_misfiled(misfiled)
-    p_eff, w_eff = assert_effective_trace(entries)
-    problems = p_mis + assert_missing(entries) + p_eff
-    warnings = assert_duplicates(parse_heads(text)) + w_mis + w_eff
+    #: ⚠️ C4（`生效` 必须带批准痕迹）**不在这里** —— 它是**独立门禁** `tools/check-effective-trace.py`
+    #:（用户 2026-10-02 裁定：`C4` 属"**新增**门禁"🟢 档，而改**已有门禁**的判据属 🔴 ⇒ 必须拆出去）
+    problems = p_mis + assert_missing(entries)
+    warnings = assert_duplicates(parse_heads(text)) + w_mis
     return (render(entries, heading_total, refs, levels, stats), stats, levels,
             problems, warnings)
 
@@ -501,12 +441,11 @@ def main() -> int:
     lvz = " · ".join(f"h{lv} {levels.get(lv, 0)}" for lv in (2, 3, 4) if levels.get(lv))
     stz = f"状态 {stats.get('状态条数', 0)} 条 / {stats.get('状态取值', 0)} 种"
     mfz = f"归错档 {stats.get('归错档', 0)} 条（基线 {len(BASELINE_MISFILED)}）"
-    etz = f"生效无痕 {stats.get('生效无痕', 0)} 条（基线 {len(BASELINE_NO_TRACE)}）"
 
     if args.write:
         OUTPUT.write_text(rendered, encoding="utf-8")
         print(f"DECISIONS_INDEX_RESULT WROTE: {stats['决策编号数']} 决策 / {stats['标题数']} 标题"
-              f"（{lvz} · {stz} · {mfz} · {etz}）→ {OUTPUT.relative_to(ROOT)}")
+              f"（{lvz} · {stz} · {mfz}）→ {OUTPUT.relative_to(ROOT)}")
         for w in warnings:
             print(f"  {w}")
         for p in problems:
@@ -546,9 +485,10 @@ def main() -> int:
         print(f"DECISIONS_INDEX_RESULT FAIL: {len(problems)} 处 C1 断言未过"
               f"（判据见 `tools/decisions-index.py` 头部常量区；⛔ 基线白名单只许变短）", file=sys.stderr)
         return 1
-    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz} · {stz} · {mfz} · {etz}）"
+    print(f"DECISIONS_INDEX_RESULT PASS: {stats['决策编号数']} 决策 / {stats['标题数']} 标题（{lvz} · {stz} · {mfz}）"
           f" / 结构列与 {OUTPUT.relative_to(ROOT)} 逐字节相同"
-          f" / C1 四断言过（①重复标题=警告 · ②归错档=红 · ③缺号=红 · ④`生效`无痕=红）"
+          f" / C1 三断言过（①重复标题=警告 · ②归错档=红 · ③缺号=红）"
+          f"（⚠️ C4 `生效` 痕迹 = **独立门禁** `check-effective-trace`）"
           f"（⚠️ 附录「引用热度」**不在**比对范围）")
     return 0
 

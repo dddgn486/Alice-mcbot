@@ -168,6 +168,11 @@ run_gate             "check-decisions-index" bash tools/check-decisions-index.sh
   # ⚠️ 它**不**要求"每个包都有设计说明"（今天 30 个顶层包里只有 9 个有）⇒ 只把缺口摆到台面上。
   # 人口下限 25：路径写坏 / 包被删 ⇒ **响亮失败**，⛔ 不许"索引里只剩一个包"也照样绿。
 run_gate             "check-design-index" bash tools/check-design-index.sh
+  # 门禁（2026-10-02，`D-532` 排期里的 `C4`，**用户裁定拆成独立门禁**）：
+  # **`生效` 的裁定必须带批准痕迹** —— ⛔ 它不能塞进上面那道已有门禁（改已有门禁的判据属 🔴）。
+  # 旧账基线 33 条只许变短；人口下限 30（扫不到 ⇒ 响亮失败）。
+  # ⭐ 它防的是"新增一条 `生效` 但谁也说不清谁批的裁定"= 本项目最大的病灶。
+run_gate             "check-effective-trace" bash tools/check-effective-trace.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh
