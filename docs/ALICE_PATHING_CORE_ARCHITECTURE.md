@@ -1,5 +1,9 @@
 # Alice Pathing Core Architecture
 
+> ⚠️ **本文在 `ALICE_PATHING_CORE_*` 三件里的位置**（2026-10-02 补）：
+> · **本文** = **总纲**（边界与迁移方向，⭐ 明写"不授权立即接入 `MineTask`"）；
+> · `ALICE_PATHING_CORE_R1_CONTRACT.md` = **R1 契约** · `ALICE_PATHING_CORE_R2_MOVEMENTS.md` = **R2 移动** ⇒ 后两件是**分阶段合同**，⛔ 不是本文的章节。
+
 > 状态：架构重规划基线；仅定义边界与迁移方向，不授权立即接入 MineTask。
 >
 > 更新时间：2026-09-07

@@ -1,3 +1,7 @@
+---
+name: forge-blockpos-mutability
+description: Forge 的 BlockPos 有可变/不可变两种；部分 API（如 betweenClosed）复用同一个 MutableBlockPos ⇒ 直接存引用会让所有坐标都变成最后一个值。识别与规避这类陷阱。
+---
 # Forge BlockPos 可变性陷阱
 
 ## 问题描述

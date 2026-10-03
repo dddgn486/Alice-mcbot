@@ -29,20 +29,20 @@
 
 | 设计件（`docs/` 根） | 行数 | 受约束（**扫出来的** `D-###`） |
 |---|---:|---|
-| **`ALICE_PATHING_CORE_ARCHITECTURE.md`** —— Alice Pathing Core Architecture | 440 | `D-025` `D-026` |
+| **`ALICE_PATHING_CORE_ARCHITECTURE.md`** —— Alice Pathing Core Architecture | 444 | `D-025` `D-026` |
 | **`ALICE_PATHING_CORE_R1_CONTRACT.md`** —— Alice Pathing Core R1 Contract | 528 | — |
 | **`ALICE_PATHING_CORE_R2_MOVEMENTS.md`** —— Alice Pathing Core R2：Movement 类型与能力声明 | 391 | — |
 | **`DEATH_AND_REVIVAL_DESIGN_DRAFT.md`** —— 死亡与复活机制 · 设计草案（待用户审定） | 157 | `D-276` `D-284` |
-| **`DECISION_LAYER_DESIGN.md`** —— L4 决策层（GoalDirector 家族）设计 —— 三条通道 + 分步骨架 | 270 | `D-076` `D-106` `D-134` `D-135` `D-137` `D-138` `D-140` `D-327` `D-341` `D-345` `D-348` |
+| **`DECISION_LAYER_DESIGN.md`** —— L4 决策层（GoalDirector 家族）设计 —— 三条通道 + 分步骨架 | 275 | `D-076` `D-106` `D-134` `D-135` `D-137` `D-138` `D-140` `D-327` `D-341` `D-345` `D-348` |
 | **`DECISION_LAYER_FINAL_FORM.md`** —— 决策层最终形态：任务队列 + 持久终态 + 历史落盘 | 272 | `D-135` `D-138` `D-139` `D-140` `D-267` `D-327` `D-338` `D-345` `D-348` `D-349` |
 | **`INTERACTION_LAYERS_COMPARISON.md`** —— 方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别 | 82 | — |
 | **`JOB_LAYER_DESIGN.md`** —— L3 目标级任务层（Job）设计 —— 伐木作为第一消费者 | 464 | `D-040` `D-048` `D-050` `D-058` `D-062` `D-070` `D-071` `D-073` `D-076` `D-107` `D-109` `D-127` `D-128` `D-129` `D-131` `D-338` `D-478` `D-516` |
 | **`MINE_MIGRATION_DESIGN.md`** —— Mine 迁移设计（评审稿 · 历史） | 180 | `D-047` `D-064` `D-065` `D-076` `D-329` |
 | **`MINE_TASK_DESIGN.md`** —— 挖矿任务设计（阶段 0 设计文档） | 266 | `D-024` `D-076` `D-115` `D-132` `D-138` `D-151` `D-219` `D-327` `D-329` `D-331` `D-333` `D-336` `D-341` `D-347` `D-348` `D-349` `D-353` `D-354` `D-355` `D-356` `D-357` `D-358` `D-361` |
-| **`MINING_STAND_SELECTION_DESIGN.md`** —— 挖掘站位选优 + Baritone 融合：新框架设计（定稿 v5） | 221 | `D-044` `D-055` `D-061` `D-066` |
+| **`MINING_STAND_SELECTION_DESIGN.md`** —— 挖掘站位选优 + Baritone 融合：新框架设计（定稿 v5） | 225 | `D-044` `D-055` `D-061` `D-066` |
 | **`MULTI_BOT_INTERFACE_RESERVATION.md`** —— 多 Bot 并行接口预留（非当前验收目标） | 12 | — |
 | **`REGION_REPLANT_ASYNC_DESIGN.md`** —— 区域补种异步化 + 可配置拾取清单：设计方案 | 221 | `D-076` `D-338` `D-341` `D-342` `D-343` |
-| **`RISK_SYSTEM_DESIGN_DRAFT.md`** —— Alice 风险系统 · 实现草案 | 526 | `D-001` `D-024` `D-036` `D-037` `D-040` `D-046` `D-050` `D-051` `D-058` `D-059` `D-060` `D-062` `D-076` `D-079` |
+| **`RISK_SYSTEM_DESIGN_DRAFT.md`** —— Alice 风险系统 · 实现草案 | 527 | `D-001` `D-024` `D-036` `D-037` `D-040` `D-046` `D-050` `D-051` `D-058` `D-059` `D-060` `D-062` `D-076` `D-079` |
 
 **入选口径**（⛔ 显式清单，不是模糊匹配）：文件名命中 `*_DESIGN.md` / `*_DESIGN_DRAFT.md` / `*_ARCHITECTURE.md` / `*_CONTRACT.md` / `*_FORM.md` / `*_COMPARISON.md` / `*_SELECTION_DESIGN.md` / `ALICE_PATHING_CORE_*.md` / `MULTI_BOT_INTERFACE_RESERVATION.md`。
 

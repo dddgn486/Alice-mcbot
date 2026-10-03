@@ -245,20 +245,23 @@ WAVES: list[tuple[str, str, list[tuple]]] = [
         ("W7-7", "`docs/reference/` **3** 份怎么分（⛔ 三份分属三种类：决策／事实／设计）", "🟡", "W7-1",
          "三份**各自归位**，⛔ 不是整体搬家（`§D′-8` 第 2 条；只给了证据、没给方案 ⇒ 待用户裁）",
          "`O148` ④·`§五″` #2", W),
-        ("W7-8", "`docs/authz/` 的「提案 vs 已生效」分家（3 md ＋ 3 CSV）", "🟡", "W7-1",
-         "⭐ 判据 = `POLICY_MATRIX.csv` 是**门禁真源**，`PROPOSAL_*` 是**提案** ⇒ 两者不许同格",
-         "`O148` ④·`§五″` #3", W),
+        ("W7-8", "提案件必须自报状态 ＋ 不许自相矛盾（新门禁 `check-proposal-status`）", "🟢", "W7-1",
+         "✅ 落地**当场抓到 2 处真缺陷（零误报）**：`POLICY_MATRIX_PROPOSAL.md` **标题与同页状态相反**"
+         "（已更正标题、原题留档）· `RISK_SYSTEM_DESIGN_DRAFT.md` 缺状态行（已补）· ⛔ `*.csv` **不搬**"
+         "（`policy-map.py` 路径写死）",
+         "`tools/check-proposal-status.py`", DONE),
         ("W7-9", "`docs/` 根 **181** 份的内部重复度（`*_DESIGN*`／`RISK_*`／两个 `HANDOVER`）", "🟡", "W7-1",
          "⛔ **一次都没量过** ⇒ 先出重复度表 ＋ 合并候选，⛔ 不先合并",
          "`§五″` #5", W),
-        ("W7-10", "README 那一排（全仓 **6** 个）：`skills/README.md` 等是否变生成物", "🟡", "W7-1",
-         "⭐ 判据用 `§五 5.1` 的现成规律：**有单一出处 ＋ 有门禁** ⇒ 能活；⚠️ `skills/README.md` "
-         "实测**手维护 131 行、无生成器、无门禁** ⇒ 按该判据**必烂**",
-         "`§五″` #1/#8", W),
-        ("W7-11", "⑥ 归档判据（**两套归档**）＋ `§D′-8` 余下待议项收口", "🟡", "W7-1",
-         "⚠️ 草案 v1 的「`docs/archive/` **4 目录**」是**不完整描述** ⇒ 实测两套："
-         "`docs/archive/` **31**（按内容类型）· `.alice-supervision/archive/` **154**（按日期世代）",
-         "`§五″` #6/#7", W),
+        ("W7-10", "README 那一排（全仓 **6** 个）：`skills/README.md` 变生成物 ＋ 挂门禁", "🟢", "W7-1",
+         "✅ `check-skills-index` · ⭐ 落地当场抓到 `forge-blockpos-mutability.skill.md` **缺 frontmatter**"
+         "（⇒ DSH 会**安静丢掉它**）已补 ⇒ 21/21 · 读数 **20/21 → 21/21**",
+         "`tools/skills-index.py` · `.alice-supervision/skills/README.md`", DONE),
+        ("W7-11", "⑥ 归档判据：6 个归档目录各写明「按什么分」（⛔ 不统一分法）", "🟢", "W7-1",
+         "⚠️ 草案 v1 把它记成「`docs/archive/` **4 目录**」= **不完整描述**（实测两套：31 / 154）· "
+         "✅ `check-archive-index` · 6 个 README 生成 ＋ 3 臂自证 · 两种判据：**按内容类型**"
+         "（`docs/archive/`）/ **按日期世代**（`.alice-supervision/archive/`）· ⛔ 「何时入库、谁来判」仍未裁",
+         "`tools/archive-index.py`", DONE),
     ]),
 ]
 

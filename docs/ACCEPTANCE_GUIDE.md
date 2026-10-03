@@ -13,7 +13,7 @@
 
 ---
 
-## 一、验收的 **7** 个「看数」（⭐ 只花两分钟，先做这个）
+## 一、验收的 **8** 个「看数」（⭐ 只花两分钟，先做这个）
 
 ```bash
 cd /workspaces/Alice-mcbot
@@ -55,13 +55,27 @@ bash tools/check-plan-doc-refactor.sh 2>&1 | grep PLAN_DOC_REFACTOR_RESULT
 for g in check-quote-lint check-facts-tiers check-glossary; do
   bash "tools/$g.sh" 2>&1 | grep -E 'QUOTE_LINT_RESULT|FACTS_TIERS_RESULT|GLOSSARY_RESULT'
 done
+
+# ⑧ ⭐ 2026-10-02 第二批三道（同样各自对着一个**真实失败**）
+#    `check-skills-index`    skills/README.md 变生成物 —— ⭐ 它原**手维护 131 行、无生成器、无门禁**
+#                            ⇒ 按 §五 5.1 判据「索引能活 ⟺ 单一出处＋有门禁」**必烂**（列 24 行 vs 磁盘 21）；
+#                            ⭐ 落地时当场抓到 `forge-blockpos-mutability.skill.md` **缺 frontmatter**
+#                            ⇒ DSH 会**安静地丢掉它**（已补）
+#    `check-proposal-status` ⭐ 自称「提案/草案」的件必须自报状态 —— 落地抓到 2 处真缺陷（零误报）：
+#                            `POLICY_MATRIX_PROPOSAL.md` 标题与同页状态**相反**（已更正标题、原题留档）·
+#                            `RISK_SYSTEM_DESIGN_DRAFT.md` 缺状态行（已补）
+#    `check-archive-index`   6 个归档目录各有 README 写明「按什么分」（⭐ 用户裁：⛔ 不统一分法，
+#                            改成两条判据 —— 按内容类型 / 按日期世代）
+for g in check-skills-index check-proposal-status check-archive-index; do
+  bash "tools/$g.sh" 2>&1 | grep -E 'SKILLS_INDEX_RESULT|PROPOSAL_STATUS_RESULT|ARCHIVE_INDEX_RESULT'
+done
 ```
 
 **基准（施工前）**，供你对比：
 
 | 读数 | 施工前 |
 |---|---|
-| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=48 warning=2 failed=1`**（⚠️ 唯一红 = `check-headless-battery exit=5`，云端**无 `run/` 服务端** ⇒ **环境档**，⛔ 非行为红；门禁项 **39 → 48**）|
+| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=51 warning=2 failed=1`**（⚠️ 唯一红 = `check-headless-battery exit=5`，云端**无 `run/` 服务端** ⇒ **环境档**，⛔ 非行为红；门禁项 **39 → 51**）|
 | `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ✅ 现在 **1501 / 1501**（上限已按用户裁 (c) 上调；⚠️ 遗留「清点机制」= `O143`） |
 | 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
 | `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |

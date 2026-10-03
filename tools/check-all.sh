@@ -221,6 +221,25 @@ run_gate             "check-facts-tiers" bash tools/check-facts-tiers.sh
   #    里**真的搜得到** —— ⛔ 词在仓里不存在 ⇒ AI 拿它去对对不上却不报错）· 人口下限 ≥ 10。
   # ⚠️ 它**判不了**"AI 的理解偏没偏"（要语义）；⛔ 也不要求加粗中文词都进表（会误报爆炸）。
 run_gate             "check-glossary" bash tools/check-glossary.sh
+  # 门禁（2026-10-02，用户采纳 ①）：**`skills/README.md` 不许与现实分叉**（生成物）。
+  # ⭐ 起因：它原是**手维护 131 行、无生成器、无门禁** —— 而 `§五 5.1` 已量出
+  #    「索引能活 ⟺ ① 有单一出处 ② 有门禁逐字节比对」，它**两条都没有** ⇒ **已烂**（24 行 vs 21）。
+  # 判据：逐字节新鲜度 · ⭐ **frontmatter 缺失 ⇒ 红**（DSH 按 frontmatter 解析，
+  #    缺字段的文件会被**安静丢掉** —— 落地时当场抓到 `forge-blockpos-mutability` 那一份）· 人口下限 ≥ 15。
+run_gate             "check-skills-index" bash tools/check-skills-index.sh
+  # 门禁（2026-10-02，用户裁 ③）：**自称「提案/草案」的件必须自报状态，且不许自相矛盾**。
+  # ⭐ 起因：草案 v2 的 ④ 类里有「提案未裁」这一半，⛔ 没有任何东西盯着 ⇒ 后果是**假边界**
+  #    （`§E`：「把未完成的构想按边界格式落档 = 制造一条假边界」）。
+  # ⭐ 落地当场抓到 2 处真缺陷（零误报）：`POLICY_MATRIX_PROPOSAL.md` 标题与同页状态**相反**
+  #    （已更正标题、原题留档）· `RISK_SYSTEM_DESIGN_DRAFT.md` 缺状态行（已补）。
+  # ⚠️ 它**判不了**状态行是不是真话；⛔ 归档件不适用。
+run_gate             "check-proposal-status" bash tools/check-proposal-status.sh
+  # 门禁（2026-10-02，用户裁 ⑦）：**6 个归档目录各有一份 README 写明"按什么分"**。
+  # ⭐ 起因：实测**归档有两套、两种分法**（`docs/archive/` 按内容类型 · `.alice-supervision/archive/`
+  #    按日期世代），而 6 个目录**一个都没有 README**、归档门禁 **0 道** ⇒ 草案 v1 把它记成
+  #    「`docs/archive/` 4 目录」= **不完整描述**。用户裁：⛔ 不统一 ⇒ 两条判据 ＋ 各自写明。
+  # 判据：逐字节新鲜度 · 判据由归档根机械决定 · **份数两个口径都报**（含全部后缀 / 其中 .md）· 人口下限。
+run_gate             "check-archive-index" bash tools/check-archive-index.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh
