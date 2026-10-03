@@ -4,77 +4,77 @@
 
 ## D-001：LLM 只做目标级决策
 
-- 状态：稳定
+- 状态：生效
 - LLM 选择目标、策略和已注册工具；不逐 tick 控制物理，不直接写库存或世界。
 
 ## D-002：服务端权威
 
-- 状态：稳定
+- 状态：生效
 - 世界、任务、bot、库存、权限和完成条件以服务端事实为准；客户端只负责显示、输入和观察。
 
 ## D-003：普通挖矿和拾取使用 HARD_PATH
 
-- 状态：稳定（**表述已由 D-076 更新为现行术语，语义不变**）
+- 状态：生效（**表述已由 D-076 更新为现行术语，语义不变**）
 - `SOFT_SURFACE` 只能通过独立实验入口推进，未经真实客户端验证不得接入正式任务。
 
 ## D-004：SEARCH_LIMIT 不等于 UNREACHABLE
 
-- 状态：稳定
+- 状态：生效
 - 搜索预算耗尽只能报告未知/预算不足，不能自动转为不可达或授权挖隧道。
 
 ## D-005：先最小闭环，再正式接入
 
-- 状态：稳定
+- 状态：生效
 - 新移动、交互、GUI 或适配器先通过独立测试物品/诊断入口验证，再接入正式任务链。
 
 ## D-006：用户是真人测试者和共同开发者
 
-- 状态：稳定
+- 状态：生效
 - Windows 客户端测试由用户通过游戏内物品、右键/Shift+右键和键盘鼠标完成；AI 提供简单步骤并主动询问关键现象。
 
 ## D-007：修复前先讨论根因
 
-- 状态：稳定
+- 状态：生效
 - 发现可能修复方式不等于立即实施。先区分事实、假设、证据缺口和替代解释，与用户确认最小修复方向。
 
 ## D-008：旧监督流程不属于当前日常流程
 
-- 状态：稳定
+- 状态：生效
 - dsh-agent-bus、active-plan、旧 HANDOVER 和 `session-complete` 已归档，仅用于历史追溯，不是新会话的默认开工门槛。
 
 ## D-009：Task 是行为编排层，不是决策层
 
-- 状态：稳定
+- 状态：生效
 - `Task`/`Action` 表示可执行行为包，负责阶段推进、生命周期、失败恢复和领域后置条件；当前不承担高层目标决策，也不直接控制每 tick 的物理动作。
 - 影响：`MineTask` 是挖掘行为编排者；未来决策层可以选择目标和策略，但暂不强行引入。
 
 ## D-010：领域规划与通用移动规划分层
 
-- 状态：稳定
+- 状态：生效
 - 挖掘领域负责“目标方块 → 合法挖掘站位”的规划；通用路径规划负责“脚位 → 脚位”的路线；Movement 负责具体移动原语；Executor 负责执行序列和报告执行结果。
 - 影响：不得把 `MineTask`、`BotMiner`、`PathPlanner`、`Movement` 和 `PathExecutor` 的职责通过单个补丁混为一谈。
 
 ## D-011：目标访问清障与路径清障分离
 
-- 状态：稳定
+- 状态：生效
 - 目标访问清障是为了让 bot 在合法范围内看见并挖到目标，属于挖掘领域；路径清障是为了从一个脚位到另一个脚位，属于 `PathPlanner + Movement`。
 - 影响：`MineTask` 当前清障逻辑不能未经验证直接删除；`BreakAndWalkMovement`、隧道和搭路能力也不能未经独立验证直接接入正式任务。
 
 ## D-012：Movement 覆盖通用移动原语
 
-- 状态：稳定
+- 状态：生效
 - 行走、跳跃、下降、游泳、爬梯子，以及带明确安全/资源契约的挖后走、挖隧道、搭柱子、搭桥，都应作为 Movement 原语由规划器选择、由执行器执行。
 - 影响：带破坏或放置世界修改的 Movement 必须有权限、资源、安全、前置条件、后置条件和稳定失败码。
 
 ## D-013：当前路径搜索保留零启发式 Dijkstra
 
-- 状态：稳定
+- 状态：生效
 - `AStarPathfinder` 当前实现使用零 heuristic，实际搜索语义是 Dijkstra；原因是当前直走与对角移动成本都为 1，未经证明的曼哈顿 heuristic 会高估剩余成本并破坏最优性。时间预算用于控制搜索规模，不代表它已经是 A*。
 - 影响：暂不因类名直接改算法或改名；只有在成本模型和可接受 heuristic 明确后，才重新评估真正的 A* 或显式改名。
 
 ## D-015：HARD_PATH 与 SOFT_SURFACE 暂不作为准确实现语义
 
-- 状态：待重新定义（**表述已由 D-076 更新为现行术语，语义不变**）
+- 状态：待定（**表述已由 D-076 更新为现行术语，语义不变**）
 - 事实：当前正式 `PathExecutor` 使用 `BasicMovement.travel()`，并非旧文档所述的纯 `setPos` 瞬移；`SOFT_SURFACE` 只有模式名和部分真实物理基础设施，尚无完整客户端闭环证据。
 - 当前决定：HARD_PATH 暂按“当前已验收的受控路径执行后端”理解；SOFT_SURFACE 暂按“目标中的真实物理移动模式”理解，均不据名称推断实现完成度。
 - 影响：在物理调用链、到达/碰撞/失败后置条件完成审计前，不把 SOFT_SURFACE 接入 MineTask，也不把 HARD_PATH 直接改造成另一种实现。
@@ -82,13 +82,13 @@
 
 ## D-016：Forge Bot 物理推进必须以实际 BotPlayer 调用链为准
 
-- 状态：稳定事实，待闭环验证
+- 状态：生效，稳定事实，待闭环验证
 - 事实：当前 `BotPlayer.tick()` 显式执行 `controller.onUpdate()`、`super.tick()`、`aiStep()`；不能套用 Fabric 或普通 Mob 关于自动 `travel()` 的假设。
 - 当前决定：保留显式 `aiStep()` 作为当前 Bot 物理推进路线；单独审计任务侧显式 `travel()` 与 `aiStep()` 的交互，不在未验证前删除任一入口。
 
 ## D-017：Movement 实验 6 失败结果契约
 
-- 状态：冻结，实验设计基线
+- 状态：生效，实验设计基线
 - 适用范围：独立 Movement 实验及其 `MovementPathExecutor` 事实报告；不授权接入 MineTask、旧 `PathExecutor` 或自动重规划。
 - 结果 `BLOCKED_DYNAMIC`：仅当 Movement 已进入执行阶段、任务启动时对应路径可通行、执行期间服务端确认行走方向上的方块碰撞体新出现或发生变化、Bot 未到达目标且在连续观察窗口内无有效位移时允许使用。必须保留障碍坐标、发现 tick、Bot 脚位/Y、支撑、onGround 和观察窗口等证据。
 - 结果 `MOVEMENT_TIMEOUT`：Movement 未完成且超过无进展/执行预算，但没有足够服务端证据证明是动态方块阻挡时使用；这是保守兜底，不得仅因“Bot 不动”改名为 `BLOCKED_DYNAMIC`。
@@ -99,7 +99,7 @@
 
 ## D-018：正式路径模型收敛为 Movement 规范、BlockPos 兼容
 
-- 状态：冻结，MineTask 接入前的架构决策
+- 状态：生效，MineTask 接入前的架构决策
 - 决定：正式移动执行单位采用 `List<Movement> + MovementPathExecutor`；`List<BlockPos> + PathExecutor` 作为迁移兼容后端保留，暂不删除或在同一任务实例内交替重试。
 - 原因：搜索阶段已使用 Movement Provider；Movement 能保留脚位、专用前置/后置条件、成本和世界修改语义，而裸坐标投影会丢失这些信息。实验 1-6 已证明纯行走 Movement 的独立物理链和 6A/6B/6C 失败分类，但尚未证明新执行器覆盖 MineTask 全部后置条件。
 - 影响：新接入必须先建立不可变 `MovementPlan`，明确脚位坐标和结果状态；旧 MineTask/A/B/C 回归继续使用旧后端，直到新后端完成等价客户端证据。
@@ -107,7 +107,7 @@
 
 ## D-019：MineTask Movement 接入采用分阶段最小重建（已被 D-020 替代）
 
-- 状态：已废弃；仅作为 M0/M1/M2 历史实施顺序记录
+- 状态：已失效；仅作为 M0/M1/M2 历史实施顺序记录
 - 原决定：先建立 `MovementPlan` 数据契约，再做仅支持已验证同高度 `WalkMovement` 的独立编译/测试入口，随后适配 BotMiner，最后让 MineTask 实现真实 `MOVING_TO_POSITION`。
 - 废弃原因：`MovementPlanCompiler` 是旧 `BlockPos` 路径的事后编译器，不是 Movement-aware 搜索内核；通用 `MiningPlanner` 输出与 M1 编译契约不一致，直接推进 MineTask 会重复造轮子并破坏成熟 Legacy 行为。
 - 保留范围：M0 `MovementPlan`、M1 独立编译/测试入口和 M2 `BotMiner` 独立后端保留为实验/迁移证据；真实 `MineTask` Movement 接入已回撤。
@@ -115,7 +115,7 @@
 
 ## D-020：重建 Alice Pathing Core，而非继续修补 MineTask 接入
 
-- 状态：当前生效，架构重规划基线
+- 状态：生效，架构重规划基线
 - 决定：先设计并实现 Baritone-like Movement-aware Pathing Core，再重新评估 MineTask/PlaceTask 等正式任务的适配；新内核以 `List<Movement>` 为规范规划输出，`List<BlockPos>` 仅作 Legacy 兼容投影。
 - 核心边界：Domain Task 拥有领域目标和完成条件；Pathing 拥有通行路线；Movement 拥有局部动作；为通行而挖/放与领域挖/放必须按意图分离。
 - Alice 特有策略：生存系统作为未来运行期兜底接口；Pathing 通过 `RecoverabilityPolicy` 提前禁止不可回收路线；`ForbiddenZonePolicy` 限制进入危险区；`ProtectedAreaPolicy` 限制世界修改。
@@ -125,7 +125,7 @@
 
 ## D-021：R2 Movement 设计确认与 R2-A 契约实施
 
-- 状态：当前实施切片已完成，行为实现仍冻结
+- 状态：已实施，已完成，行为实现仍冻结
 - 决定：确认 `Traverse` 严格为同高度四向相邻，`Diagonal` 独立负责同高度对角，`Ascend/Descend` 允许水平位移并分别处理高差；规划输出使用纯数据 `MovementSpec`，执行期通过 `MovementExecutionFactory` 创建主线程 `MovementExecution`。
 - 保留边界：不修改 MineTask、A/B/C、Legacy `PathExecutor`、旧 Movement、`MovementPlanCompiler` 或多 Bot 调度；世界修改 Movement 只保留契约，不进入 R2-A 行为实现。
 - 已实施：新增 `pathing.core` 契约对象，包括 Movement 类型、能力声明、可回收等级、规划依赖、WorldView、LiveExecutionContext、MovementSpec、ExecutionFactory 和执行阶段接口。
@@ -134,7 +134,7 @@
 
 ## D-022：R2-B Traverse 实现保持独立运行期验证
 
-- 状态：`USER_ACCEPTED`，证据已归档
+- 状态：已验收（验证等级：USER_ACCEPTED；证据已归档）
 - 已完成：新增 `TraverseExecutionFactory` 与 `TraverseExecution`，复用现有 `BotController` 输入驱动物理边界和 `MovementHelper` 脚位/支撑判定；未修改旧 `WalkMovement`、`MovementPathExecutor`、MineTask 或 Legacy `PathExecutor`。
 - 历史实施：曾新增 `TraverseCoreDiagnosticTester`、`TraverseCoreDiagnosticTask` 和 `alice:traverse_core_diagnostic_tester`，但因工件链混乱且客户端测试入口残留过多，现已退役并移除。
 - 当前保留：`pathing.core` 中的 R2-B 契约与 `TraverseExecution` 原型；新增 `/alice pathing traverse <north|south|east|west>` 作为唯一运行期入口，不恢复旧测试物品。
@@ -143,7 +143,7 @@
 
 ## D-023：R2-C 基础 Movement 验收与物理结论
 
-- 状态：`USER_ACCEPTED`（2026-09-07），证据已归档
+- 状态：已验收（验证等级：USER_ACCEPTED；（2026-09-07），证据已归档）
 - 已验收：Diagonal（同高度对角 + 两侧通行性防穿墙检查）、Ascend（一级上升）、Descend（一级下降，回收等级 LOCAL_STEP）；入口为 `/alice pathing diagonal|ascend|descend <direction>`，独立验证链，不接 MineTask。
 - 验收工件：SHA-256 `804c5eb897a5337a07ff11286332805b1f2a4227d41bf1cdd4e5622982ed98cf`；运行时清洁版（仅移除诊断探针）`9c0388aeafa77f9d7a32129dab5d0270d764a48f271e56cbee4ed048a2b8e8d9`。
 - 物理结论（客户端实测，需长期遵守）：
@@ -167,7 +167,7 @@
 
 ## D-034：R4 自愈闭环（snipsnap + 重规划）
 
-- 状态：当前生效（用户 2026-09-09 指定 "R4 自愈闭环"）
+- 状态：生效（用户 2026-09-09 指定 "R4 自愈闭环"）
 - 背景（D-033 记录的已知限制）：COLUMN 容差下下降段可能带动量滑入邻列，导致下一段
   `*_STALE_START`；世界变化导致 `SEGMENT_TARGET_CHANGED`（BLOCKED）同理——此前只能诚实失败。
 - Baritone 参考：`PathExecutor.snipsnapifpossible:324-343` —— 空中下落时不吸附；否则在
@@ -192,7 +192,7 @@
 
 ## D-033：R5-3 PlaceStepAndTraverse（TEMPORARY_SUPPORT 放置台阶）
 
-- 状态：当前生效（用户 2026-09-08 指定 R5 后按 R5-1 → R5-2 → R5-3 顺序实施）
+- 状态：生效（用户 2026-09-08 指定 R5 后按 R5-1 → R5-2 → R5-3 顺序实施）
 - Baritone 参考：`MovementTraverse:125-171` 的桥接分支——目标可走 + 目标下方**可替换**时在下方放置，
   成本含 `placeCost`；放置面扫描语义见 `MovementHelper.attemptToPlaceABlock:791-843`。
 - 语义：`PLACE_STEP_AND_TRAVERSE` = **目标列缺支撑时，在目标下方放置一个方块，再走上去**。
@@ -220,7 +220,7 @@
 
 ## D-032：夹具传送允许（重置 bot 位置）；"不穿墙"针对正常移动
 
-- 状态：当前生效（用户 2026-09-09 澄清："重置 bot 位置允许传送"）
+- 状态：生效（用户 2026-09-09 澄清："重置 bot 位置允许传送"）
 - 澄清：此前把"不能穿墙"误解为夹具传送限制，加了直线碰撞检查并会拒绝传送，**这是错的**。
   测试夹具把 bot 重置到固定起点是正常摆位语义（等同 `/tp`），**允许传送**。
 - 真正的红线是**正常移动不得穿墙**，且已由两层保证：
@@ -232,7 +232,7 @@
 
 ## D-031：R5 世界修改 Movement —— 原语统一 + BreakAndTraverse
 
-- 状态：当前生效（用户 2026-09-08 指定 R5，并要求"挖掘和放置语义围绕 Baritone 升级、兼容"）
+- 状态：生效（用户 2026-09-08 指定 R5，并要求"挖掘和放置语义围绕 Baritone 升级、兼容"）
 - 背景：`BreakAndWalkMovement`、`RoadBuildTask`、`RoadBuilder`、`BotCommand` 使用
   `level.destroyBlock(...)` **瞬间销毁**，没有工具选择/破坏进度/权限语义；放置也没有
   Baritone 式的面选择与视线校验。
@@ -271,7 +271,7 @@
 
 ## D-030：legacy 路径兼容 0.6 台阶（补条件跳跃，参照 Baritone）
 
-- 状态：当前生效（用户 2026-09-08 指定"legacy 兼容，一定要参考 Baritone"）
+- 状态：生效（用户 2026-09-08 指定"legacy 兼容，一定要参考 Baritone"）
 - 背景：D-025 把假人 `maxUpStep` 降到 0.6 后，legacy 路径执行器（`BasicMovement.applyToward`
   的消费者：`FollowTask`、`PathExecutor`、`DescendMovement`、`BreakAndWalkMovement`，
   以及 `WalkMovement`）遇到 1 格台阶会卡住——它们只会前进，不会跳跃。
@@ -292,7 +292,7 @@
 
 ## D-029：旋转模型对齐 Baritone（只写身体 yaw，不直接写头）
 
-- 状态：当前生效（用户 2026-09-08 反馈"头部朝向很古怪，参照 Baritone 修复"）
+- 状态：生效（用户 2026-09-08 反馈"头部朝向很古怪，参照 Baritone 修复"）
 - 事实（字节码实证，1.20.1 `LivingEntity.tickHeadTurn`）：
   ```java
   yBodyRot += wrapDegrees(bodyRotArg - yBodyRot) * 0.3F;   // 身体每 tick 只追 30%
@@ -315,7 +315,7 @@
 
 ## D-027：分段完成容差（消除链式下降回冲）
 
-- 状态：已决策（用户 2026-09-08 选 A），**待 R4 PathSession 实施**
+- 状态：裁定已落（用户 2026-09-08 选 A），**待 R4 PathSession 实施**
 - 现象：连续下楼梯时 bot 每级落地后先朝目标中心回冲一下再进下一级（探针实测：落点 ab 0.06→0.28→0.35，超过 0.3 容差触发"回头重新瞄准"分支）。
 - 根因：D-026 统一完成契约要求水平 ≤0.3；而 Baritone 的成功条件只有"脚位方块相等 + Y 稳定"（`MovementDescend:235`），不含水平距离，因此落在格内即完成、不回冲。
 - 决策：完成容差改为**分段策略，由 PathSession/PathRequest 指定，执行器不得自行决定**：
@@ -325,14 +325,14 @@
 
 ## D-028：R3 搜索内核 → R4 PathSession 的实施顺序
 
-- 状态：已决策（用户 2026-09-08）
+- 状态：裁定已落（用户 2026-09-08）
 - 顺序：先做 **R3 Movement-aware A* + PathPlan**（搜索内核，纯数据、服务端可验证），再做 **R4 PathSession**（多段执行、分段完成容差 D-027、周期健康检查、失败向上传递）。
 - 理由：与 Baritone 架构顺序一致（PathFinder → PathExecutor）；搜索内核产出规范 `PathPlan` 后，PathSession 才有稳定的输入契约。
 - 约束：R3 不接入 MineTask；`List<BlockPos>` 只作兼容投影；`SEARCH_LIMIT` 不得映射为 `UNREACHABLE`。
 
 ## D-025：假人台阶高度对齐真实玩家（maxUpStep = 0.6）
 
-- 状态：当前生效，用户 2026-09-08 决策
+- 状态：生效，用户 2026-09-08 决策
 - 事实（字节码实证，Forge 1.20.1-47.4.10 parchment jar）：`LivingEntity.<init>` 设 `0.6f`；`ServerPlayer.<init>` 设 `1.0F`；`LocalPlayer`（真实玩家 / Baritone 所在实体）无覆写 → 继承 0.6。
 - 后果（改前）：Alice 假人能直接踩上整格方块，真实玩家必须跳跃。因此 ① Baritone `MovementAscend` 强制 `Input.JUMP` 是物理必然；② "实心墙会挡住过冲"的安全假设不成立（历史 `west: to=-1,64,3 → actualFoot=-2,65,3` 即过冲后踩上高一级）；③ Baritone 的 1.25/0.25 等常数与跳跃门控不可直接移植。
 - 决策：`BotPlayer` 构造显式 `setMaxUpStep(0.6F)`，使假人物理与真实玩家一致；一格方块重新成为真正的障碍，上升必须走跳跃路径。
@@ -341,7 +341,7 @@
 
 ## D-026：Movement 合法位置集与统一完成契约
 
-- 状态：当前生效，用户 2026-09-08 决策（P0 多段链接前置）
+- 状态：生效，用户 2026-09-08 决策（P0 多段链接前置）
 - 合法位置集：工厂与执行器的起点校验接受 `{fromFoot, toFoot}` 两个合法脚位（含"已在目标"的幂等情形），不再要求严格 `blockPosition()==fromFoot`。目的是让上一段落点的微小偏差不再导致下一段 `*_STALE_START` 断链（对照 Baritone `Movement:72-74,112-114` 的 validPositions 与 `PathExecutor:324-343` 的 snipsnap）。
 - **Descend 追加（2026-09-08 实测）**：合法位置集扩为 `{fromFoot, toFoot, toFoot.above()}`，对齐 Baritone `MovementDescend.calculateValidPositions()`。原因：D-027 的 COLUMN 容差会让上一段带水平动量结束，bot 继续滑入"目标列正上方、下落中"的位置（实测 `(0,63,45)→(0,63,44)`），若不接受该位置，链式下降第二段必然 `DESCEND_INVALID_PRECONDITION` 断链。
 - 统一完成契约：四个执行器共用 `MovementHelper.isSettledAtFootPos(level, entity, footPos, maxHorizontal)` = 脚位列正确 + 支撑顶面稳定 + `onGround()` + 水平距目标中心 ≤ 0.3。禁止执行器各自定义"到位"（Ascend 曾以"Y 到位即停"导致水平偏移）。
@@ -349,7 +349,7 @@
 
 ## D-024：Movement 落差红线——Bot 不允许超过一格的落差
 
-- 状态：当前生效，用户 2026-09-08 明确设定的安全策略
+- 状态：生效，用户 2026-09-08 明确设定的安全策略
 - 规则：任何 Movement 原语规划与执行中，Bot 允许穿越的落差上限为一格。Descend 的计划目标本身就是唯一允许的一格落差；其过冲落点列只允许与目标同层落脚（支撑同高），过冲最坏情况是同层踉跄，不叠加任何额外落差。过冲列存在更深坠落通道（无论有无支持面）一律 `DESCEND_REJECTED_OVERSHOOT_CLIFF` 拒绝，熔岩/火/岩浆块 `DESCEND_REJECTED_LANDING_HAZARD` 拒绝。
 - **细化（2026-09-08 用户决策 A）**：标准楼梯（每级下降 1 格、宽 1 格）逐级下降时，目标列再往前一格必然是"下一级台阶"（比目标低 1 格）。若仍要求过冲列同层，**楼梯链的每一级都会被拒绝**，与多段链接目标冲突。因此过冲列允许两种落脚面：① 与目标同层；② 比目标低 1 格的下一级台阶（总落差 2 格内），两者都必须本身可行走且无即死危害；更深（≥2 格）或不可行走仍拒绝。执行层若真落得比目标更低，立即以 `DESCEND_OVERSHOT_BELOW_TARGET` 诚实失败，不再等超时。
 - 影响：未来 PathSession/搜索器生成 Movement 候选时必须继承此红线——相邻落脚面比当前路径低超过一格的边不可通行；不得以"制动可靠""3 格内无摔落伤害"等理由放宽。 多格落差（楼梯井、深坑下降）如需支持，必须作为显式的新 Movement 类型（带专用前置/后置/回收契约）另行立项评审。
@@ -358,13 +358,13 @@
 
 ## D-014：执行器不能用单一通行检查覆盖所有 Movement
 
-- 状态：稳定
+- 状态：生效
 - `PathExecutor` 必须执行当前 Movement 的专用前置条件和后置条件，并报告动态阻挡；不能用统一的“段目标当前必须可通行”检查误伤需要先破坏障碍的 Movement，也不能因此把 `BLOCKED` 偷换为 `UNREACHABLE`。
 - 影响：这是未来修复 `PathExecutor`/`BreakAndWalkMovement` 契约的方向，不是本次文档更新的代码授权。
 
 ## D-035：PathSession 段计时缺失（无超时）与段内漂移检测
 
-- 状态：当前生效（缺陷修复，2026-09-09 客户端扰动测试暴露）
+- 状态：生效（缺陷修复，2026-09-09 客户端扰动测试暴露）
 - 事实（`latest.log` 实证，session `r4-session-cb23787c`）：第 30 tick 夹具把 bot 从 `3,64,66` 平移到 `3,64,67`（缺口列 x=2..3，整列无支撑）→ bot 立即下落；自愈连续重规划 2 次（其中一次从**下落中的** `3,64,67`、一次从 `3,63,67` 起算），最后一段 `ASCEND 3,63,67 → 4,64,67` 开始后 bot 掉到坑底，**连续 `controller_jump_once` 空跳 17 次（约 10 秒）直到玩家退出，会话从未结束**。
 - 根因（代码实证）：`PathSession.segmentTicks` **从未自增**（全文件只有读取与归零），导致
   1. 单段超时判断 `segmentTicks > segmentTimeoutTicks()` **永远为假 → 段超时形同不存在**；
@@ -378,7 +378,7 @@
 
 ## D-036：内核路线——Alice 是 Baritone 兼容内核，只做目标差异自制
 
-- 状态：当前生效，用户 2026-09-09 重申并定为路线约束
+- 状态：生效，用户 2026-09-09 重申并定为路线约束
 - 原则：
   1. Alice 的差异**只在目标层**：LLM 目标级决策、服务端权威、bot 假人、任务/权限/库存真相、挖矿 `HARD_PATH`；
   2. 其余（搜索、Movement 原语、执行器状态机、自愈 snipsnap/重规划、段超时、成本模型、跳跃门控、完成判定）**默认对齐 Baritone**，不自制替代内核；
@@ -422,7 +422,7 @@
 
 ## D-038：任务/执行器驱动相位对齐 Baritone（END → START）——**已撤回（前提不成立）**
 
-- 状态：**已撤回**（2026-09-09；用户授权尝试后实测无差异，且 Forge 源码证明前提错误）
+- 状态：**已失效**（2026-09-09；用户授权尝试后实测无差异，且 Forge 源码证明前提错误）
 - 撤回依据（Forge 1.20.1-47.4.10 `patches/net/minecraft/server/MinecraftServer.java.patch:93-107`）：
   `onPreServerTick`（START）在 `++tickCount` 与 `tickChildren` 之前触发，`onPostServerTick`（END）在全部实体 tick 之后触发。
   两者都位于 **physics(N-1) 之后、physics(N) 之前**：观察到的状态与输入生效的 tick 完全相同 → **相位改动对延迟是 no-op**。
@@ -447,7 +447,7 @@
 
 ## D-039：验收场景必须先用模拟器验证"能否判别"（Q7 dip_course 教训）
 
-- 状态：当前生效（流程约束，2026-09-09）
+- 状态：生效（流程约束，2026-09-09）
 - 教训：Q7 首个验收场景用 **1×1 深坑**，期望"旧模型走下降、新模型走绕路"。实测
   `[DipRoute] first=DIAGONAL movements=2 cost=2.83`——规划器用**两个对角从坑角绕过去**了，
   比下降（3.0）和绕路（4.0）都便宜，因此该场景**根本不触发"下降 vs 绕路"的取舍**，无法判别。
@@ -501,7 +501,7 @@
 
 ## D-041：站立判定混合化（canWalkOn）+ Ascend 防御性前置检查
 
-- 状态：**已通过客户端验证**（用户 2026-09-09；`[FenceGuard] status=UNREACHABLE movements=0 result=PASS`，回归全过）
+- 状态：**已验收**（用户 2026-09-09；`[FenceGuard] status=UNREACHABLE movements=0 result=PASS`，回归全过）
 - **A 站立判定**（`MovementHelper.canWalkOn`）：旧实现"碰撞非空即可站"会把栅栏/墙/铁栏杆/门/蜂蜜块
   当作支撑面。改为混合判定（对照 Baritone `canWalkOnBlockState:387-426` + `isBlockNormalCube:755-771`）：
   1. 整格碰撞形状（`Block.isShapeFullBlock`）→ 可站（含模组整格方块），**蜂蜜块除外**（Baritone:389）；
@@ -566,7 +566,7 @@
 
 ## D-043：重规划决策下沉到任务层（Q4 / 待办 D）
 
-- 状态：**已通过客户端验证**（2026-09-09：`wall_placed at=5,64,66` → `[PathRetry] replan replans=1 reason=INVALID_PRECONDITION` → `COMPLETED replans=1`）
+- 状态：**已验收**（2026-09-09：`wall_placed at=5,64,66` → `[PathRetry] replan replans=1 reason=INVALID_PRECONDITION` → `COMPLETED replans=1`）
 - 分层依据（对照 Baritone）：`PathExecutor` 遇到计划失效只 `cancel()` 上报，由 `PathingBehavior:154-193`
   重新 `findPathInNewThread`；Alice 里对应的决策层是**任务层**（未来由 LLM 目标层裁决）。
 - 改动：
@@ -646,7 +646,7 @@
 
 ## D-046：风险模式 H/G/S —— 决策确认与预留（暂不实现）
 
-- 状态：**已决策，预留**（用户 2026-09-09 确认三模式；实现推迟到功能细节完成后）
+- 状态：**裁定已落**，预留（用户 2026-09-09 确认三模式；实现推迟到功能细节完成后）
 - 决策：
   1. 三模式确认：**H**（Baritone 式：高风险 / **局部可回收性较低**）、**G**（守卫式：高可回收性）、
      **S**（智能：默认）；
@@ -714,7 +714,7 @@
 
 ## D-050：Movement 先做 Baritone 原样语义，安全守卫后置
 
-- 状态：当前生效（用户 2026-09-09 决策）
+- 状态：生效（用户 2026-09-09 决策）
 - 决策：**先完整实现与 Baritone 相同模式的 Movement（原样语义）**；安全模式（守卫版）作为
   **后续补充**——可以是独立的安全 Movement，也可以由任务层的风险决策选择（配合 D-046 的 H/G/S）。
 - 理由：DOWNWARD 连续两次验收失败暴露"边做功能边加守卫"会把功能本身拖住；先把 Baritone 的行为做对，
@@ -733,7 +733,7 @@
 
 ## D-051：连续行动对照实测（顿挫量化）与 DOWNWARD 成本标定
 
-- 状态：已实测入库（2026-09-09，Alice 侧 + Baritone 1.10.5 同场景同目标）
+- 状态：已实施（2026-09-09，Alice 侧 + Baritone 1.10.5 同场景同目标）
 - 场景：`alice_test:trace_course`（11 格纯平地直线，跨 10 个方块边界），
   Alice 侧 `/alice trace` + `alice:pathing_straight`；Baritone 侧 `contrast_trace_straight` + `#goto 0 64 51`。
 
@@ -1096,7 +1096,7 @@
 
 ## D-067：挖掘站位选优新框架定稿（两模式 + BREAK_AND_ENTER + 成本估算）
 
-- 状态：**设计定稿**（用户 2026-09-09 逐条确认"全部同意"）；实施按 `docs/MINING_STAND_SELECTION_DESIGN.md` §8 的 5 个批次推进
+- 状态：**生效**（用户 2026-09-09 逐条确认"全部同意"）；实施按 `docs/MINING_STAND_SELECTION_DESIGN.md` §8 的 5 个批次推进
 - 背景：站位系统审查发现两套候选实现、独立清障、候选范围过窄、off-by-one（D-065）等问题 → 用户裁定**重新设计**（不是修复）
 - 定稿要点：
   1. **两模式**：A（直接可挖）保留多角度候选 + 视线前提 + 评分；A 无解**立刻**转 B（哪怕只挡一层）；
@@ -1278,7 +1278,7 @@
 
 ## D-075：连锁挖掘（模组兼容）默认关闭 + 玩家手动启用（用户裁定）
 
-- 状态：诊断路径已实施（`alice:chain_test_runner` + `chain_course`）；生产开关**未实施**
+- 状态：已实施（`alice:chain_test_runner` + `chain_course`）；生产开关**未实施**
 - 用户裁定（2026-09-09）：
   1. **全局默认原版**（不连锁），玩家在游戏内**手动启用**连锁模式；
   2. 默认只连锁**矿石与原木**；
@@ -1352,7 +1352,7 @@
 
 ## D-076：寻路红线现行表述（取代 HARD_PATH 旧语句，语义不变）
 
-- 状态：稳定（2026-09-09 用户裁定"这个红线也要改一下语句了，太老了"）
+- 状态：生效（2026-09-09 用户裁定"这个红线也要改一下语句了，太老了"）
 - 背景：旧表述里引用的 `DropCollectionTask`、`BotMiner`、`target_requires_tunnel`、`HARD_PATH`/`SOFT_SURFACE`
   分别已被删除或不再是实现语义（D-015/D-071/D-073），继续沿用会误导新会话。
 - **现行表述（权威版）**：
@@ -1524,7 +1524,7 @@
 
 ## D-080：L3 目标级任务层（`Job`）立项 + 伐木作为第一消费者
 
-- 状态：**设计已定稿（`docs/JOB_LAYER_DESIGN.md`），待实施**；用户 2026-09-10 同意方案与裁定
+- 状态：生效，**设计已定稿（`docs/JOB_LAYER_DESIGN.md`），待实施**；用户 2026-09-10 同意方案与裁定
 - 背景（用户判断，与本仓库证据一致）：现有 `MineTask` 是**低级局部任务**（单目标单发），
   决策层近乎空白（只有 78 行 `decision/AutoMineDecision`，且只被一条命令调用）；
   项目缺的不是 LLM，而是**"目标 → 子任务"这一层**。
@@ -1554,7 +1554,7 @@
 
 ## D-081：世界修改账本 + "建拆同权" + `MAINTAIN` 型 Job（跨能力原则）
 
-- 状态：**已裁定（2026-09-10 二次讨论），待实施（切片 J6）**
+- 状态：**裁定已落**（2026-09-10 二次讨论），待实施（切片 J6）
 - 起因：用户指出可持续伐木区**不得有树木/柱子残留**，但世界改造（攀爬垫脚）必然留下柱子 →
   需要"在自己修改后恢复自己的修改"，并问该逻辑放在哪一层。
 - **原则（用户裁定：接受）——授权即配对（建拆同权）**：
@@ -6450,7 +6450,7 @@ K-4 侦察把复制点查清：上述 3 子句在 `SurfaceMovementProvider` 复�
 `K4=VIOLATION(…)`；VIOLATION 会使电池整体判**FAIL**（不静默）。用增量而非绝对值，
 是因为进程累计会被电池之前的服务端活动污染。
 
-**状态**：`WINDOWS_CLIENT`（见 D-167 附注一：完整电池 `K4=OK(真异常 0 / 写入类例外 88)`，电池现 **23 项** —— K-3 两步已按 D-169 移出电池）。
+**状态**：已实施（验证等级：WINDOWS_CLIENT；（见 D-167 附注一：完整电池 `K4=OK(真异常 0 / 写入类例外 88)`，电池现 **23 项** —— K-3 两步已按 D-169 移出电池）。）
 **未完成（有数据后再决定）**：若实测计数为 0，则 K-4 视为"缝存在但实战不咬"，
 **不**引入 `GOAL_NOT_STANDABLE` 状态码；若不为 0，按现场数据把纯通行类改成硬拒 + 新状态码。
 **收口义务（两条路都要做，避免临时探针留在生产代码里）**：0 ⇒ 删掉 `[K4]` 告警行，
@@ -6550,7 +6550,7 @@ K-3 的语义就是"**顶层任务**在不安全时刻不被硬停，延后到�
 > 需要"父任务被停"这类观察时，必须做成**顶层入口**；需要嵌进串联时，只能断言"决策/谓词"，
 > 且必须显式记录"本步没有真的执行副作用"。
 
-**状态**：`IMPLEMENTED` + `COMPILES`。**未验证**：客户端（DEFER 入口回归 + FORCED 新入口 + 23 项电池跑完出 SUMMARY）。
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；**未验证**：客户端（DEFER 入口回归 + FORCED 新入口 + 23 项电池跑完出 SUMMARY）。）
 
 ### D-170：**资源缺陷只有客户端日志能看出来** —— 3 个 0 字节模型 + 1 个死贴图引用（新自检脚本）
 
@@ -6583,7 +6583,7 @@ K-3 的语义就是"**顶层任务**在不安全时刻不被硬停，延后到�
 3. 之后**每次改资源后、build 前**跑一遍；`build.gradle` 未接钩子（避免拖慢日常编译），
    但已写入 `AI_DEVELOPMENT_PLAYBOOK.md` 的构建前检查清单。
 
-**状态**：`IMPLEMENTED` + `COMPILES` + 脚本自测通过；**未验证**：客户端重启后这 4 个物品贴图是否正常显示
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；脚本自测通过；**未验证**：客户端重启后这 4 个物品贴图是否正常显示）
 （需要用户看背包/快捷栏一眼）。
 
 ### D-167 附注一：K-4 **收口完成**（数据为 0 ⇒ 删临时告警，留计数 + 自断言）
@@ -6654,7 +6654,7 @@ K-3 的语义就是"**顶层任务**在不安全时刻不被硬停，延后到�
 所以本项是"把已存在但被吞掉的语义接出来"，**不是**"实测有需求"。等真出现时，
 `bot_report`/终态会显示 `POSTCONDITION_FAILED` 而不是含糊的 `TIMEOUT`。
 
-**状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（电池里 `capability_gate` 步会跑新用例）。
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；**未验证**：客户端（电池里 `capability_gate` 步会跑新用例）。）
 
 ### D-173：K-2 收尾补漏（`pathing/movement/` 14 文件 + 一个 `.backup` 残留）
 
@@ -6795,7 +6795,7 @@ java.lang.NullPointerException: Cannot invoke "RestoreScopeTask.tick()" because 
    （崩溃本身是要修的 bug），但**测试电池不能因一次夹具缺陷就毁掉整轮测试和全部证据**。
    本次崩溃正是"夹具缺陷 ⇒ 整个服务端崩溃 ⇒ 测试与证据全丢"。
 
-**状态**：`IMPLEMENTED` + `COMPILES`；待客户端复测（电池应能整轮跑完，`mine_regression` 的
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；待客户端复测（电池应能整轮跑完，`mine_regression` 的）
 `idempotent=true`）。**同类隐患登记（未逐个改）**：脚本扫出 19 处"Task/Runner 字段被置 null 且
 `.tick()` 无 null 守卫"（`ScaffoldLifecycleTask` 4 处、`MineTask` 3 处、`TransferTask`/`FluidMineCheckTask`/
 `ClearGuardCheckTask`/`PickupGateCheckTask` 等）——目前只因调用方"终态即停"而未爆；
@@ -6911,7 +6911,7 @@ dropsLeft=1`、`restore_end status=FAILED remaining=1`（拆不动、收不到�
 `capability_gate` 新增**纯逻辑**用例 `gain_requires_proximity`：近处目标必须可加高、40 格外必须被拒
 （双向断言，防"永远返回 true"的假守卫）。
 
-**状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（判据：电池 `capability_gate` 步出现
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；**未验证**：客户端（判据：电池 `capability_gate` 步出现）
 `gain_requires_proximity=PASS`；以及真起一次 region_lumber 后把 bot 传走，应看到 `region_drifted` 而不是搭柱子）。
 
 #### D-179 附注一：客户端复测通过（含一次**自查发现的我方缺陷**）
@@ -6948,7 +6948,7 @@ D-179 那轮事故的起点正是"bot 被传送到 198 格外而 Job 毫无察�
   + 决策事件环一条 `TELEPORT`（`DecisionEvents.record` = 只入环+记日志，**不通知决策层**，非可行动事实）。
 - `alice:bot_report` 增行：`传送：N 次；最近 A → B（距离 D，tick=T）`。
 
-**状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（判据：传送 bot 一次后 `bot_report` 出现该行、
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；**未验证**：客户端（判据：传送 bot 一次后 `bot_report` 出现该行、）
 日志出现 `[Bot] teleported from=… to=… distance=… tick=…`）。
 
 ### D-176 附注一：B 项结构性调查 —— 假人物理**挂在连接 tick 这条链上**（字节码实证）
@@ -7055,7 +7055,7 @@ Modrinth/CurseForge 的网页元数据可能不全。
 修：同步后按 `ALICE_BACKUP_KEEP`（默认 2）只保留最新若干份，并打印 `runtime_backups_pruned=N`；
 已清理现存 269 份（目录 287 MB → **50 MB**）。
 
-**状态**：安装与校验 = 已完成（sha1 全 OK、依赖闭合、无重复）。
+**状态**：已实施 = 已完成（sha1 全 OK、依赖闭合、无重复）。
 **未验证**：客户端**启动**与 `/alice recipes` 导出（下一步由用户执行；若启动报缺依赖，日志会点名，我据此补装）。
 
 ### D-183：阶段 2 首轮导出 —— **白名单用了序列化器 id 而非类型 id**（读得懂 15% → 预测 55%）
@@ -7166,7 +7166,7 @@ Create（506，15 类；cutting/deploying/crushing/milling/splashing）> Extende
 - 熔炉/切石/锻造等"非 2×2"类型一律先给 `NEEDS_TABLE`，**不区分**"要工作台"还是"要熔炉"——
   A4 会补 `station` 语义（当前 `station` 字段已如实带出，判据暂只用 grid）。
 
-**状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端（判据见上）。
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；资源自检 PASS。**未验证**：客户端（判据见上）。）
 
 #### D-185 附注一：首次客户端实测 —— **只有一条用例失败，且是夹具前提写错**（第三次同类）
 
@@ -7212,7 +7212,7 @@ no_recipe=FAIL          MACHINE_RECIPE_UNSUPPORTED target=minecraft:cobblestone
 3. 电池 24 → **25 项**（新增 `craft_action` 步）。
 
 **边界**：A2 **零世界写入**（不放置工作台）；3×3/熔炉仍是 A3/A4；未接决策层（A5）。
-**状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端（判据：`[CraftActionCheck] SUMMARY … verdict=PASS`）。
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；资源自检 PASS。**未验证**：客户端（判据：`[CraftActionCheck] SUMMARY … verdict=PASS`）。）
 
 #### D-186 附注一：首次客户端实测 —— **功能全对，两条用例期望写错**（含"看起来什么都没发生"的解释）
 
@@ -7277,7 +7277,7 @@ D-185 附注一（"圆石没有配方"—— 装模组后它有机器配方）�
 4. 电池 25 → **26 项**（`craft_table` 步，自带场景 + teleport 起点）；`TESTING_GUIDE` 增 D17。
 
 **边界**：A3 **零世界写入**（有断言）；3×3 = 工作台（熔炉等**加工**仍是 A4）；未接决策层（A5）。
-**状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端。
+**状态**：已实施（验证等级：IMPLEMENTED + `COMPILES；资源自检 PASS。**未验证**：客户端。）
 
 ### D-189：**自检任务一律暂停决策层**（用户反馈："测试完 bot 就自己跑去伐木"）+ A3 夹具自摆前提
 
@@ -8652,7 +8652,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 
 ### D-208：自检夹具的终态必须传播 verdict —— **禁止静默绿**（2026-09-14 实测确立）
 
-- 状态：稳定
+- 状态：生效
 - **事实**（R1 接线后首轮客户端电池，`latest.log:3193-3230` 与 `:3738`）：`WritePolicyCheckTask`
   自报 `verdict=FAIL`，电池却打出 `write_policy=PASS … (28/28) → PASS`。两层独立缺陷：
   ① **断言集自相矛盾**：`scaffoldRemoval ∩ 写原语 = ∅` 与"同一条件列表里要求含 `DOWNWARD`"不可能同时成立
@@ -8671,7 +8671,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 
 ### D-209：机器类型 ↔ 机器方块/菜单 的**单一出处**（3-B / S3，2026-09-14）
 
-- 状态：稳定
+- 状态：生效
 - **真源** = `decision/MachineMap.java`（27 行 = 上游**全部**类型）；**视图** = 生成的 `docs/MACHINE_MAP.csv`；
   **防漂移** = `bash tools/check-machine-map.sh`（**Tier A** 表内结构：类型/方块唯一、`EXECUTABLE` 必须有实测
   `menuClass`；**Tier B** 用 `javap` 读上游 jar 字符串常量，断言 **表 == 上游全部类型**，今天 23 有站点 + 4 无站点 = 27）。
@@ -8714,7 +8714,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 
 ### D-210：机器闭环用**既有**容器写入通道，不新造授权（3-B / S4，2026-09-14）
 
-- 状态：试行（**待客户端验证**——这是 3-B 的第一次写入）
+- 状态：待定（**待客户端验证**——这是 3-B 的第一次写入）
 - **写法 = 组合既有骨架**：`MenuSession`（开菜单）+ `StationProvision`（shift-click 搬运、结果验证、回滚）
   + `WriteBudget.consumeContainerWrite`（预算）+ `WriteReason.CONTAINER_TRANSFER`（理由）
   + `StationProvision.moveIntoContainer/moveOutOfContainer`。**没有新增授权机制、没有新增 reason、没有新动作层**。
@@ -9888,7 +9888,7 @@ monitor 真的走到了 `LOW_AIR` ⇒ `BotManager` 走了 `FLOAT_UP` 分支：�
 | Q4 | 回收 = **放置 TEMP（必拆，复用 `scaffoldRemoval`）+ 破坏按 KEEP 登记**（挖掉的地形无法"回收"） |
 | Q5 | **先做最便宜且不碰红线的一件，再做 B4** |
 
-**状态**：本次只记录裁定；B4（逃生准备金：新 `WriteReason` + `WriteBudget` 分区 + `MovementGrant`/策略表/`AUTHZ_REGISTRY.csv` 登记 + 判据）**未实现**，
+**状态**：裁定已落，本次只记录裁定；B4（逃生准备金：新 `WriteReason` + `WriteBudget` 分区 + `MovementGrant`/策略表/`AUTHZ_REGISTRY.csv` 登记 + 判据）**未实现**，
 下一步按本表实施 —— 后续会话**不必重新征询**，照此表做即可。
 
 ### D-240：用户批准的「B1 原路返回」经**实测 + 推演**判定**无可测量收益** ⇒ **不落地**（2026-09-16）
@@ -16541,7 +16541,7 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
 
 ### D-381：**「到位却够不到」⇒ 把那一格记进本簇排除集、取次优**（3-b/D2）+ 探针与搜索**共用同一份候选枚举**（3-b/D0）（2026-09-21）
 
-**状态**：`SERVER_TESTED`（新电池步 `collect_offcenter_retry`；红→绿两条都实跑过）。客户端**不需要**新证据
+**状态**：已实施（验证等级：SERVER_TESTED；（新电池步 `collect_offcenter_retry`；红→绿两条都实跑过）。客户端**不需要**新证据）
 （这一条是"物品留在地上"的精度残差，不是物理/视觉现象）。
 
 #### 一、事实（全部可核；来源 = `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §12②/§13.1 + 只读审计）
@@ -16608,7 +16608,7 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
 
 ### D-382：**无任务的水下 bot「先浮 → 再走上岸」**（用户 2026-09-21 第十二轮裁定；纯通行、零写权）（2026-09-21）
 
-**状态**：`SERVER_TESTED` + **`WINDOWS_CLIENT` + `USER_ACCEPTED`**（新电池步 `survival_shore_escape`：`checks=17 failures=0`，两案例 + 红对照；**真机第十二轮 3/3 成功**，见 §五）。
+**状态**：已实施（验证等级：SERVER_TESTED；**`WINDOWS_CLIENT` + `USER_ACCEPTED`**（新电池步 `survival_shore_escape`：`checks=17 failures=0`，两案例 + 红对照；**真机第十二轮 3/3 成功**，见 §五）。）
 
 #### 一、用户之问与答案（"他在水里窒息受伤时会逃到岸边，为啥不直接把这个套给一般状态"）
 
@@ -16717,7 +16717,7 @@ inWater=true **eyeInWater=true air=284** pos=350,60,94`，随后 `air 284→278�
 
 ### D-383：**逃生途中的空气告警**（逃生任务自带"眼在水里 + 空气低 ⇒ 按住跳跃"）（2026-09-21 真机第十二轮暴露）
 
-**状态**：`SERVER_TESTED`（新电池步 `survival_escape_air`：`checks=10 failures=0` + 红对照）。
+**状态**：已实施（验证等级：SERVER_TESTED；（新电池步 `survival_escape_air`：`checks=10 failures=0` + 红对照）。）
 
 #### 一、事实（真机，逐字见 `D-382` §六）
 
@@ -16768,7 +16768,7 @@ escapeTask=true inWater=true eyeInWater=true air=284` → `air 284→…→158`�
 
 ### D-384：**有活动危险时，K-3 延后停止不许落地**（B3；2026-09-21 用户裁定）
 
-**状态**：`SERVER_TESTED`（新电池步 `survival_stop_in_hazard`：`checks=8 failures=0` + 红对照）。
+**状态**：已实施（验证等级：SERVER_TESTED；（新电池步 `survival_stop_in_hazard`：`checks=8 failures=0` + 红对照）。）
 
 #### 一、裁定与事实
 
@@ -16822,7 +16822,7 @@ boolean safe = safeToStopNow() && !hazardActive;
 
 ### D-385：**规划期的挖掘成本必须等于执行侧真值**（补 vanilla 的两项状态惩罚：眼在水里 ⇒ ×5、离地 ⇒ ×5）（2026-09-21 队列第 3 项）
 
-**状态**：`SERVER_TESTED`（新电池步 `mining_water_break_cost`：`checks=40 failures=0` + **两轮**红对照；CORE **51/52** = 基线）。
+**状态**：已实施（验证等级：SERVER_TESTED；（新电池步 `mining_water_break_cost`：`checks=40 failures=0` + **两轮**红对照；CORE **51/52** = 基线）。）
 
 #### 一、事实（只读审计 + javap 实测字节码，全部可核）
 
@@ -16931,7 +16931,7 @@ float/double 精度）；**例外** = `DRY_STALE_FLAG`（§三.1）：期望是 
 
 ### D-386：鱼骨挖矿（模板式开挖）**口径定档**（2026-09-21 用户逐条裁定；⚠️ **只有口径，未实现**）
 
-**状态**：`IMPLEMENTED = 否`（本决策只把口径钉住；实现从"切片 1"开始）。
+**状态**：待定（本件`IMPLEMENTED`未达成：本决策只把口径钉住；实现从"切片 1"开始）。）
 **载体**：`docs/plans/2026-09-21-鱼骨挖矿计划.md`（施工方案 + 预期任务逻辑流程 + C1–C10 判据 + 4 片顺序）。
 **顺序依据**：`D-373` 头部（③ 鱼骨 → ① 跟随 → ② 探洞）+ `survey/25`（三路线定性）+ `survey/27 §1.3`。
 
@@ -19285,7 +19285,7 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 3. ⚠️ 判据必须区分两把轴：**"单次搜索时长"**（`SearchBudget`，重消费者侧）与
    **"一个 tick 能塞几次搜索"**（`SearchTickBudget`，兜底闸门）—— 读数显示最坏 tick 由前者决定。
 
-**状态**：`IMPLEMENTED` = ❌ **未落地**（本裁定只定方向，未改任何代码/常量）。
+**状态**：待定（本件`IMPLEMENTED`未达成：**未落地**（本裁定只定方向，未改任何代码/常量）。）
 台账：`P4′` 行 → 「已裁 = `P4″`，待落地」。
 
 #### 三、⚠️ 同轮**未裁**的一项
@@ -23710,7 +23710,7 @@ fixture/（开发期）→ 可引用 debug/              ← 夹具复用调试�
 
 ## D-499：`AGENTS.md` 红线两处收口 —— 删「实验性移动模式」条 + `D-132` 措辞降级并准入（2026-09-28，用户裁定）
 
-- 状态：已落地（**文档级，无代码改动**）
+- 状态：已实施（**文档级，无代码改动**）
 - 起因：`docs/HANDOVER.md` 断点八 ⑤ 的两条待裁。用户 2026-09-28 逐字：
   「「禁止实验性移动模式隐式接入正式任务」这个边界**直接删除，没有存在意义**」·
   「`D-132`（内核从不加载区块）**还不是确定性方案**，只能写成内核**不能静默加载区块**或者内核**尽量不要加载区块**，
@@ -25240,7 +25240,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⚠️ **第 ③ 条（我上一轮提的）<u>随本裁定自动消失</u>**：`D-500` 的 `IV` 理由文字「破坏是**目标形状的必然结果**」
   在 `GoalTwoBlocks` 下**成立**（到达即隐含破坏）⇒ ⛔ **不需要给 `D-500` 加更正指针**。
   ✅ 只加一条**前向**指针（不是更正）：本裁定是那条前提形状的**落地裁定**，而 `D-517` 曾落地为另一形状。
-- **状态**：⏳ **裁定已落，实现未做**（`src/` 零改动；本刀只写 docs）。⛔ 不许把本条读成"`K2` 已完成"——
+- **状态**：**裁定已落，实现未做**（`src/` 零改动；本刀只写 docs）。⛔ 不许把本条读成"`K2` 已完成"——
   ⚠️ `plans §30.1` 逐字「**小编排待 `K2` 落地后按实测再判**（判据仍待定）」⇒ **簇挖掘第二种形式的判据挂在 `K2` 真正落地之后**。
 - 📌 指针：核查全文 = `docs/reviews/2026-09-29-goal形状分歧-走进去vs走到旁边.md` · 台账 = `O26` · 断点 = `HANDOVER.md` 断点二十七。
 
@@ -25530,7 +25530,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 ## D-534：`O41` 三条裁定（第四横切闸门 · 批次 4 拆 4a/4b · 维生系统立项）＋ 夹具测试粒度入批次 2
 
-- 状态：**已裁**（用户 2026-09-29 逐字：「三条裁定我同意你的推荐方案」；另加一句关于夹具的输入）
+- 状态：**裁定已落**（用户 2026-09-29 逐字：「三条裁定我同意你的推荐方案」；另加一句关于夹具的输入）
 - 出处：草案 `docs/reviews/2026-09-29-O41-完整框架终点-草案.md`（§1c.4 / §2 / §3 / §5 已就地落章）；
   前置 = `D-532`（整改期总纲）· `D-533`（批次 1 关门线 A＋B＋C′）
 
@@ -25889,7 +25889,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 ## D-540：用户裁定 —— **`task/` 整包有序退役**（`task` 会慢慢退休）
 
-- 状态：**已裁定（用户 2026-09-29 逐字）**：「我同意你的方案，**`task` 下所有类理论上都要搬走，
+- 状态：**裁定已落（用户 2026-09-29 逐字）**：「我同意你的方案，**`task` 下所有类理论上都要搬走，
   毕竟 `task` 都会慢慢退休**」。
 - 承接：`O65`（`step/` 搬家的三条触发条件 ＋ AI 建议"与批次 2 ① 同波"）· `O58`（`Task` 的
   「组合面/驱动面」二分）· `O41` §2 批次 2 ①（三桶判据 `R1`）。
@@ -26538,7 +26538,7 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 
 ### D-550：批次 2 ① 判据**扩写** = 「`task/` 整包退役路径」（AI 2026-09-29 落，承接用户 `D-540` 裁定；**只写 docs**）
 
-- 状态：**已落**（判据化）· ⛔ 本件零 `src/`、零 `tools/` 改动。
+- 状态：**已实施**（判据化）· ⛔ 本件零 `src/`、零 `tools/` 改动。
 - 承接：`D-540`（用户裁「`task/` 下所有类理论上都要搬走」）· `O66` ⏳ 下一步 ·
   `D-492` 的 `R1`–`R6` · `D-533` §五（⛔ 不新增设计文件）。
 - 落点：`docs/reviews/2026-09-29-O41-完整框架终点-草案.md` **§2b**（`### 批次 2` 下的 `####`，⛔ 不新开文件）。
@@ -27013,7 +27013,7 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 
 ### D-558：表现层的包名定案 = **`presentation/`**（＋「层名与子包分离」）
 
-- 状态：**已裁**（2026-09-30 用户逐字：「**`presentation/` 我采纳，很好的分层**」）· 台账 `O95` ·
+- 状态：**裁定已落**（2026-09-30 用户逐字：「**`presentation/` 我采纳，很好的分层**」）· 台账 `O95` ·
   实测依据 = `docs/reviews/2026-09-30-包结构与层序实测.md` §8。
 - 触发：AI 上一轮给这一层起的 `view/` **不成立** —— 实测它装 **6 种"面"**（`command/` 1 类 2,386 行 ·
   `gui/` 5 · `client/` 15 · `network/` 12 · `item/` **80** · `debug/` 6），而**只有 `client/` 是真客户端**。
@@ -27292,7 +27292,7 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 
 ### D-563：⛔ **判 `write/` 域与"保护区区域修改权限管理"为「旧设计」—— 整个世界修改授权**重新讨论**（2026-10-01，用户逐字更正）
 
-- 状态：**仅立项（重定义）**，⛔ **本条目不含任何新架构裁定** —— 具体定义待讨论（排期见 `O116`）。
+- 状态：**待定**（重定义），⛔ **本条目不含任何新架构裁定** —— 具体定义待讨论（排期见 `O116`）。
 - 触发：我为 `write/` 写的一份"定义回顾"，用户当场更正**定义有偏差**。
 - 性质：⚠️ **这推翻了 `O110`/`D-562` 一脉把 `write/` 当作"治理层已定型、只差结构"的前提** ——
   ⛔ `D-562` 里"`write/` 的层位与方向"那部分仍然成立（纯结构）；**"它是什么"那部分作废**。
@@ -27350,7 +27350,7 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 
 ### D-564：`O116` 的**排期裁定**（串行先甲后乙）＋ 两条登记（`TaskMetrics` 运行账 · `TopUnit` 单槽的原意与病灶）（2026-10-01，用户逐字）
 
-- 状态：**排期已裁 ＋ 两条已登记**；⛔ 甲串的**内容**仍待讨论（下一轮 = `A2`）。
+- 状态：**裁定已落** ＋ 两条已登记；⛔ 甲串的**内容**仍待讨论（下一轮 = `A2`）。
 - 承接：`D-563`（`write/` 判为旧设计）· `O116`（两条讨论串）· `A0`/`B0` 底账
   （`docs/reviews/2026-10-01-世界修改授权与单槽位-底账.md`）。
 
@@ -27795,7 +27795,7 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 
 ## D-568：结构线八问一次性裁定（用户 2026-10-01 逐条裁定；AI 落章）
 
-- 状态：**已裁**（用户「**好，裁定冲突请按最新的裁定为准，然后我们一次性来讨论这八个问题**」）。
+- 状态：**裁定已落**（用户「**好，裁定冲突请按最新的裁定为准，然后我们一次性来讨论这八个问题**」）。
 - 承接：**`O94` A 串**（六项）＋ 后续轮新增（`§30.3(d)` · `§35.6`① · `§30.4` #1/#3/#4）＋ `O92`（波 4 卡点）。
 - 前置：**只读侦察 = `docs/reviews/2026-09-30-包结构与层序实测.md` §38**（已裁／仍开总表，每条带出处）；
   八问的「判断＋代价＋替代＋推荐」见同轮对话（摘要落在 `HANDOVER.md` 断点五十八 §C）。
@@ -27890,7 +27890,7 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 
 ## D-569：波 4 定家**规矩**（用户 2026-10-01 三次追加裁定；AI 落章）
 
-- 状态：**已裁**（用户逐字见下）。
+- 状态：**裁定已落**（用户逐字见下）。
 - 承接：`O92` ⑥（35 个生产类的家）＋ `D-568`（结构线八问）。
 - ⛔ 本件**只写 docs ＋ `tools/` 生成物**（零 `src/` 改动）。
 
