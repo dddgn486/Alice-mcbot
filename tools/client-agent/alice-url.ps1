@@ -165,20 +165,43 @@ if ($Verify) {
 #    required）也照样是 200 的 HTML。⇒ 只有**看响应体内容**才分得清。
 #    另一层：private 端口的登录流程是**跨站**跳转（github.dev → 本域名），而 DSH 的
 #    会话 cookie 是 `SameSite=Strict` ⇒ 浏览器不回传 ⇒ 永远 401。所以端口必须是 public。
+#    ⚠️ 而且**端口可见性不跨 stop/start 保留**（实测：每次唤醒都复位成 private）
+#       ⇒ 不自动修的话，每天第一次双击必然拿到一张打不开的"链接"。
+#    ⇒ 所以本脚本：**认 DSH 应用标志 `__ModuleLoader__` 才算通**（而不是"有 <!doctype html>"，
+#      那太宽 —— GitHub 的转发认证页也是 HTML，实测 5068 字节，我第一版就误判过）；
+#      一旦认出那张 GitHub 页，就**自动把端口改回 public 并重试一次**。
 $checkTxt = ""
 $checkOk = $false
+$portFixed = $false
+function Test-DshLink([string]$u) {
+    $sess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    $resp = Invoke-WebRequest -Uri $u -WebSession $sess -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
+    return [string]$resp.Content
+}
+$ghRelayPattern   = 'name="authUrl"|pf-signin|codespaces/auth/'
+$dshAppPattern    = '__ModuleLoader__'
 if (-not $NoCheck) {
     try {
-        $sess = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-        $resp = Invoke-WebRequest -Uri $eUrl -WebSession $sess -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
-        $body = [string]$resp.Content
+        $body = Test-DshLink $eUrl
+        # ① GitHub 的转发认证页 ⇒ 端口是 private ⇒ 自动改 public 再试一次
+        #    ⚠️ 实测：端口可见性**不跨 stop/start 保留**（每次唤醒都复位成 private）
+        #    ⇒ 不自动修的话，每天第一次双击必然拿到一张打不开的"链接"。
+        if ($body -match $ghRelayPattern) {
+            Say "端口是 private（拿到的是 GitHub 的转发认证页）⇒ 自动改成 public 再试"
+            & gh codespace ports visibility '3081:public' -c $Codespace 2>&1 | Out-Null
+            $portFixed = $true
+            Start-Sleep -Seconds 6
+            $body = Test-DshLink $eUrl
+        }
         if ($body -match 'authentication required') {
-            $checkTxt = "HTTP $($resp.StatusCode)，但返回的是 DSH 的 401 页（authentication required）—— 令牌失效或被别处用掉了？重启后重跑本命令"
-        } elseif ($body -match '<!doctype html') {
+            $checkTxt = "HTTP 200，但返回的是 DSH 的 401 页（authentication required）—— 令牌失效了？重启云端后重跑本命令"
+        } elseif ($body -match $ghRelayPattern) {
+            $checkTxt = "HTTP 200，但返回的是 GitHub 的转发认证页（端口仍不是 public / 改完还没生效）"
+        } elseif ($body -match $dshAppPattern) {
             $checkOk = $true
-            $checkTxt = "HTTP $($resp.StatusCode)，$($body.Length) 字节，确认是 DSH 应用界面"
+            $checkTxt = "HTTP 200，$($body.Length) 字节，确认是 DSH 应用界面" + $(if ($portFixed) { "（顺手把端口改回 public 了）" } else { "" })
         } else {
-            $checkTxt = "HTTP $($resp.StatusCode)，但内容不像 DSH 应用（可能是 GitHub 的登录/转发页）"
+            $checkTxt = "HTTP 200，$($body.Length) 字节，但既不是 DSH 应用也不是已知的认证页 —— 请人工看一眼"
         }
     } catch {
         $code = $null
