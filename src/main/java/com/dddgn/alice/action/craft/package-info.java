@@ -5,7 +5,9 @@
  * <b>{@code D-569}</b> §一 <b>R1</b>（用户 2026-10-01 逐字：「`action` 理论上**只存放动作、动作逻辑**，
  * 它天生就是要被 `step` 以及其他包调用，**不应该单独立包且本身可被单向依赖调用**的行为操作都应该在这个包」）。
  *
- * <h2>一 · 准入（`D-569` R1 ＋ 2026-10-02 追加裁定）</h2>
+ * <p>@alice-skeleton 骨架（9 份 `package-info.java` 统一节名与次序，2026-10-02 用户裁定「内容结构必须统一」）：① 谁进得来（准入） · ② 这个包是什么 · ③ 判据 · ④ 本包 ⛔ 不做什么 · ⑤ 回收条件 · ⑥ 门禁 · ⑦ 沿革 / 未裁 · ⑧ 今天的状态。⭐ 节号**按角色固定**，所以本文件的号**会跳** —— 那不表示缺内容，只表示本包没有这个角色；⛔ 空节比缺节更坏，所以不许补空标题。
+ *
+ * <h2>① 谁进得来（准入 —— `D-569` R1 ＋ 2026-10-02 追加裁定）</h2>
  * <ol>
  *   <li>它<b>是"动作 / 动作逻辑"</b>；</li>
  *   <li>它<b>不该单独立包</b>（人太少 / 职责不成一层）；</li>
@@ -18,7 +20,21 @@
  * （`D-290`「声明了没人用 ⇒ 删」的反面：**同一份事实被抄两遍**）。
  * ⚠️ 本条<b>只放宽"是不是动作"这一条</b>，⛔ 不放宽第 3 条（层方向仍是硬约束）。
  *
- * <h2>二 · 入住名单 = `task/craft/` 整簇 10 类（2026-10-02 落地）</h2>
+ *
+ * <h2>⑥ 门禁（本刀同刀改的，`R4`「门禁与迁移同刀」）</h2>
+ * <ol>
+ *   <li>{@code tools/check-layer-direction.py}：{@code ACTION_DOMAINS} 加 {@code "craft"}
+ *       ＋ {@code MIN_ACTION_DOMAIN_FILES} 按实际人口设下限（反空转）。</li>
+ *   <li>{@code action/} <b>根</b>人口下限**不变**（根仍是 5 个跨域共享原语）。</li>
+ *   <li>两条既有断言对新子包**自动生效**：① {@code action/} <b>根 ✗→ 域子包</b>
+ *       ② 低层（{@code pathing}·{@code reach}·{@code write}·{@code log}·{@code ledger}）**✗→ {@code action/<域>}**
+ *       —— ⭐ <b>本刀收工时复算</b>：这 5 个包对本包的引用<b>各 0 个文件</b>。</li>
+ * </ol>
+ *
+ * @see com.dddgn.alice.action action/ 根 = 跨域共享原语
+ * @see com.dddgn.alice.action.mining 同族先例（2026-10-01 刀 1 立的第一个域子包）
+ *
+ * <h2>⑧ 今天的状态（入住名单 = `task/craft/` 整簇 10 类，2026-10-02 落地）</h2>
  *
  * <p><b>动作件 7</b>：{@code TableCraft} · {@code InventoryCraft} · {@code FurnaceStation} ·
  * {@code StationPlacement} · {@code StationProvision} · {@code MachineCycle} · {@code CraftStation}。
@@ -34,17 +50,6 @@
  * ⚠️ 且**门禁当时抓不到它**：{@code check-layer-direction} 的域规则断的是「<b>低层</b> ✗→ `action/<域>`」，
  * 而 `task/` **不在低层表里**（`O90` §⑤ 逐字记过同一缺口）。
  *
- * <h2>三 · 本刀同刀改的门禁（`R4`「门禁与迁移同刀」）</h2>
- * <ol>
- *   <li>{@code tools/check-layer-direction.py}：{@code ACTION_DOMAINS} 加 {@code "craft"}
- *       ＋ {@code MIN_ACTION_DOMAIN_FILES} 按实际人口设下限（反空转）。</li>
- *   <li>{@code action/} <b>根</b>人口下限**不变**（根仍是 5 个跨域共享原语）。</li>
- *   <li>两条既有断言对新子包**自动生效**：① {@code action/} <b>根 ✗→ 域子包</b>
- *       ② 低层（{@code pathing}·{@code reach}·{@code write}·{@code log}·{@code ledger}）**✗→ {@code action/<域>}**
- *       —— ⭐ <b>本刀收工时复算</b>：这 5 个包对本包的引用<b>各 0 个文件</b>。</li>
- * </ol>
  *
- * @see com.dddgn.alice.action action/ 根 = 跨域共享原语
- * @see com.dddgn.alice.action.mining 同族先例（2026-10-01 刀 1 立的第一个域子包）
  */
 package com.dddgn.alice.action.craft;

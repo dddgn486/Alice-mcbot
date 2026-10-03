@@ -75,10 +75,11 @@
 |---|---|---|---|
 | 决策条目标题数 | **724** | 724 ✅ | `grep -cE '^#{2,4} D-[0-9]+' docs/AI_DECISIONS.md || true` |
 | 决策条目标题数（门禁口径） | **723** | 723 ✅ | `python3 -c "import re,sys;print(sum(1 for l in open('docs/AI_DECISIONS.md',encoding='utf-8') if re.match(r'^(#{2,4})\\s+(D-\\d+)(?![\\d\\w])',l)))"` |
-| `AI_DECISIONS.md` 行数 | **27946** | 27946 ✅ | `wc -l < docs/AI_DECISIONS.md | tr -d ' '` |
+| `AI_DECISIONS.md` 行数 | **27952** | 27952 ✅ | `wc -l < docs/AI_DECISIONS.md | tr -d ' '` |
 | `package-info.java` 份数 | **9** | 9 ✅ | `find src -name package-info.java | wc -l | tr -d ' '` |
 | `src/` 顶层包数 | **30** | 30 ✅ | `docs/DESIGN_INDEX.md` |
 | 顶层包有设计说明 | **7** | 7 ✅ | `docs/DESIGN_INDEX.md` |
+| 骨架有图例的 `package-info` 份数 | **9** | 9 ✅ | `grep -l '@alice-skeleton' $(find src -name package-info.java) | wc -l | tr -d ' '` |
 | `survey/` 报告份数 | **49** | 49 ✅ | `survey/README.md` |
 | 常驻件当前总行数 | **1501** | 1501 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
 
@@ -185,8 +186,8 @@
 | # | 工序 | 档 | 前置 | ⭐ 判据（做完怎么知道对了） | 落点 | 状态 |
 |---|---|---|---|---|---|---|
 | `W4-1` | 勘测 `S-W4`（用户要求：施工难度大，勘测要做好，不一定是现在） | 🟢 | — | 产出：逐节勘测表（37 节 / 9 份）＋ **8 角色骨架** ＋ **37→8 的逐节映射**＋ 两条必须先裁的冲突（`C-A` 禁令 4 种写法 · `C-B` 修订占 h2）＋ 诚实边界 | `survey/50-S-W4-package-info骨架勘测-2026-10-02.md` | 已完成 |
-| `W4-1′` | 裁 `S-W4` 的两条冲突 `C-A` / `C-B`（⛔ 未裁前 `W4-2` 不开工） | 🔴 | W4-1 | `C-A`：禁令/不属于这里/不负责的事/不装什么 ⇒ **合成一个节名**；`C-B`：修订**降为节内附注**，不占 h2 | 本计划 · `O142` | 阻塞（待用户裁：两条合并方案） |
-| `W4-2` | 统一 9 份 `package-info.java` 的节名与次序（用户裁 (b) ＋ 追加「内容结构必须统一」） | 🔴 | W4-1 | 统一 = 节名与次序统一，不是让每份凑齐所有节（空节比缺节更坏）· 不改内容事实 · `compileJava` 仍成功 | `src/main/java/**/package-info.java` | 未开始 |
+| `W4-1′` | 裁 `S-W4` 的两条冲突 `C-A` / `C-B` | 🔴 | W4-1 | `C-A`：禁令/不属于这里/不负责的事/不装什么 ⇒ **合成一个节名**；`C-B`：修订**降为节内附注**，不占 h2 ✅ 用户 2026-10-02 已裁「三条我都采纳」 | 本计划 · `O142` | 已完成 |
+| `W4-2` | 统一 9 份 `package-info.java` 的节名与次序（用户裁 (b) ＋ 追加「内容结构必须统一」） | 🔴 | W4-1′ | 统一 = 节名与次序统一，不是让每份凑齐所有节（空节比缺节更坏）· 不改内容事实 · `compileJava` 仍成功（实测 **BUILD SUCCESSFUL / 7 warnings**，与改动前同族）· `check-design-index` 重生成后逐字节相同 | `src/main/java/**/package-info.java` | 已完成（⚠️ 待另一个会话对抗性复核 —— 改的是 9 份 `src/` 注释） |
 | `W4-3` | 设计件归位（10 份：能下沉的下沉，剩下的原样保留、由索引登记） | 🟡 | W4-1 | 不许合并（实测 8-gram Jaccard 中位 0.000） | 待做 | 未开始 |
 | `W4-4` | 补 4 份设计件的状态首行（`构想`／`边界`） | 🟢 | — | 其余 6 份已有声明 ⇒ 只统一位置 | 待做 | 未开始 |
 | `W4-5` | 顶层策略文档 ≤400 行 ＋ 只引不抄（8-gram 可门禁） | 🟡 | W4-3 | 废掉 §O-2 的「1/10」判据 | 待做 | 未开始 |

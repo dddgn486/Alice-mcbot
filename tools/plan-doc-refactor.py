@@ -68,7 +68,7 @@ LIVE: list[tuple[str, str, tuple]] = [
     ("决策条目标题数（门禁口径）", "723",
      ("cmd", "python3 -c \"import re,sys;print(sum(1 for l in open('docs/AI_DECISIONS.md',encoding='utf-8') "
              "if re.match(r'^(#{2,4})\\\\s+(D-\\\\d+)(?![\\\\d\\\\w])',l)))\"")),
-    ("`AI_DECISIONS.md` 行数", "27946",
+    ("`AI_DECISIONS.md` 行数", "27952",
      ("cmd", "wc -l < docs/AI_DECISIONS.md | tr -d ' '")),
     ("`package-info.java` 份数", "9",
      ("cmd", "find src -name package-info.java | wc -l | tr -d ' '")),
@@ -76,6 +76,8 @@ LIVE: list[tuple[str, str, tuple]] = [
      ("regex", "docs/DESIGN_INDEX.md", r"^\| 顶层包数 \| \*\*(\d+)\*\* \|")),
     ("顶层包有设计说明", "7",
      ("regex", "docs/DESIGN_INDEX.md", r"^\| ⭐ \*\*顶层包有设计说明\*\*.*\| \*\*(\d+) /")),
+    ("骨架有图例的 `package-info` 份数", "9",
+     ("cmd", r"grep -l '@alice-skeleton' $(find src -name package-info.java) | wc -l | tr -d ' '")),
     ("`survey/` 报告份数", "49",
      ("regex", "survey/README.md", r"^\| 报告份数 \| \*\*(\d+)\*\* \|")),
     ("常驻件当前总行数", "1501",
@@ -153,14 +155,16 @@ WAVES: list[tuple[str, str, list[tuple]]] = [
          "产出：逐节勘测表（37 节 / 9 份）＋ **8 角色骨架** ＋ **37→8 的逐节映射**"
          "＋ 两条必须先裁的冲突（`C-A` 禁令 4 种写法 · `C-B` 修订占 h2）＋ 诚实边界",
          "`survey/50-S-W4-package-info骨架勘测-2026-10-02.md`", DONE),
-        ("W4-1′", "裁 `S-W4` 的两条冲突 `C-A` / `C-B`（⛔ 未裁前 `W4-2` 不开工）", "🔴", "W4-1",
+        ("W4-1′", "裁 `S-W4` 的两条冲突 `C-A` / `C-B`", "🔴", "W4-1",
          "`C-A`：禁令/不属于这里/不负责的事/不装什么 ⇒ **合成一个节名**；"
-         "`C-B`：修订**降为节内附注**，不占 h2", "本计划 · `O142`",
-         "阻塞（待用户裁：两条合并方案）"),
+         "`C-B`：修订**降为节内附注**，不占 h2 ✅ 用户 2026-10-02 已裁「三条我都采纳」",
+         "本计划 · `O142`", DONE),
         ("W4-2", "统一 9 份 `package-info.java` 的节名与次序（用户裁 (b) ＋ 追加「内容结构必须统一」）",
-         "🔴", "W4-1",
+         "🔴", "W4-1′",
          "统一 = 节名与次序统一，不是让每份凑齐所有节（空节比缺节更坏）"
-         "· 不改内容事实 · `compileJava` 仍成功", "`src/main/java/**/package-info.java`", W),
+         "· 不改内容事实 · `compileJava` 仍成功（实测 **BUILD SUCCESSFUL / 7 warnings**，与改动前同族）"
+         "· `check-design-index` 重生成后逐字节相同",
+         "`src/main/java/**/package-info.java`", "已完成（⚠️ 待另一个会话对抗性复核 —— 改的是 9 份 `src/` 注释）"),
         ("W4-3", "设计件归位（10 份：能下沉的下沉，剩下的原样保留、由索引登记）", "🟡", "W4-1",
          "不许合并（实测 8-gram Jaccard 中位 0.000）", "待做", W),
         ("W4-4", "补 4 份设计件的状态首行（`构想`／`边界`）", "🟢", "—",
@@ -200,13 +204,36 @@ WAVES: list[tuple[str, str, list[tuple]]] = [
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 四 · 门禁兜底参数
+# 四 · 骨架图例（⭐ 单一出处）—— 9 份 `package-info.java` 的节名/次序由它产生
+#      ⛔ 改这里 = 改 9 份 `src/` 注释 ⇒ 🔴 档（需用户裁）
+#      用户 2026-10-02 裁 (b)「承认它兼作包级准入 ＋ 设计」＋ 追加「内容结构必须统一」
+#      ⇒ ⭐「统一」= **节名与次序统一**，⛔ **不是让每份凑齐所有节**（空节比缺节更坏）
+#      ⇒ 节号**按角色固定**，所以某份文件里的号**会跳**（那不表示缺内容，只表示没这个角色）
+# ═══════════════════════════════════════════════════════════════════════════
+ROLES: list[tuple[str, str]] = [
+    ("①", "谁进得来（准入）"),
+    ("②", "这个包是什么"),
+    ("③", "判据"),
+    ("④", "本包 ⛔ 不做什么"),
+    ("⑤", "回收条件"),
+    ("⑥", "门禁"),
+    ("⑦", "沿革 / 未裁"),
+    ("⑧", "今天的状态"),
+]
+LEGEND = ("骨架（9 份 `package-info.java` 统一节名与次序，2026-10-02 用户裁定「内容结构必须统一」）："
+          + " · ".join(f"{n} {t}" for n, t in ROLES)
+          + "。⭐ 节号**按角色固定**，所以本文件的号**会跳** —— 那不表示缺内容，只表示本包没有这个角色；"
+            "⛔ 空节比缺节更坏，所以不许补空标题。")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 五 · 门禁兜底参数
 # ═══════════════════════════════════════════════════════════════════════════
 LIVE_FLOOR = 5
 WAVE_FLOOR = 5
 ITEM_FLOOR = 25
 PLAN_MIN, PLAN_MAX = 120, 420
 STATUSES = ("未开始", "进行中", "已完成")
+STATUS_PREFIX = ("已完成（", "阻塞（")   # ⭐ 带说明的状态（⛔ 不许静默把说明吞掉）
 
 
 def sh(cmd: str) -> str:
@@ -479,7 +506,7 @@ def check() -> int:
 
     for _, _, items in WAVES:
         for iid, _nm, _t, _p, _c, _d, st in items:
-            if not (st in STATUSES or st.startswith("阻塞（")):
+            if not (st in STATUSES or st.startswith(STATUS_PREFIX)):
                 problems.append(f"`{iid}` 的状态不合法：{st}")
 
     want = render()
