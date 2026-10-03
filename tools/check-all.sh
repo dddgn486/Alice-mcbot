@@ -200,6 +200,27 @@ run_gate             "check-plan-doc-refactor" bash tools/check-plan-doc-refacto
   # 人口下限：plans ≥ 10 · reviews ≥ 60（⛔ 目录搬了不许「只剩几行」也绿）。
   # ⚠️ 它**不是**效力门禁 —— 效力仍是「可引、⛔ 不可当依据」，⛔ 不靠门禁维持。
 run_gate             "check-doc-registry" bash tools/check-doc-registry.sh
+  # 门禁（2026-10-02，用户点头入库）：**Python 字符串里不许嵌裸 ASCII 双引号**。
+  # ⭐ 起因是真损失：主工作流**同一天、同一个文件**连续 **4 次**写 `A("…"中文"…")`
+  #    ⇒ 字符串提前闭合 ⇒ `SyntaxError`，而它**只在 `py_compile` 那一刻暴露**
+  #    ⇒ ⛔ 要跑整套门禁才知道自己写坏了（`§G` 那族：静默错写进地基）。
+  # 判据三道：语法臂（`ast.parse`，⭐ 4 次真错 100% 命中）· 可疑臂 · 人口下限（`.py` ≥ 20）。
+  # ⚠️ 它**只管引号形状**，⛔ 不查语义；⛔ 不扫 `.sh`／`.md`。
+run_gate             "check-quote-lint" bash tools/check-quote-lint.sh
+  # 门禁（2026-10-02，`W7-2`）：**事实/数据（⑦ 类）必须自报档位**（`docs/*_FACTS.md`）。
+  # ⭐ 起因：目标体系 v2 新增 ⑦ 类并按可变性分三档（`§D′-2`），用户逐字纠正
+  #    「**运行时产出 ≠ 不变数据**」—— 而三档**全靠人记得** ⇒ 变成本门禁。
+  # 判据：档位臂（头部 40 行声明 ⑦a/⑦b/⑦c）· ⑦c 臂（`generatedAtTick=<数字>` **或**
+  #    逐字「不可从仓内复算」**或**「同一次导出」＋存在路径 —— ⛔ 含糊 ⇒ 红，
+  #    ⭐ **如实说"说不出"是合法答案**）· 出处臂（引的路径必须存在）· 人口下限 ≥ 3。
+  # ⚠️ 它**判不了数字对不对**（要源 JSON，不在本仓）；⛔ ⑦b 派生件不归它管。
+run_gate             "check-facts-tiers" bash tools/check-facts-tiers.sh
+  # 门禁（2026-10-02，`W7-3`）：**`docs/GLOSSARY.md` 要既能给人看，也能给 AI 复核词义**。
+  # ⭐ 起因：它**已漂一次而无人报错**（实测 82 行 vs 设计上限 ~15，盯它的门禁 = 0）。
+  # 判据：正臂（主表四栏齐全、定义与后果非空）· ⭐ **反臂**（主表每个词在 `docs`/`src`/`tools`
+  #    里**真的搜得到** —— ⛔ 词在仓里不存在 ⇒ AI 拿它去对对不上却不报错）· 人口下限 ≥ 10。
+  # ⚠️ 它**判不了**"AI 的理解偏没偏"（要语义）；⛔ 也不要求加粗中文词都进表（会误报爆炸）。
+run_gate             "check-glossary" bash tools/check-glossary.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh

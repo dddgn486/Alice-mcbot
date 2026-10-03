@@ -1,5 +1,7 @@
 # Thermal 适配 · S1 设备事实表（阶段 3-B (a)，**只读**）
 
+> **档位**：⭐ **⑦a 不变数据**（草案 `§D′-2`）—— 锁定物 = 下面三个 jar 的**名字 ＋ 字节数**；⚠️ 换模组版本 ⇒ **只能靠人**发现过期。
+> ⚠️ **例外（如实标出）**：第 6 行有一处**运行时引用**（`/alice recipes` 导出）⇒ 那一小段属 **⑦c**，其 `generatedAtTick` 记在 `docs/THERMAL_FACTS.md` §6；⛔ 本节其余数字**不受它影响**。
 > **出处**：客户端 `mods/` 下的三个后端（**含一个内嵌 jar**，见 §0）
 > `thermal_expansion-1.20.1-11.0.1.29.jar`（574141 字节）、`thermal_foundation-1.20.1-11.0.6.70.jar`（4549423 字节）、
 > 共享库 `cofh_core-1.20.1-11.0.2.56.jar`，以及 **`thermal_foundation` 内嵌的 `META-INF/jarjar/thermal_core-1.20.1-11.0.6.24.jar`（4410354 字节）**。

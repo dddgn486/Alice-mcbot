@@ -1,5 +1,7 @@
 # Mekanism 适配 · S0 类型事实表（阶段 3-B / D-202）
 
+> **档位**：⭐ **⑦c 运行时可变数据**（草案 `§D′-2`）—— ⛔ **不许被当"已确认"引用**。
+> ⚠️ **`generatedAtTick` 登记缺失（如实记，⛔ 不是笔误）**：原句是「`generatedAtTick` 见文件头」，`=165` 那三字在该次编辑中被删掉了；而 `config/alice-recipes.json` **⛔ 不在本仓** ⇒ 今天**无法从仓内复算**。⭐ 但**出处可核**：`docs/THERMAL_FACTS.md` §头逐字确认本文 S0 用的是「**13:23 导出**」且记其文件为 `mtime 2026-09-13 13:23:45 +0800`、**1151827 字节**、`可读 2923 / 跳过 2370`，本文第 6 行的 `2923 / 2370` **逐项一致** ⇒ **同一次导出**。
 > **出处**：客户端 `/alice recipes` 导出的**运行时**配方表 `config/alice-recipes.json`（`generatedAtTick` 见文件头；阶段 2 / D-182 那次导出）。
 > **口径**：与 `RecipeDump`/`RecipeQuery` 一致 —— **只统计原版可读类型**（可读 = 在 `recipes` 里），**其余如实计入 `skippedTypes`（"读不懂"）**；数字可用 `tools/recipe-readability.py` 复算。
 

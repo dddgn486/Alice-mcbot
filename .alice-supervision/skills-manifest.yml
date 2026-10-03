@@ -21,8 +21,17 @@
 # status 取值：draft | maintainer-approved | deprecated | revoked
 #   ⚠️ 只有 `maintainer-approved` 能满足 `required_skills` 闸门；其余（含 `revoked`）一律不算。
 #
-# 更正后口径：**下面每一条 `- id:` 都对应一个真实存在的 `skills/<id>.skill.md`**
-#（核对命令：`ls .alice-supervision/skills/*.skill.md | sed 's|.*/||;s|\.skill\.md||' | sort`）。
+# ⚠️⚠️ 2026-10-02 二次更正（`survey/51 §4.1` 当场复算；主工作流欠的账）：
+#   旧文写「**下面每一条 `- id:` 都对应一个真实存在的 `skills/<id>.skill.md`**」—— **不实**：
+#   实测 **3 条** `status: revoked` **没有对应文件**（`architecture-decision-framework` /
+#   `evidence-collection-standard` / `test-coverage-matrix`，它们的 `summary` 自己写着「无对应 skill 文件」），
+#   且 `large-refactor-survey-and-verify` **有文件却漏登记**（磁盘有 / 本文件 0 处）。
+# ⭐ 现口径（分两类，⛔ 别再合成一句）：
+#   · `status: revoked` 的条目 = **曾计划过、从未建文件**（⛔ 不算"存在"）；
+#   · `status` 为其余值的条目 = **必须有** `skills/<id>.skill.md`。
+# 核对命令（两个数必须与 `- id:` 行数对得上）：
+#   ls .alice-supervision/skills/*.skill.md | wc -l                    # 磁盘真实文件数
+#   grep -cE '^\s*-\s*id:' .alice-supervision/skills-manifest.yml     # 本文件声明数
 
 - id: debugging-root-cause-analysis
   version: 1.0.0
@@ -214,3 +223,11 @@
   scope: methodology
   summary: (无对应 skill 文件；决策体例见 docs/AI_DECISIONS.md)
   evidence_sources: []
+
+- id: large-refactor-survey-and-verify
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: 大范围重构/改革类任务的勘测与验证方法 —— 把「开发者的问题」当一等输入、把「独立对抗性复核」当默认动作，并在开发者不在场时只做可逆与可机械判定的事。
+  evidence_sources: [project-local, client-test]

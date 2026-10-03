@@ -13,7 +13,7 @@
 
 ---
 
-## 一、验收的 6 个"看数"（⭐ 只花两分钟，先做这个）
+## 一、验收的 **7** 个「看数」（⭐ 只花两分钟，先做这个）
 
 ```bash
 cd /workspaces/Alice-mcbot
@@ -45,13 +45,23 @@ go "状态取值种类"     "$(grep -oh '状态[：:][^（(]*' docs/AI_DECISIONS
 # ⑥ ⭐ 施工计划书 —— **施工期唯一执行入口**（用户 2026-10-02：「还没有载体就先创一个」）
 #    ⭐ 它自己会报"活读数漂没漂"（判据 C-2「停下重勘」）。⛔ 进度不看它，看它 §六 的状态列。
 bash tools/check-plan-doc-refactor.sh 2>&1 | grep PLAN_DOC_REFACTOR_RESULT
+
+# ⑦ ⭐ 2026-10-02 新增的三道门禁（各自对着一个**真实失败**，⛔ 不是"凑数"）
+#    `check-quote-lint`  字面量里嵌裸引号（⭐ 起因：主工作流**同一天同一文件连续 4 次**犯它，
+#                        而它只在 `py_compile` 那一刻暴露 ⇒ 要跑整套门禁才知道写坏了）
+#    `check-facts-tiers` ⑦ 类事实表必须**自报档位**（⑦a/⑦b/⑦c —— 用户逐字「运行时产出 ≠ 不变数据」）
+#    `check-glossary`    ⭐ **反臂**：词表里每个词必须在 `docs`/`src`/`tools` 里**真的搜得到**
+#                        （词在仓里不存在 ⇒ AI 拿它去对对不上却**不报错**）
+for g in check-quote-lint check-facts-tiers check-glossary; do
+  bash "tools/$g.sh" 2>&1 | grep -E 'QUOTE_LINT_RESULT|FACTS_TIERS_RESULT|GLOSSARY_RESULT'
+done
 ```
 
 **基准（施工前）**，供你对比：
 
 | 读数 | 施工前 |
 |---|---|
-| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=44 warning=2 failed=0`** |
+| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=48 warning=2 failed=1`**（⚠️ 唯一红 = `check-headless-battery exit=5`，云端**无 `run/` 服务端** ⇒ **环境档**，⛔ 非行为红；门禁项 **39 → 48**）|
 | `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ✅ 现在 **1501 / 1501**（上限已按用户裁 (c) 上调；⚠️ 遗留「清点机制」= `O143`） |
 | 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
 | `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |

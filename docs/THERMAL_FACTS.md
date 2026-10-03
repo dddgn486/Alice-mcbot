@@ -1,5 +1,6 @@
 # Thermal 适配 · S0 类型事实表（阶段 3-B）
 
+> **档位**：⭐ **⑦c 运行时可变数据**（草案 `§D′-2`）—— ⛔ **不许被当"已确认"引用**。
 > **出处**：客户端 `/alice recipes` 导出的**运行时**配方表 `config/alice-recipes.json`
 > （文件头 `source="alice runtime RecipeManager"`、`generatedAtTick=165`、
 > `note="只含原版配方体系；机器配方（JEI 类别）不在此，见 D-146 的能力边界"`；
