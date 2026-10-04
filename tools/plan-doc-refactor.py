@@ -99,7 +99,7 @@ LIVE: list[tuple[str, str, tuple]] = [
     # ⚠️ 必须 `-z`：非 ASCII 路径不带 `-z` 会被 git 加引号 ⇒ 分类/计数错（`P2-7` 同一个坑）。
     ("`docs/` 根 `.md` 份数", "56",
      ("cmd", "git ls-files -z 'docs/*.md' | tr '\\0' '\\n' | grep -cE '^docs/[^/]+\\.md$' | tr -d ' '")),
-    ("`survey/` 报告份数", "52",
+    ("`survey/` 报告份数", "53",
      ("regex", "survey/README.md", r"^\| 报告份数 \| \*\*(\d+)\*\* \|")),
     ("常驻件当前总行数", "1501",
      ("cmd", "cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '")),

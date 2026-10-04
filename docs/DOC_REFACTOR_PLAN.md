@@ -105,7 +105,7 @@
 | `docs/reviews/` 份数（含本目录 README） | **75** | 75 ✅ | `ls docs/reviews/*.md | wc -l | tr -d ' '` |
 | `docs/` 根设计件份数 | **14** | 14 ✅ | `docs/DESIGN_INDEX.md` |
 | `docs/` 根 `.md` 份数 | **56** | 56 ✅ | `git ls-files -z 'docs/*.md' | tr '\0' '\n' | grep -cE '^docs/[^/]+\.md$' | tr -d ' '` |
-| `survey/` 报告份数 | **52** | 52 ✅ | `survey/README.md` |
+| `survey/` 报告份数 | **53** | 53 ✅ | `survey/README.md` |
 | 常驻件当前总行数 | **1501** | 1501 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
 | 门禁项数（`check-all` 计数行） | **57** | 57 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
@@ -137,7 +137,7 @@
 |---|---|---|---|
 | `docs/DECISIONS_INDEX.md` | `AI_DECISIONS.md` | 有 | ⭐ **能活** |
 | `docs/DESIGN_INDEX.md` | `package-info.java` ＋ 目录 | 有 | ⭐ **能活** |
-| `survey/README.md` | 52 份报告的头部 | 手维护时期没有 | ⛔ **烂过一次** |
+| `survey/README.md` | 53 份报告的头部 | 手维护时期没有 | ⛔ **烂过一次** |
 
 ⇒ ⭐ **判据（本项目实测规律）**：索引能活，**当且仅当** ① 有单一出处 ② 有门禁逐字节比对。
 
