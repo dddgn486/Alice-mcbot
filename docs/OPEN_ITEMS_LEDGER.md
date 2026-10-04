@@ -2968,7 +2968,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **B1-07** | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | D | 说「某个兜底机制已实现」｜⚠️ ⑧ 域外 | ❌ 销案（⑧ 域外不算靶子 —— 用户 2026-10-04 裁） |
 | **B1-08** | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | D | 正文描述实现现状｜⚠️ ⑧ 域外 | ❌ 销案（⑧ 域外不算靶子 —— 用户 2026-10-04 裁） |
 | **B1-09** | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | D | 「F1-F4 已实现，等待监督员审核」｜⚠️ ⑧ 域外 | ❌ 销案（⑧ 域外不算靶子 —— 用户 2026-10-04 裁） |
-| **B1-10** | `docs/plans/2026-09-29-第一刀-施工设计.md` | D | 说「前置件 K2 甲已落地」｜④ 状态＋构想 | ⏳ 待批 |
+| **B1-10** | `docs/plans/2026-09-29-第一刀-施工设计.md` | D | 说「前置件 K2 甲已落地」｜④ 状态＋构想 | ✅ 保留（用户 2026-10-04：已完工那一刀的施工设计留痕，属 docs/plans/ 正当成员） |
 | **B1-11** | `docs/reviews/2026-09-14-survey07-可行动条目核实.md` | D | 说「它的 #2 已落地（D-219）」｜⑤ 报告 | ⏳ 待批 |
 | **B1-12** | `docs/reviews/2026-09-17-勘测分诊与任务队列.md` | D | 「原话部分过期：M4b/D-231/D-234 已落地」｜⑤ 报告 | ⏳ 待批 |
 | **B1-13** | `docs/reviews/2026-09-24-survey32-核对.md` | D | 转述别人的 ✅ 清单｜⑤ 报告 | ⏳ 待批 |
