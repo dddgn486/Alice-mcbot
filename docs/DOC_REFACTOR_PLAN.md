@@ -106,7 +106,7 @@
 | `docs/` 根设计件份数 | **14** | 14 ✅ | `docs/DESIGN_INDEX.md` |
 | `survey/` 报告份数 | **50** | 50 ✅ | `survey/README.md` |
 | 常驻件当前总行数 | **1501** | 1501 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
-| 门禁项数（`check-all` 计数行） | **52** | 52 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
+| 门禁项数（`check-all` 计数行） | **53** | 53 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
 ### 冻结值（只有用户裁定能改）
 
@@ -174,7 +174,7 @@
 | **③ 决策/裁定** | `AI_DECISIONS.md` ＋ `DECISIONS_INDEX.md` | ✅ 索引 ＋ 三断言 · ⛔ `W6-2` 补状态未做 |
 | **④ 状态 ＋ 构想** | `HANDOVER` ＋ 台账 ／ `improvements/` · `PROPOSAL_*` | ⚠️ **前半有家、后半无家** ⇒ `W7-9` |
 | **⑤ 报告 ＋ 证据（四类）** | `survey/` · `docs/reviews/`（＋ `docs/plans/` 为参考） | ⚠️ **E4 人工观察 = 零留存** ⇒ `W7-5` |
-| **⑥ 边界即机器** | `tools/check-*`（挂 `check-all`） | ✅ **52 项** |
+| **⑥ 边界即机器** | `tools/check-*`（挂 `check-all`） | ✅ **53 项** |
 | **⑦ 事实/数据（三档可变性）** | `*_FACTS.md` · `*.csv` · 生成物 | ⛔ **⑦c 无判据** ⇒ `W7-2` |
 | **⑩ 清旧家（⭐ 本轮重心）** | ⛔ **不是一个新目录** —— 它是**对旧家 441→443 件逐件动手**这件事本身 | ⭐ 载体 = `W7′` **总波**（用户令「支线变主线」）· 判据 = 草案 `§D′-9` · 开工前提 = `check-new-home` **无家可归 0**（⛔ 件数**刻意不入 `LIVE`** —— 它每加一份文档就变 | ⭐ 有信息的是「无家可归 = 0」，由门禁盯） |
 

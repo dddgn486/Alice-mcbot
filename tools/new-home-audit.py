@@ -77,6 +77,12 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
       "docs/ALIGNMENT_OPEN_QUESTIONS.md", "docs/GLOSSARY.md",
       "docs/TESTING_GUIDE.md", "docs/ACCEPTANCE_GUIDE.md", "docs/EXPECTED_REDS.md",
       "docs/DOC_REFACTOR_PLAN.md", "docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md",
+      # ⭐ `docs/CLEANUP_CLASSIFY.md`（2026-10-02 阶段 3）—— **清旧家的判据表**。
+      #    它与 `DOC_REFACTOR_PLAN.md` 同性质：**生成物 ＋ 挂门禁 ＋ 禁手改** ⇒ 归 ④ 的
+      #    「做到哪了／下一步」那一半。⚠️ 它**不是**设计件（⛔ 不自称设计）、也**不是** ⑤ 类报告
+      #    （⛔ 不自称报告）。⭐ 归类这条**是 `design-index` 的覆盖自证逼出来的**：
+      #    本刀落地时它当场报「既不是设计件、也没在名单里被点名」—— 那一报就是这条的目的。
+      "docs/CLEANUP_CLASSIFY.md",
       "docs/MULTI_BOT_INTERFACE_RESERVATION.md", "docs/BATTERY_CURATION.md",
       "docs/reference/ROAD_MATHEMATICAL_MODEL.md")),
     ("⑤ 报告 ＋ 证据", "可引 ⛔ 不可当依据 · 四类证据 E1–E4",

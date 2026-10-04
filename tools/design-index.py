@@ -66,6 +66,7 @@ NON_DESIGN_PATTERNS: list[tuple[str, str]] = [
     ("DECISIONS_INDEX.md", "③ 类生成物（裁定索引）"),
     ("DESIGN_INDEX.md", "④ 类生成物（本文件自己）"),
     ("DOC_REFACTOR_PLAN.md", "施工计划书（**施工期唯一执行入口**）"),
+    ("CLEANUP_CLASSIFY.md", "清旧家判据表（**生成物**；由 `tools/cleanup-classify.py` 生成 ＋ 门禁盯着）"),
     ("ACCEPTANCE_GUIDE.md", "验收指引"),
     ("AI_*.md", "常驻件 ／ 旧态文档（`AI_DECISIONS` `AI_PROJECT_STATE` `AI_DEVELOPMENT_PLAYBOOK` `AI_CHANGELOG` `AI_TEST_MATRIX`）"),
     ("OPEN_ITEMS_LEDGER.md", "⑥ 类（进行中状态 · 待办总账）"),
