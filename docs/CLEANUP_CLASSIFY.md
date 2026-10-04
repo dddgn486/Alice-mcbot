@@ -498,7 +498,7 @@
 | `.alice-supervision/skills/forge-entity-sync-broadcast.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/skills/forge-event-priority-cancel.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/skills/forge-fakeplayer-lifecycle.skill.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
-| `.alice-supervision/skills/large-refactor-survey-and-verify.skill.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — | — |
+| `.alice-supervision/skills/large-refactor-survey-and-verify.skill.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — | — |
 | `.alice-supervision/skills/minecraft-client-server-sync.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/skills/minimal-implementation-planning.skill.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |
 | `docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — | — |
