@@ -1,6 +1,6 @@
 # 文档「行号引用」存量基线 —— ⛔ 只许变短（新增 ⇒ 红；减少 ⇒ 必须同步本文件）。
 # 生成：python3 tools/ref-anchors.py --write　·　列：引用方文件 <TAB> 被引方文件 <TAB> 处数
-# 总计 359 处 / 155 对（51 个引用方文件）
+# 总计 358 处 / 154 对（50 个引用方文件）
 
 .alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md	docs/HANDOVER.md	2
 .alice-supervision/archive/2024-08-2024-09/reviews/20260821-c1-next-mainline-route.md	docs/PRODUCT_ARCHITECTURE_ROADMAP.md	1
@@ -34,7 +34,6 @@ docs/DOC_REFACTOR_DRAFT.md	START_HERE.md	1
 docs/DOC_REFACTOR_DRAFT.md	docs/README.md	1
 docs/DOC_REFACTOR_DRAFT.md	minimal-implementation-planning.skill.md	1
 docs/DOC_REFACTOR_PLAN.md	AGENTS.md	1
-docs/GLOSSARY.md	HANDOVER.md	1
 docs/HANDOVER.md	AGENTS.md	16
 docs/HANDOVER.md	AI_TEST_MATRIX.md	3
 docs/HANDOVER.md	HANDOVER.md	2
