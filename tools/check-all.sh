@@ -258,6 +258,26 @@ run_gate             "check-new-home" bash tools/check-new-home.sh
   #    「有生成器 ＋ 有门禁」这条判据**静默失效**，正是本项目最贵那族）。
   # ⚠️ 它**判不了**实质（该丢/该合/该搬迁仍是用户的判断）；⛔ 「失效条件」是语义的，不归它。
 run_gate             "check-cleanup-classify" bash tools/check-cleanup-classify.sh
+  # 门禁（2026-10-02，`W7-5`）：**指向"读不到的位置"的证据指针必须自报"不可复算"**（证据 E4 类）。
+  # ⭐ 起因是真损失：文档引 **8 个** `screenshots/<日期>.png` 具体路径，**磁盘上存在 0 个**、
+  #    仓内**无** `screenshots/` 目录、`.gitignore` **也没排除** ⇒ ⭐ **不是被忽略，是从未进仓**
+  #    ⇒ 那些引用**永久读不到**，而**没有任何东西会报错**（`§E`：假边界会被当依据引用）。
+  # 判据：① 引仓内 png ⇒ 该文件必须真存在；② 引仓外 png ⇒ 同处/上一行必须自报「不可复算」；
+  #    ⭐ **豁免**：随附**可核对元数据**（字节数 / `sha256`）⇒ 那是"传输核对记录"，不是读不到的指针。
+  # ⚠️ 它**判不了**"原件到底在哪个盘"（云端没有 `/mnt/d`、没有客户端目录）⇒ 只要求**如实自报**。
+  # ⭐ 本门禁落地时**抓到自己的一个静默洞**（用 `git ls-files` 不带 `-z` ⇒ 非 ASCII 路径被加引号
+  #    ⇒ 3 份文件被静默跳过而报绿）⇒ 已改 `-z` ＋ 加臂 H 专防它。8 臂自证 · 人口下限 `OUTSIDE_FLOOR`。
+run_gate             "check-e4-offrepo" bash tools/check-e4-offrepo.sh
+  # 门禁（2026-10-02，时效件）：**授权登记 CSV 的 `code_ref` 必须指得到真东西**。
+  # ⭐ 起因：`docs/authz/` 那两份 CSV **两道门禁都在、都绿**，但查的全是**枚举覆盖面**，
+  #    ⛔ 没有一个字查引用；而 `check-ref-integrity` 的扫描范围**不含 `.csv`**。
+  #    实测：路径引用 48 个里 **19 个指不到东西**（`action/WriteGrant.java` ⇒ 实为 `write/`；
+  #    `pathing/core/search/*` ⇒ 实为 `pathing/calc/`），⚠️ 而**没有任何东西会因此报错**。
+  # ⏰ **有时效**：`policy-map.py` 的源路径写死 `write/WritePolicyMatrix.java`，而 `write/` 正是
+  #    「排在最后要拆解搬家」那个 ⇒ **那刀一开，`check-policy-matrix` 会变成永远绿的空门禁**。
+  # 判据三态：路径对 ⇒ 过 · **名字在、路径错** ⇒ 红（**指出实际在哪**）· `src/` 零命中 ⇒ 红（已删/改名）·
+  #    名字撞车 ⇒ ⚠️ 只警告。⚠️ **判不了行号**；⛔ 也不改任何东西（真源可能在 Java 源码里）。
+run_gate             "check-authz-code-refs" bash tools/check-authz-code-refs.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh

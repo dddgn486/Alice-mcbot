@@ -74,6 +74,7 @@ machine_map_rows=59 with_site_confirmed=52 shared_site=6`（与无头 `shared-co
 
 **目的**：跑通"**夹具未生效 ⇒ `FIXTURE_NOT_FIRED` + 任务 FAILED**"这条负例（`survey/08` §9#4、台账 §5.6）。
 **入口**：`/reload` → `/function alice_test:r4_negative_disturb` → 右键 `alice:pathing_disturber` 一次。
+> ⛔ **E4 · 仓外原件（不可复算）** —— 上图**不在仓内**（云端无 `/mnt/d`、无客户端 `screenshots/`）⇒ ⛔ 不许把它当可验证证据；引用前需用户确认原件位置。
 **关键行**：`r4-negative-key-lines.log`｜**截图**：`screenshots/2026-09-15_18.37.13.png`（sha256 `a9f92d2a1cdf2f752e3aedd2…`）
 
 ### 两次尝试（第一次**没走到**，根因可判读）

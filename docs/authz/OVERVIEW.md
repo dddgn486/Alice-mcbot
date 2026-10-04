@@ -1,12 +1,12 @@
 # 授权 / 审批框架总览（**自动生成**，勿手改）
 
 > **单一出处**：`docs/authz/AUTHZ_REGISTRY.csv`（Excel 可直接打开、批注；改它再跑 `bash tools/authz-map.sh`）
-> 生成时间：2026-09-14 13:47 ｜ 闸门 28 条
+> 生成时间：2026-10-04 10:37 ｜ 闸门 28 条
 
 ## 四问速查（唯一需要背的东西）
 
 1. **这一步改世界吗？** 不改 ⇒ 只走 L2（Movement 集合 + 物理前提 + 可逆性）。
-2. **改世界呢？** L1 谁授权/为什么（WriteGrant）→ L3 还有预算吗（WriteBudget）+ 执行期复验（CapabilityGate）→ L4 记哪种账（TEMP 必拆 / KEEP 不拆）。
+2. **改世界呢？** L1 谁授权/为什么（Attribution）→ L3 还有预算吗（Quota）+ 执行期复验（CapabilityGate）→ L4 记哪种账（TEMP 必拆 / KEEP 不拆）。
 3. **要拆吗？** 只拆自己放的、自上而下、材料回收（RestoreScopeTask；悬空桥面走侧拆兜底）。
 4. **LLM 能自己决定吗？** 不能：只能提目标；拒绝走 Refused；未知模组能力**问用户**（权限契约）。
 
@@ -38,14 +38,14 @@
 | `L1-1` | 策略 | allowedMovementTypes（每请求显式声明） | 每次规划请求 | — | `pathing/core/search/PathRequest.java:35` | 纯通行 4 类（TRAVERSE/DIAGONAL/ASCEND/DESCEND） | 任务调用点 |
 | `L1-2` | 策略 | miningApproach 显式禁用 PILLAR/FALL/DOWNWARD | 挖掘站位请求（D-067㉘） | — | `PathRequest.java:56,91` | 禁用（待 R3 改按条件放行） | 改代码（须 A/B 证据） |
 | `L1-3` | 预算 | SearchBudget（搜索能烧多少） | 搜索节点/时间上限 | SEARCH_LIMIT | `pathing/core/search/SearchBudget.java` | 默认 UNLIMITED | 调用点 |
-| `L1-4` | 凭证 | WriteGrant(requester, reason)（D-082） | 任何破坏/放置；指向“这一格/这一次” | 无凭证不可写; WriteReason 14 种=EXPECTED_TARGET SCAFFOLD_RESTORE DESCEND_FOOT BULK_EDIT LINE_OF_SIGHT STANDING_SPACE PATH_ACCESS SUPPORT_PLACEMENT STEP_PLACEMENT REGION_REPLANT CONTAINER_TRANSFER CRAFT_STATION_PLACE STATION_PROVISION MANUAL（每条自带 分类：Policy=EXPLICIT_TARGET/CLEARING，Action=BREAK/PLACE/BOTH） | `action/WriteGrant.java（16 种 WriteReason；30 个调用点）` | 无凭证拒写 | 任务/Job 调用点 |
+| `L1-4` | 凭证 | WriteGrant(requester, reason)（D-082） | 任何破坏/放置；指向“这一格/这一次” | 无凭证不可写; WriteReason 15 种=EXPECTED_TARGET SCAFFOLD_RESTORE DESCEND_FOOT BULK_EDIT LINE_OF_SIGHT STANDING_SPACE PATH_ACCESS SUPPORT_PLACEMENT STEP_PLACEMENT REGION_REPLANT CONTAINER_TRANSFER CRAFT_STATION_PLACE STATION_PROVISION CRAFT_GRID MANUAL（每条自带 分类：Policy=EXPLICIT_TARGET/CLEARING，Action=BREAK/PLACE/BOTH） | `action/WriteGrant.java（15 种 WriteReason；30 个调用点；CRAFT_GRID 起为菜单写入家族 menuWrite()：容器或合成网格）` | 无凭证拒写 | 任务/Job 调用点 |
 | `L1-5` | 预算 | MiningBudget（这次挖掘值得拆多少） | 挖掘站位选点 | — | `mining/MiningBudget` | 按任务设定 | 调用点 |
 
 ### L2 规划期
 
 | id | 类型 | 闸门 | 触发 | 拒绝码 | 代码位置 | 默认 | 谁能放开 |
 |---|---|---|---|---|---|---|---|
-| `L2-1` | 硬约束 | Movement 校验器（物理前提，planning 期拒绝） | 每条候选边构造/执行前 | 116 码：BREAK20 PLACE18 FALL15 PILLAR11 ASCEND11 DESCEND10 DOWNWARD8 DIAGONAL8 TRAVERSE6; MovementType 11 种全由校验器覆盖(BREAK_AND_TRAVERSE/BREAK_AND_ENTER/PLACE_STEP_AND_TRAVERSE) | `pathing/core/*ExecutionFactory.java` | 不合格即拒 | 无（物理事实） |
+| `L2-1` | 硬约束 | Movement 校验器（物理前提，planning 期拒绝） | 每条候选边构造/执行前 | 119 码：BREAK20 FALL15 PLACE12 PILLAR11 ASCEND10 DESCEND9 DOWNWARD7 DIAGONAL6 SEGMENT6 TRAVERSE5 MOVEMENT2 NO2 PLAN2 BLOCKED1 CANCELLED1 CAPABILITY1 INVALID1 OVERSHOT1 POSTCONDITION1 SESSION1 SETTLING1 STALE1 TIMEOUT1 UNAUTHORIZED1 WRITE1; MovementType 11 种全由校验器覆盖(BREAK_AND_TRAVERSE/BREAK_AND_ENTER/PLACE_STEP_AND_TRAVERSE) | `pathing/core/*ExecutionFactory.java` | 不合格即拒 | 无（物理事实） |
 | `L2-2` | 硬约束 | RecoverabilityPolicy：FALL 必须带 fall_return_verified | 构造 MovementSpec 时比较“提供 vs 要求” | 规划期抛异常（不静默降级） | `core/RecoverabilityPolicy.java` | 不足即炸（唯一真能拒的一条） | 无（可逆性） |
 | `L2-3` | 硬约束 | IntrinsicReversibility 三档 | 每种 Movement 的固有可逆性 | — | `core/IntrinsicReversibility.java` | REVERSIBLE / CONDITIONALLY / NOT | 无 |
 | `L2-4` | 策略 | RiskSwitches（默认全关＝Baritone 高风险） | /alice risk 或未来评估器（未实现） | — | `pathing/risk/RiskSwitches.java` | 全关；当前仅 descend_overshoot | 用户 / 评估器（未实现） |
@@ -55,7 +55,7 @@
 
 | id | 类型 | 闸门 | 触发 | 拒绝码 | 代码位置 | 默认 | 谁能放开 |
 |---|---|---|---|---|---|---|---|
-| `L3-1` | 硬约束 | CapabilityGate 执行期复验（基-8） | 执行前用**当前世界事实**复验 | CAPABILITY_UNAUTHORIZED / REGION_PROTECTED_AREA·BLOCK·TAG / NO_THROWAWAY_BLOCKS / NO_REQUIRED_TOOL / BREAK_BUDGET_EXHAUSTED / PLACE_BUDGET_EXHAUSTED | `core/CapabilityGate.java` | 会改世界的 Movement 必须过 | 世界事实（保护区/资源/工具/预算） |
+| `L3-1` | 硬约束 | CapabilityGate 执行期复验（基-8） | 执行前用**当前世界事实**复验 | CAPABILITY_UNAUTHORIZED / ZONE_PROTECTED_AREA·BLOCK·TAG / NO_THROWAWAY_BLOCKS / NO_REQUIRED_TOOL / BREAK_BUDGET_EXHAUSTED / PLACE_BUDGET_EXHAUSTED | `core/CapabilityGate.java` | 会改世界的 Movement 必须过 | 世界事实（保护区/资源/工具/预算） |
 | `L3-2` | 硬约束 | MovementCapabilities 12 分量（能力声明） | 声明“会改世界/需授权/耗资源/需工具” | — | `core/MovementCapabilities` | 声明即受检 | 无 |
 | `L3-3` | 预算 | WriteBudget（D-106：作用域内写入次数上限） | 累计写入次数（清障是“有多少拆多少”） | WRITE_*（5 码） | `action/WriteBudget.java` | 按 scope 上限 | 调用点 |
 | `L3-4` | 凭证 | WriteAudit（记录“Alice 授权自己做了什么”） | 每次授权写入 | — | `action/WriteAudit.java` | 环形缓冲 + 日志 | — |

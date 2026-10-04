@@ -1133,6 +1133,7 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
 | 裁定/记录 | **`D-439`**（真机取证 / 根因 / 形状与配置 / 追簇七条 / 判据与两条红臂 / **我自己的两个错** / 诚实边界）；台账 **`1.4d` ✅**、`1.4` 交棒 `1.5` |
 | 绿 | `single:fishbone_slice2` = **`checks=76 failures=0`**（54 → 76，3 臂 → 4 臂；臂④ 矿脉 **5/5 格变空气**、`oreMined=5 oreFound=5 oreUncollected=0 collectedProducts=5 auditOutsideExpected=0`）· `single:fishbone_slice1` = PASS · **CORE 电池 = PASS**（243 s） |
 | 红臂（判据真的会红） | **J1**（把暴露面退回只有模板格）⇒ 臂④ `oreMined=2`、矿脉 **2/5**、`failures=5`（= **真机缺陷的离线复现**）；**J2**（拿掉"破矿后继续扫邻域"）⇒ 同样 `2/5 failures=5` |
+> ⛔ **E4 · 仓外原件（不可复算）** —— 上图**不在仓内**（云端无 `/mnt/d`、无客户端 `screenshots/`）⇒ ⛔ 不许把它当可验证证据；引用前需用户确认原件位置。
 | ⭐ 真机取证（不是推测） | `[fixed-client]/logs/latest.log` 12:16–12:18：**47 tick/单元**（≈2.35 s；与夹具 46 一致）· `ore_found` 5 次 / `ores=5/5` / `oreDeferred=0` ⇒ 缺陷在"**没找到**"不在"挖不动" · 截图 `screenshots/2026-09-25_12.17.49.png` 见巷道左上壁**钻石矿**与壁上**铜矿**尚在 · ⚠️ `ore_moved` 1 格 WARN = **假警报**（`MineTask` 的正常站位选择，已按证据改判据） |
 | 工件 | `build/libs/alice-1.0.0-1.20.1.jar`（`sha256` 见 §4），已 `mirror-windows-workspace.sh` + `sync-windows-artifact.sh` 同步进固定客户端 `mods/` |
 

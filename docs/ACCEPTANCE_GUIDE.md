@@ -79,7 +79,7 @@ done
 
 | 读数 | 施工前 |
 |---|---|
-| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=53 warning=2 failed=0`**（⚠️ `warning=2` = `check-machine-map` 缺上游 jar · `check-headless-battery` 云端无 `run/` ⇒ **两条都是环境档**，⛔ 非行为红；门禁计数 **39 → 53**，⭐ 与 `pass=` **逐字同口径** —— 口径见 `docs/DOC_REFACTOR_PLAN.md` §四 的「门禁项数」行）|
+| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=55 warning=2 failed=0`**（⚠️ `warning=2` = `check-machine-map` 缺上游 jar · `check-headless-battery` 云端无 `run/` ⇒ **两条都是环境档**，⛔ 非行为红；门禁计数 **39 → 55**，⭐ 与 `pass=` **逐字同口径** —— 口径见 `docs/DOC_REFACTOR_PLAN.md` §四 的「门禁项数」行）|
 | `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ✅ 现在 **1501 / 1501**（上限已按用户裁 (c) 上调；⚠️ 遗留「清点机制」= `O143`） |
 | 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
 | `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |

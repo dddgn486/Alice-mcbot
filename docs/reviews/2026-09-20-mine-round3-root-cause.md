@@ -11,6 +11,7 @@
 | 入口 | `/alice mine here`（零参数；测试物品口径见 `docs/MINE_SURVEY_PROTOCOL.md`） |
 | 客户端日志 | `/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/logs/latest.log` |
 | **崩溃报告** | `…/crash-reports/crash-2026-09-20_21.32.05-server.txt`（**本轮真正结束原因**） |
+> ⛔ **E4 · 仓外原件（不可复算）** —— 上图**不在仓内**（云端无 `/mnt/d`、无客户端 `screenshots/`）⇒ ⛔ 不许把它当可验证证据；引用前需用户确认原件位置。
 | 截图 | `…/screenshots/2026-09-20_21.31.33.png`（1 格宽沟渠、梯田地形、聊天栏 `决策层动作被拒绝：empty_reply`） |
 | 归档无头日志 | `run/headless-logs/*.log`（电池各步） |
 | 只读取证工具 | `tools/region-ore-scan.py`（存档普查：`--center/--radius/--y-range/--pattern/--list-y/--mined`） |

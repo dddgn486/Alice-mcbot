@@ -68,7 +68,7 @@ LIVE: list[tuple[str, str, tuple]] = [
     ("决策条目标题数（门禁口径）", "723",
      ("cmd", "python3 -c \"import re,sys;print(sum(1 for l in open('docs/AI_DECISIONS.md',encoding='utf-8') "
              "if re.match(r'^(#{2,4})\\\\s+(D-\\\\d+)(?![\\\\d\\\\w])',l)))\"")),
-    ("`AI_DECISIONS.md` 行数", "27958",
+    ("`AI_DECISIONS.md` 行数", "27960",
      ("cmd", "wc -l < docs/AI_DECISIONS.md | tr -d ' '")),
     ("`package-info.java` 份数", "9",
      ("cmd", "find src -name package-info.java | wc -l | tr -d ' '")),
@@ -92,7 +92,7 @@ LIVE: list[tuple[str, str, tuple]] = [
     #    ⭐ 2026-10-02 当场复算：`check-new-home` 挂上后 **注册行 51**、`pass=` 也是 **51** ⇒ 两者一致。
     #    （⚠️ 历史上有过 `pass=51` 而注册行 50 的时刻 —— 那是 `check-new-home` **刚建好还没挂上**的中间态，
     #     不是"两个口径"。⇒ 本读数取**注册行**：机械、不递归、不快照。）
-    ("门禁项数（`check-all` 计数行）", "53",
+    ("门禁项数（`check-all` 计数行）", "55",
      # ⚠️ 为什么是 `run_[a-z_]+` 而不只是 `run_gate`：`check-all` 里**还有一个计数助手**
      #    `run_expected_reds()`（`D-532` §三 横切闸门②，预期红清单）—— 它**也是门禁**，
      #    只是不走 `run_gate`。⭐ 2026-10-02 当场复算：`run_gate` **51** ＋ `run_expected_reds` **1**
