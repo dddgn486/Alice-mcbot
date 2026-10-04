@@ -66,8 +66,12 @@ done
 #                            `RISK_SYSTEM_DESIGN_DRAFT.md` 缺状态行（已补）
 #    `check-archive-index`   6 个归档目录各有 README 写明「按什么分」（⭐ 用户裁：⛔ 不统一分法，
 #                            改成两条判据 —— 按内容类型 / 按日期世代）
-for g in check-skills-index check-proposal-status check-archive-index; do
-  bash "tools/$g.sh" 2>&1 | grep -E 'SKILLS_INDEX_RESULT|PROPOSAL_STATUS_RESULT|ARCHIVE_INDEX_RESULT'
+#    `check-new-home`        ⭐ **新家建好了没有** —— 旧家每一件在目标体系里都有**唯一**去处。
+#                            ⚠️ 它是**清旧家的开工前提**（用户逐字「他能不能做好，直接建立在
+#                            新家有没有建好的基础上」），⛔ 不是事后验收。
+#                            基线：**441 → 443 件 · 无家可归 0 · 同类重叠 0 · 双轴并存 11（合法）**
+for g in check-skills-index check-proposal-status check-archive-index check-new-home; do
+  bash "tools/$g.sh" 2>&1 | grep -E 'SKILLS_INDEX_RESULT|PROPOSAL_STATUS_RESULT|ARCHIVE_INDEX_RESULT|NEW_HOME_AUDIT_RESULT'
 done
 ```
 
@@ -75,7 +79,7 @@ done
 
 | 读数 | 施工前 |
 |---|---|
-| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=51 warning=2 failed=1`**（⚠️ 唯一红 = `check-headless-battery exit=5`，云端**无 `run/` 服务端** ⇒ **环境档**，⛔ 非行为红；门禁项 **39 → 51**）|
+| `check-all` | **`pass=39 warning=2 failed=1`** → ✅ 现在 **`pass=52 warning=2 failed=0`**（⚠️ `warning=2` = `check-machine-map` 缺上游 jar · `check-headless-battery` 云端无 `run/` ⇒ **两条都是环境档**，⛔ 非行为红；门禁计数 **39 → 52**，⭐ 与 `pass=52` **逐字同口径** —— 口径见 `docs/DOC_REFACTOR_PLAN.md` §四 的「门禁项数」行）|
 | `AGENTS+PLAYBOOK+STATE` | **1476 / 1476**（余额 **0**）→ ✅ 现在 **1501 / 1501**（上限已按用户裁 (c) 上调；⚠️ 遗留「清点机制」= `O143`） |
 | 「第一入口」声索 | **3** → ✅ 现在 **1**（`README.md`；`docs/START_HERE.md` 已删） |
 | `package-info` | **9 / 30**（⛔ **不是 7/30** —— 另有 2 份在**子包**里：`action/craft/` · `region/authz/`） |
