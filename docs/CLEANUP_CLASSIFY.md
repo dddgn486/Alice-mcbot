@@ -97,83 +97,13 @@
 
 这与本项目既有读数一致（`RISK_*` 0.085 · `MINE_*` 0.032 · `DECISION_*` 0.056 · `CLIENT_*` 0.052 · `ALICE_PATHING_CORE_*` 0.052 —— 全部 < 0.085）⇒ **「前缀像、内容各写各的」是本仓的常态**，所以「合并」这一档在本仓几乎没有活可干。
 
-## 六 · 检查脚本整理线 —— 未开始（用户 2026-10-02 令：本轮只登记，放这里做提醒）
+## 六 · ⛔ 检查脚本整理线 —— **不属本次文档整顿** ⇒ 已移出本表
 
-> 用户逐字：「检查脚本我本来也要逐个检查整理的，但是这次文档整顿没有纳入，所以我还不清楚现状」
-> ⇒ 用户裁定：**选丙**（那 19 处 `code_ref` 过期引用**留在册**）＋「同时登记检查脚本整理线，直接放在施工计划书的末尾用来提醒」。
+> 用户逐字：「检查脚本我本来也要逐个检查整理的，但是**这次文档整顿没有纳入**，所以我还不清楚现状」
+> ＋「**选丙**，同时**登记检查脚本整理线**，**直接放在施工计划书的末尾**用来提醒」。
 
-### 为什么这条线**必须**存在（当场量的规模）
-
-| 量 | 值 | 怎么算 |
-|---|---|---|
-| `tools/` 下被跟踪文件 | **269** | `git ls-files tools/* \| wc -l` |
-| 其中 `.py` ／ `.sh` | **65** ／ **53** | 同上按后缀 |
-| 门禁脚本（`check-*`） | **60** | `git ls-files tools/check-* \| wc -l` |
-| 挂在 `check-all` 上的门禁 | **55** | `check-all` 的 `pass=` 口径 |
-| 从 `check-all.sh` **反向可达**的顶层工具 | **82** | 见下「判据」 |
-| **不可达（本线的靶子）** | **36** | 同上 |
-
-### 判据（**只有一条，而且是机械的**）
-
-> **从入口 `tools/check-all.sh` 反向可达吗？**
-
-⚠️ **诚实边界（如实写，不假装完整）**：它靠**正则找 `tools/xxx.py|sh` 全路径字样**⇒ **抓不到** `bash $VAR` 那种动态调用、**也抓不到**「被别的仓／工作流调」。⇒ 它给的是**不可达的上界**（**36**），真实孤儿只会**更少**。
-⚠️ **为什么不用「裸文件名也算」的宽松判据**：实测那样会把**文档字符串里提到的文件名**也当成「被调用」（门禁脚本的 `echo` 里常提到别的脚本名）⇒ 可达数被严重高估（宽松判据下孤儿只剩 **5** 个，**明显是假的**）。⇒ 采用严判据。
-
-### 不可达 **不等于** 该删（这一点最容易误读）
-
-分析工具 · 云端脚本 · 夹具 runner · 一次性勘测脚本 —— **本来就该手动跑**。
-那它意味着什么？**这些工具「为什么存在」没有任何地方登记过** —— 那正是本条线要补的东西。
-
-### 这 36 个是哪些
-
-（36 个 —— 按文件名排序；**每一行都要逐条登记「为什么它在这」＋「什么条件下可以删」**）
-
-| # | 工具 | 已登记存在理由 | 已登记失效条件 |
-|---|---|---|---|
-| 1 | `tools/alice-cloud-remote.sh` | 待登记 | 待登记 |
-| 2 | `tools/alice-cloudctl.sh` | 待登记 | 待登记 |
-| 3 | `tools/analyze-lumber-scene.py` | 待登记 | 待登记 |
-| 4 | `tools/analyze-trace.py` | 待登记 | 待登记 |
-| 5 | `tools/authz-map.py` | 待登记 | 待登记 |
-| 6 | `tools/authz-map.sh` | 待登记 | 待登记 |
-| 7 | `tools/capture-scene.py` | 待登记 | 待登记 |
-| 8 | `tools/check-machine-map.sh` | 待登记 | 待登记 |
-| 9 | `tools/cloud-restore-env.sh` | 待登记 | 待登记 |
-| 10 | `tools/cloud-rollback.sh` | 待登记 | 待登记 |
-| 11 | `tools/codespace-start-dsh.sh` | 待登记 | 待登记 |
-| 12 | `tools/codespace-zero.sh` | 待登记 | 待登记 |
-| 13 | `tools/death-persistence-e2e.sh` | 待登记 | 待登记 |
-| 14 | `tools/dsh-context-usage.sh` | 待登记 | 待登记 |
-| 15 | `tools/dsh-phone-qr.sh` | 待登记 | 待登记 |
-| 16 | `tools/exec-record.py` | 待登记 | 待登记 |
-| 17 | `tools/failure-ratio.py` | 待登记 | 待登记 |
-| 18 | `tools/fixture-hygiene.py` | 待登记 | 待登记 |
-| 19 | `tools/gate-inventory.py` | 待登记 | 待登记 |
-| 20 | `tools/gen-xray-pack.py` | 待登记 | 待登记 |
-| 21 | `tools/jar-content-hash.py` | 待登记 | 待登记 |
-| 22 | `tools/jar-content-hash.sh` | 待登记 | 待登记 |
-| 23 | `tools/kernel-predicates.py` | 待登记 | 待登记 |
-| 24 | `tools/llm-relay.py` | 待登记 | 待登记 |
-| 25 | `tools/make-agent-preset.py` | 待登记 | 待登记 |
-| 26 | `tools/make-cloud-tunnel-bundle.sh` | 待登记 | 待登记 |
-| 27 | `tools/make-preset-package.py` | 待登记 | 待登记 |
-| 28 | `tools/mirror-windows-workspace.sh` | 待登记 | 待登记 |
-| 29 | `tools/module-selftest.sh` | 待登记 | 待登记 |
-| 30 | `tools/policy-map.sh` | 待登记 | 待登记 |
-| 31 | `tools/recipe-readability.py` | 待登记 | 待登记 |
-| 32 | `tools/region-ore-scan.py` | 待登记 | 待登记 |
-| 33 | `tools/render-scene-preview.py` | 待登记 | 待登记 |
-| 34 | `tools/simulate-scene-plan.py` | 待登记 | 待登记 |
-| 35 | `tools/sync-windows-artifact.sh` | 待登记 | 待登记 |
-| 36 | `tools/transfer-clock.py` | 待登记 | 待登记 |
-
-### 本条线的**底线**（用户令「放这里做提醒」⇒ 提醒必须带牙）
-
-1. **不可达数不许再涨**（今天 **36**；新增工具**要么挂 `check-all`、要么在同刀登记理由**）；
-2. **每条必须写出「什么条件下它可以删」**（写不出 ⇒ 它是个**没主的工具**）；
-3. **`code_ref` 那 19 处过期引用归本条线**（用户选丙）—— 见台账 `O163`；
-4. ⚠️ **它与文档整顿的关系待用户定**（用户：「这次文档整顿**没有纳入**」）⇒ ⛔ 本表**只登记，不排期**。
+⛔ **本表（清旧家的判据表）不再承载它** —— 移出原因：**它不是文档整顿的内容**，放在这里会被**读成文档整顿的一部分**（用户 2026-10-04 令「**移出去**」）。
+⇒ 现行落点两个：⭐ **施工计划书末尾**（`docs/DOC_REFACTOR_PLAN.md` 的 §九 · **只作提醒**）＋ ⭐ **台账 `O164`**（一件一号的登记处：规模／判据／诚实边界／底线）。
 
 ## 七 · 全表（**每一件的归位与信号**；供逐件复核）
 
@@ -268,15 +198,15 @@
 | `docs/reviews/README.md` | ⑤ 报告 ＋ 证据 | 49 | 0 | — | 是 |
 | `survey/INTENT.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — | — |
 | `survey/README.md` | ⑤ 报告 ＋ 证据 | 48 | 0 | — | 是 |
-| `tools/alice-cloud-remote.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/alice-cloudctl.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
-| `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 8 | 1 | — | — |
-| `tools/analyze-trace.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
+| `tools/alice-cloud-remote.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/alice-cloudctl.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
+| `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 9 | 1 | — | — |
+| `tools/analyze-trace.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
 | `tools/archive-index.py` | ⑥ 边界即机器 | 11 | 0 | — | — |
-| `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — | — |
-| `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
+| `tools/authz-map.py` | ⑥ 边界即机器 | 15 | 0 | — | — |
+| `tools/authz-map.sh` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 18 | 0 | — | — |
-| `tools/capture-scene.py` | ⑥ 边界即机器 | 5 | 1 | — | — |
+| `tools/capture-scene.py` | ⑥ 边界即机器 | 6 | 1 | — | — |
 | `tools/check-all.sh` | ⑥ 边界即机器 | 86 | 2 | — | — |
 | `tools/check-archive-index.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-authz-code-refs.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
@@ -310,7 +240,7 @@
 | `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 10 | 1 | — | — |
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-layer-direction.py` | ⑥ 边界即机器 | 24 | 7 | — | — |
-| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 16 | 2 | — | — |
+| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 18 | 2 | — | — |
 | `tools/check-new-home.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 12 | 0 | — | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
@@ -338,55 +268,55 @@
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/cleanup-classify.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
-| `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
-| `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
-| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — | — |
-| `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — | — |
+| `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
+| `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
+| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
+| `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 8 | 2 | — | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 13 | 0 | — | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
-| `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 7 | 0 | — | — |
-| `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
+| `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
 | `tools/dsh-session-log.mjs` | ⑥ 边界即机器 | 16 | 0 | — | — |
 | `tools/dsh-session-rollback.mjs` | ⑥ 边界即机器 | 6 | 0 | — | — |
-| `tools/exec-record.py` | ⑥ 边界即机器 | 7 | 1 | — | — |
-| `tools/failure-ratio.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/fixture-hygiene.py` | ⑥ 边界即机器 | 13 | 1 | — | — |
-| `tools/gate-inventory.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
-| `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
+| `tools/exec-record.py` | ⑥ 边界即机器 | 8 | 1 | — | — |
+| `tools/failure-ratio.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/fixture-hygiene.py` | ⑥ 边界即机器 | 14 | 1 | — | — |
+| `tools/gate-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — | — |
+| `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
 | `tools/goal-vocabulary.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/headless-battery.sh` | ⑥ 边界即机器 | 42 | 4 | — | — |
-| `tools/jar-content-hash.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
+| `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — | — |
-| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 47 | 9 | — | — |
-| `tools/llm-relay.py` | ⑥ 边界即机器 | 4 | 1 | — | — |
-| `tools/machine-map.py` | ⑥ 边界即机器 | 27 | 2 | — | — |
-| `tools/make-agent-preset.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
-| `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
-| `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — | — |
+| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 48 | 9 | — | — |
+| `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — | — |
+| `tools/machine-map.py` | ⑥ 边界即机器 | 29 | 2 | — | — |
+| `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
+| `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — | — |
+| `tools/module-selftest.sh` | ⑥ 边界即机器 | 11 | 2 | — | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 8 | 0 | — | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — | — |
-| `tools/policy-map.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
+| `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — | — |
-| `tools/recipe-readability.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
+| `tools/recipe-readability.py` | ⑥ 边界即机器 | 10 | 0 | — | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 11 | 0 | — | — |
-| `tools/region-ore-scan.py` | ⑥ 边界即机器 | 4 | 0 | — | — |
-| `tools/render-scene-preview.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — | — |
+| `tools/render-scene-preview.py` | ⑥ 边界即机器 | 4 | 0 | — | — |
 | `tools/risk-surface.py` | ⑥ 边界即机器 | 12 | 1 | — | — |
-| `tools/simulate-scene-plan.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
+| `tools/simulate-scene-plan.py` | ⑥ 边界即机器 | 4 | 0 | — | — |
 | `tools/skills-index.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/step-names.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `tools/survey-index.py` | ⑥ 边界即机器 | 11 | 0 | — | — |
-| `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 12 | 1 | — | — |
+| `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 13 | 1 | — | — |
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — | — |
-| `tools/transfer-clock.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
+| `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 5 | 0 | — | — |
 | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 28 | 1 | — | — |
 | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 16 | 0 | — | — |
@@ -624,7 +554,7 @@
 | `tools/agent-presets/alice-forge-assistant/agent.cordis.yml` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — | — |
 | `tools/agent-presets/alice-forge-assistant/persona.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |
 | `tools/agent-presets/alice-forge-assistant/preset.yml` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — | — |
-| `tools/client-agent/make-preset-package.py` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |
+| `tools/client-agent/make-preset-package.py` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — | — |
 | `tools/client-agent/presets/alice-client-master/agent.cordis.yml` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — | — |
 | `tools/client-agent/presets/alice-client-master/preset.yml` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — | — |
 | `tools/cloud-tunnel-README.txt` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |

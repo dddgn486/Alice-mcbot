@@ -359,3 +359,81 @@
 
 ⚠️ **第二条是本项目最贵的那一族**（§G：假前提写进定稿草案，变成后续所有施工的地基）。
 
+## 九 · ⛔ 本计划**不做**、只留在这里提醒：**检查脚本整理线**
+
+⭐ **它 ⛔ 不是文档整顿的内容** —— 用户逐字：「检查脚本我本来也要逐个检查整理的，但是**这次文档整顿没有纳入**，所以我还不清楚现状」；＋「**选丙**，同时**登记检查脚本整理线**，**直接放在施工计划书的末尾**用来提醒」。
+
+⇒ ⭐ **本节只是提醒**：⛔ **不进 `WAVES`** · ⛔ **不排期** · ⛔ **不是本计划的工序**。
+
+### 判据（**只有一条，而且是机械的**）
+
+> **从入口 `tools/check-all.sh` 反向可达吗？**
+
+### 规模（⭐ **生成本文件时现算**）
+
+⭐ 本次现算：`tools/` 下被跟踪文件 **269** · 反向可达 **82** · ⭐ **不可达 36**（本线的靶子）。
+
+⚠️ ⭐ **耦合说清楚（⛔ 不藏）**：这一节的数字既然是**现算**的 ⇒ **另一条线往 `tools/` 里加一个不可达的工具，本节就会变 ⇒ `check-plan-doc-refactor` 报「陈旧」**。
+⭐ 那**不是文档整顿出错** —— 是**提醒过期了**，重跑 `python3 tools/plan-doc-refactor.py --write` 即可。⭐ 顺带把本线的底线变成了**会响的**：「**不可达数不许再涨**」。
+
+⚠️ **诚实边界**：可达性靠**正则找 `tools/xxx.py|sh` 全路径字样** ⇒ ⛔ **抓不到** `bash $VAR` 那种动态调用、⛔ 也抓不到「被别的仓／工作流调」⇒ 它给的是**不可达的上界**。
+⚠️ **「裸文件名也算」的宽松判据已实测证伪**：那样会把**文档字符串里提到的文件名**当成「被调用」（门禁脚本的 `echo` 里常提别的脚本名）⇒ 孤儿只剩 **5** 个，**明显是假的**。⇒ 采用严判据。
+
+### ⛔ 不可达 **不等于** 该删（最容易误读的一点）
+
+分析工具 · 云端脚本 · 夹具 runner · 一次性勘测脚本 —— **本来就该手动跑**。它意味着的是 ⭐ **这些工具的「为什么存在」没有任何地方登记过**。
+
+### 这 36 个是哪些
+
+（按文件名排序；**每一行都要逐条登记「为什么它在这」＋「什么条件下可以删」**）
+
+| # | 工具 | 已登记存在理由 | 已登记失效条件 |
+|---|---|---|---|
+| 1 | `tools/alice-cloud-remote.sh` | 待登记 | 待登记 |
+| 2 | `tools/alice-cloudctl.sh` | 待登记 | 待登记 |
+| 3 | `tools/analyze-lumber-scene.py` | 待登记 | 待登记 |
+| 4 | `tools/analyze-trace.py` | 待登记 | 待登记 |
+| 5 | `tools/authz-map.py` | 待登记 | 待登记 |
+| 6 | `tools/authz-map.sh` | 待登记 | 待登记 |
+| 7 | `tools/capture-scene.py` | 待登记 | 待登记 |
+| 8 | `tools/check-machine-map.sh` | 待登记 | 待登记 |
+| 9 | `tools/cloud-restore-env.sh` | 待登记 | 待登记 |
+| 10 | `tools/cloud-rollback.sh` | 待登记 | 待登记 |
+| 11 | `tools/codespace-start-dsh.sh` | 待登记 | 待登记 |
+| 12 | `tools/codespace-zero.sh` | 待登记 | 待登记 |
+| 13 | `tools/death-persistence-e2e.sh` | 待登记 | 待登记 |
+| 14 | `tools/dsh-context-usage.sh` | 待登记 | 待登记 |
+| 15 | `tools/dsh-phone-qr.sh` | 待登记 | 待登记 |
+| 16 | `tools/exec-record.py` | 待登记 | 待登记 |
+| 17 | `tools/failure-ratio.py` | 待登记 | 待登记 |
+| 18 | `tools/fixture-hygiene.py` | 待登记 | 待登记 |
+| 19 | `tools/gate-inventory.py` | 待登记 | 待登记 |
+| 20 | `tools/gen-xray-pack.py` | 待登记 | 待登记 |
+| 21 | `tools/jar-content-hash.py` | 待登记 | 待登记 |
+| 22 | `tools/jar-content-hash.sh` | 待登记 | 待登记 |
+| 23 | `tools/kernel-predicates.py` | 待登记 | 待登记 |
+| 24 | `tools/llm-relay.py` | 待登记 | 待登记 |
+| 25 | `tools/make-agent-preset.py` | 待登记 | 待登记 |
+| 26 | `tools/make-cloud-tunnel-bundle.sh` | 待登记 | 待登记 |
+| 27 | `tools/make-preset-package.py` | 待登记 | 待登记 |
+| 28 | `tools/mirror-windows-workspace.sh` | 待登记 | 待登记 |
+| 29 | `tools/module-selftest.sh` | 待登记 | 待登记 |
+| 30 | `tools/policy-map.sh` | 待登记 | 待登记 |
+| 31 | `tools/recipe-readability.py` | 待登记 | 待登记 |
+| 32 | `tools/region-ore-scan.py` | 待登记 | 待登记 |
+| 33 | `tools/render-scene-preview.py` | 待登记 | 待登记 |
+| 34 | `tools/simulate-scene-plan.py` | 待登记 | 待登记 |
+| 35 | `tools/sync-windows-artifact.sh` | 待登记 | 待登记 |
+| 36 | `tools/transfer-clock.py` | 待登记 | 待登记 |
+
+### 本线的**底线**（提醒必须带牙）
+
+1. **不可达数不许再涨**（现算值见上；新增工具**要么挂 `check-all`、要么在同刀登记理由**）；
+2. **每条必须写出「什么条件下它可以删」**（写不出 ⇒ 它是个**没主的工具**）；
+3. **`code_ref` 那 19 处过期引用归本线**（用户选丙）—— 见台账 `O163`；
+4. ⛔ **本线不排期** —— ⭐ 它与文档整顿的关系**已定**：**不属本次**（用户 2026-10-04 令「移出去」）。
+
+### ⭐ 本线一开就当场抓到的一个真缺陷（留档）
+
+`tools/check-machine-map.sh` **是一道门禁脚本，却不在任何调用链上** —— `check-all.sh` 走的是 `machine-map.py`（inline 调），⛔ **那个 `.sh` 包装没有任何东西调用**。
+
