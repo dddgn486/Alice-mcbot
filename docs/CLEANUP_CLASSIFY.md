@@ -25,11 +25,11 @@
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 54 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 167 | **125** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 121 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 123 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **592** | **139** | 这个合计**没有行动含义**（见上） |
+| **合计** | **594** | **139** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -504,8 +504,8 @@
 | `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 9 | 1 | — |
 | `tools/analyze-trace.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/archive-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
-| `tools/authz-map.py` | ⑥ 边界即机器 | 15 | 0 | — |
-| `tools/authz-map.sh` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — |
+| `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 18 | 0 | — |
 | `tools/capture-scene.py` | ⑥ 边界即机器 | 6 | 1 | — |
 | `tools/check-all.sh` | ⑥ 边界即机器 | 86 | 2 | — |
@@ -527,7 +527,7 @@
 | `tools/check-effective-trace.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/check-expected-reds.py` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/check-expected-reds.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-far-goal-usage.py` | ⑥ 边界即机器 | 14 | 4 | — |
@@ -560,6 +560,8 @@
 | `tools/check-ref-integrity.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-risk-surface.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-scene-connectivity.py` | ⑥ 边界即机器 | 15 | 0 | — |
+| `tools/check-selftests.py` | ⑥ 边界即机器 | 3 | 0 | — |
+| `tools/check-selftests.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-skills-index.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-station-mapping.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-step-names.sh` | ⑥ 边界即机器 | 5 | 0 | — |
@@ -569,22 +571,22 @@
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — |
-| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 8 | 0 | — |
+| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 8 | 0 | — |
-| `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 8 | 2 | — |
+| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
-| `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 4 | 0 | — |
+| `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/dsh-session-log.mjs` | ⑥ 边界即机器 | 16 | 0 | — |
 | `tools/dsh-session-rollback.mjs` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/exec-record.py` | ⑥ 边界即机器 | 8 | 1 | — |
+| `tools/exec-record.py` | ⑥ 边界即机器 | 7 | 1 | — |
 | `tools/failure-ratio.py` | ⑥ 边界即机器 | 3 | 0 | — |
-| `tools/fixture-hygiene.py` | ⑥ 边界即机器 | 14 | 1 | — |
+| `tools/fixture-hygiene.py` | ⑥ 边界即机器 | 13 | 1 | — |
 | `tools/gate-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/goal-vocabulary.py` | ⑥ 边界即机器 | 6 | 0 | — |
@@ -592,31 +594,31 @@
 | `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
-| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 48 | 9 | — |
+| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 47 | 9 | — |
 | `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — |
 | `tools/machine-map.py` | ⑥ 边界即机器 | 29 | 2 | — |
 | `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
-| `tools/module-selftest.sh` | ⑥ 边界即机器 | 11 | 2 | — |
+| `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
-| `tools/recipe-readability.py` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/recipe-readability.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/ref-anchors.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — |
-| `tools/render-scene-preview.py` | ⑥ 边界即机器 | 4 | 0 | — |
+| `tools/render-scene-preview.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/risk-surface.py` | ⑥ 边界即机器 | 12 | 1 | — |
 | `tools/simulate-scene-plan.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/skills-index.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/step-names.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/survey-index.py` | ⑥ 边界即机器 | 11 | 0 | — |
-| `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 13 | 1 | — |
+| `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 12 | 1 | — |
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — |
@@ -865,5 +867,5 @@
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 4 | 0 | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
 
-<!-- CLEANUP_ROWS 592 -->
+<!-- CLEANUP_ROWS 594 -->
 

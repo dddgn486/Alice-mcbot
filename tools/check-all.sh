@@ -261,6 +261,11 @@ run_gate             "check-new-home" bash tools/check-new-home.sh
   # ⭐ 用户同句划清边界：「**不应该让门禁检查来限制这次的文档整顿**，但是**门禁本身的存在理由
   #   没有问题**」⇒ 处置 = **改引用风格**（新增行号引用当场红），⛔ 不是给整顿加限制。
 run_gate             "check-ref-anchors" bash tools/check-ref-anchors.sh
+  # 门禁（2026-10-04，用户裁「②丁」）：**注入臂必须真的跑** —— 汇总跑全部 `--selftest`。
+  # ⭐ 起因：18 个门禁的臂**只有 `--selftest` 才跑** ⇒ 在 check-all 里**从没跑过**；
+  #   活样本 = cleanup-classify 臂 F 曾自污染恒红而无人知 · check-expected-reds 的
+  #   文件头写「每次都跑」而代码里不跑（散文与代码相反）。
+run_gate             "check-selftests" bash tools/check-selftests.sh
 run_gate             "check-cleanup-classify" bash tools/check-cleanup-classify.sh
   # 门禁（2026-10-02，`W7-5`）：**指向"读不到的位置"的证据指针必须自报"不可复算"**（证据 E4 类）。
   # ⭐ 起因是真损失：文档引 **8 个** `screenshots/<日期>.png` 具体路径，**磁盘上存在 0 个**、

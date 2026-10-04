@@ -107,7 +107,7 @@
 | `docs/` 根 `.md` 份数 | **55** | 55 ✅ | `git ls-files -z 'docs/*.md' | tr '\0' '\n' | grep -cE '^docs/[^/]+\.md$' | tr -d ' '` |
 | `survey/` 报告份数 | **51** | 51 ✅ | `survey/README.md` |
 | 常驻件当前总行数 | **1501** | 1501 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
-| 门禁项数（`check-all` 计数行） | **56** | 56 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
+| 门禁项数（`check-all` 计数行） | **57** | 57 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
 ### 冻结值（只有用户裁定能改）
 
@@ -175,7 +175,7 @@
 | **③ 决策/裁定** | `AI_DECISIONS.md` ＋ `DECISIONS_INDEX.md` | ✅ 索引 ＋ 三断言 · ⛔ `W6-2` 补状态未做 |
 | **④ 状态 ＋ 构想** | 「现在在哪」= `AI_PROJECT_STATE.md`（⛔ **今天还不是那个样子**：头 `2026-09-12` · 内容停 `2026-09-15` · 自述「首要文件」）／ 只追加的历史 = `HANDOVER` 断点 ／ 台账 ／ 本计划书 ／ `.alice-supervision/improvements/` · `PROPOSAL_*` | ✅ **现存 ④ 多处并存 —— 正常**（各记各的那一半）· ✅ **构想那一半的格已定**（2026-10-04 用户裁「**门禁没有权利否决草案**」⇒ 门禁三处登记已按草案改 ⇒ `§D′-8` 第 7 条）· ⛔ `AI_PROJECT_STATE.md` 的归位属「草案目标达成后回到正常流程」的批次 |
 | **⑤ 报告 ＋ 证据（四类）** | `survey/` · `docs/reviews/`（＋ `docs/plans/` 为参考） | ⚠️ **E4 人工观察 = 零留存** ⇒ `W7-5` |
-| **⑥ 边界即机器** | `tools/check-*`（挂 `check-all`） | ✅ **56 项** |
+| **⑥ 边界即机器** | `tools/check-*`（挂 `check-all`） | ✅ **57 项** |
 | **⑦ 事实/数据（三档可变性）** | `*_FACTS.md` · `*.csv` · 生成物 | ⛔ **⑦c 无判据** ⇒ `W7-2` |
 | **⑩ 清旧家（⭐ 本轮重心）** | ⛔ **不是一个新目录** —— 它是**对旧家 441→443 件逐件动手**这件事本身 | ⭐ 载体 = `W7′` **总波**（用户令「支线变主线」）· 判据 = 草案 `§D′-9` · 开工前提 = `check-new-home` **无家可归 0**（⛔ 件数**刻意不入 `LIVE`** —— 它每加一份文档就变 | ⭐ 有信息的是「无家可归 = 0」，由门禁盯） |
 
@@ -372,7 +372,7 @@
 
 ### 规模（⭐ **生成本文件时现算**）
 
-⭐ 本次现算：`tools/` 下被跟踪文件 **272** · 反向可达 **84** · ⭐ **不可达 36**（本线的靶子）。
+⭐ 本次现算：`tools/` 下被跟踪文件 **274** · 反向可达 **86** · ⭐ **不可达 36**（本线的靶子）。
 
 ⚠️ ⭐ **耦合说清楚（⛔ 不藏）**：这一节的数字既然是**现算**的 ⇒ **另一条线往 `tools/` 里加一个不可达的工具，本节就会变 ⇒ `check-plan-doc-refactor` 报「陈旧」**。
 ⭐ 那**不是文档整顿出错** —— 是**提醒过期了**，重跑 `python3 tools/plan-doc-refactor.py --write` 即可。⭐ 顺带把本线的底线变成了**会响的**：「**不可达数不许再涨**」。
@@ -384,49 +384,12 @@
 
 分析工具 · 云端脚本 · 夹具 runner · 一次性勘测脚本 —— **本来就该手动跑**。它意味着的是 ⭐ **这些工具的「为什么存在」没有任何地方登记过**。
 
-### 这 36 个是哪些
+### ⭐ 那 36 项的表在哪
 
-（按文件名排序；**每一行都要逐条登记「为什么它在这」＋「什么条件下可以删」**）
+⭐ **2026-10-04 用户裁「③乙」：表挪出本文件** ⇒ 落在台账 `docs/OPEN_ITEMS_LEDGER.md` 的 `O164` 附表」（台账 = **一件一号**，那张表属 `O164` 那一件）。
 
-| # | 工具 | 已登记存在理由 | 已登记失效条件 |
-|---|---|---|---|
-| 1 | `tools/alice-cloud-remote.sh` | 待登记 | 待登记 |
-| 2 | `tools/alice-cloudctl.sh` | 待登记 | 待登记 |
-| 3 | `tools/analyze-lumber-scene.py` | 待登记 | 待登记 |
-| 4 | `tools/analyze-trace.py` | 待登记 | 待登记 |
-| 5 | `tools/authz-map.py` | 待登记 | 待登记 |
-| 6 | `tools/authz-map.sh` | 待登记 | 待登记 |
-| 7 | `tools/capture-scene.py` | 待登记 | 待登记 |
-| 8 | `tools/check-machine-map.sh` | 待登记 | 待登记 |
-| 9 | `tools/cloud-restore-env.sh` | 待登记 | 待登记 |
-| 10 | `tools/cloud-rollback.sh` | 待登记 | 待登记 |
-| 11 | `tools/codespace-start-dsh.sh` | 待登记 | 待登记 |
-| 12 | `tools/codespace-zero.sh` | 待登记 | 待登记 |
-| 13 | `tools/death-persistence-e2e.sh` | 待登记 | 待登记 |
-| 14 | `tools/dsh-context-usage.sh` | 待登记 | 待登记 |
-| 15 | `tools/dsh-phone-qr.sh` | 待登记 | 待登记 |
-| 16 | `tools/exec-record.py` | 待登记 | 待登记 |
-| 17 | `tools/failure-ratio.py` | 待登记 | 待登记 |
-| 18 | `tools/fixture-hygiene.py` | 待登记 | 待登记 |
-| 19 | `tools/gate-inventory.py` | 待登记 | 待登记 |
-| 20 | `tools/gen-xray-pack.py` | 待登记 | 待登记 |
-| 21 | `tools/jar-content-hash.py` | 待登记 | 待登记 |
-| 22 | `tools/jar-content-hash.sh` | 待登记 | 待登记 |
-| 23 | `tools/kernel-predicates.py` | 待登记 | 待登记 |
-| 24 | `tools/llm-relay.py` | 待登记 | 待登记 |
-| 25 | `tools/make-agent-preset.py` | 待登记 | 待登记 |
-| 26 | `tools/make-cloud-tunnel-bundle.sh` | 待登记 | 待登记 |
-| 27 | `tools/make-preset-package.py` | 待登记 | 待登记 |
-| 28 | `tools/mirror-windows-workspace.sh` | 待登记 | 待登记 |
-| 29 | `tools/module-selftest.sh` | 待登记 | 待登记 |
-| 30 | `tools/policy-map.sh` | 待登记 | 待登记 |
-| 31 | `tools/recipe-readability.py` | 待登记 | 待登记 |
-| 32 | `tools/region-ore-scan.py` | 待登记 | 待登记 |
-| 33 | `tools/render-scene-preview.py` | 待登记 | 待登记 |
-| 34 | `tools/simulate-scene-plan.py` | 待登记 | 待登记 |
-| 35 | `tools/sync-windows-artifact.sh` | 待登记 | 待登记 |
-| 36 | `tools/transfer-clock.py` | 待登记 | 待登记 |
-
+⛔ **为什么挪**：它把本文件顶出了自己的行数上限（`PLAN_MAX`）—— ⚠️ **超的原因不是工序表** （行/工序 ≈ 7.7），是这一节；而这一节按定义**只是提醒**（⛔ 不进 `WAVES`）。
+⭐ **⛔ 内容一处没丢**：那 36 行连同「逐条登记位」的**空表格**一并搬走，⛔ 不是删。
 ### 本线的**底线**（提醒必须带牙）
 
 1. **不可达数不许再涨**（现算值见上；新增工具**要么挂 `check-all`、要么在同刀登记理由**）；
