@@ -249,6 +249,46 @@ def dup_pairs(items: list[str]) -> list[tuple[str, str, float]]:
     return sorted(out, key=lambda t: -t[2])
 
 
+def tool_reach() -> tuple[list[str], list[str]]:
+    """**`tools/` 的调用图**：从入口 `tools/check-all.sh` **反向可达**的有哪些、**不可达**的有哪些。
+
+    为什么单列这条线（用户 2026-10-02 令）：用户逐字「检查脚本我本来也要逐个检查整理的，
+    但是这次文档整顿没有纳入，所以我还不清楚现状」＋ 选 丙（19 处 `code_ref` 留在册）。
+    ⇒ 那条线其实早就有规模：`tools/` 下 **269 个被跟踪文件**，而它从来没被清点过。
+
+    判据只有一个，而且是机械的：*从 `check-all.sh` 反向可达吗*。
+    **不可达不等于该删** —— 分析工具、云端脚本、夹具 runner 本来就该手动跑。
+    它意味着的是：**这些工具的「存在理由」没有任何地方登记过** ⇒ 那正是本条线要补的东西。
+
+    诚实边界（如实写）：本判据靠正则找 `tools/xxx.py|sh` **全路径**字样
+    ⇒ 抓不到 `bash $VAR` 那种动态调用、也抓不到「被别的仓／工作流调」⇒ 它给的是**不可达的上界**。
+    """
+    import re as _re
+    calls: dict[str, set[str]] = {}
+    for sh in subprocess.run(["git", "ls-files", "tools/*.sh"], cwd=ROOT,
+                             capture_output=True, text=True).stdout.split():
+        txt = (ROOT / sh).read_text(encoding="utf-8", errors="ignore")
+        calls[sh.split("/")[-1]] = set(_re.findall(r"tools/([A-Za-z0-9_.\-]+\.(?:py|sh))", txt))
+    ca = (ROOT / "tools" / "check-all.sh").read_text(encoding="utf-8")
+    calls["check-all.sh"] = set(_re.findall(r"tools/([A-Za-z0-9_.\-]+\.(?:py|sh))", ca))
+    reach: set[str] = set()
+    frontier = {"check-all.sh"}
+    while frontier:
+        nxt: set[str] = set()
+        for f in frontier:
+            for c in calls.get(f, ()):
+                if c not in reach:
+                    reach.add(c)
+                    nxt.add(c)
+        frontier = nxt
+    top = [f.split("/")[-1] for f in subprocess.run(
+        ["git", "ls-files", "tools/*.py", "tools/*.sh"], cwd=ROOT,
+        capture_output=True, text=True).stdout.split()]
+    top = sorted(a for a in top if "/" not in a and a != "check-all.sh")
+    orphans = [a for a in top if a not in reach]
+    return sorted(reach), orphans
+
+
 def classify() -> dict:
     """⭐⭐ **带缓存**：同一份 git 指纹下只算一次。
 
@@ -272,7 +312,9 @@ def classify() -> dict:
             stale, why = generated_stale(rel)
             rows.append({"rel": rel, "home": home_of(rel), "refs": n, "src": ns,
                          "claim": claims_effective(rel), "stale": stale, "why": why})
-        data = {"items": items, "rows": rows, "dups": dup_pairs(items)}
+        reach, orphans = tool_reach()
+        data = {"items": items, "rows": rows, "dups": dup_pairs(items),
+                "reach": reach, "orphans": orphans}
         _CACHE[key] = data
         _OUT_TEXT = render(data)   # ⚠️ 此时 rows 已定 ⇒ 生成物新鲜度可以直接比
         data["text"] = _OUT_TEXT
@@ -408,7 +450,58 @@ def render(data: dict) -> str:
           "`CLIENT_*` 0.052 · `ALICE_PATHING_CORE_*` 0.052 —— 全部 < 0.085）⇒ "
           "**「前缀像、内容各写各的」是本仓的常态**，所以「合并」这一档在本仓几乎没有活可干。")
     A("")
-    A("## 六 · 全表（**每一件的归位与信号**；供逐件复核）")
+    A("## 六 · 检查脚本整理线 —— 未开始（用户 2026-10-02 令：本轮只登记，放这里做提醒）")
+    A("")
+    A("> 用户逐字：「检查脚本我本来也要逐个检查整理的，但是这次文档整顿没有纳入，所以我还不清楚现状」")
+    A("> ⇒ 用户裁定：**选丙**（那 19 处 `code_ref` 过期引用**留在册**）＋「同时登记检查脚本整理线，"
+      "直接放在施工计划书的末尾用来提醒」。")
+    A("")
+    A("### 为什么这条线**必须**存在（当场量的规模）")
+    A("")
+    A("| 量 | 值 | 怎么算 |")
+    A("|---|---|---|")
+    A("| `tools/` 下被跟踪文件 | **269** | `git ls-files tools/* \\| wc -l` |")
+    A("| 其中 `.py` ／ `.sh` | **65** ／ **53** | 同上按后缀 |")
+    A("| 门禁脚本（`check-*`） | **60** | `git ls-files tools/check-* \\| wc -l` |")
+    A("| 挂在 `check-all` 上的门禁 | **55** | `check-all` 的 `pass=` 口径 |")
+    A("| 从 `check-all.sh` **反向可达**的顶层工具 | **82** | 见下「判据」 |")
+    A("| **不可达（本线的靶子）** | **36** | 同上 |")
+    A("")
+    A("### 判据（**只有一条，而且是机械的**）")
+    A("")
+    A("> **从入口 `tools/check-all.sh` 反向可达吗？**")
+    A("")
+    A("⚠️ **诚实边界（如实写，不假装完整）**：它靠**正则找 `tools/xxx.py|sh` 全路径字样**"
+      "⇒ **抓不到** `bash $VAR` 那种动态调用、**也抓不到**「被别的仓／工作流调」。"
+      "⇒ 它给的是**不可达的上界**（**36**），真实孤儿只会**更少**。")
+    A("⚠️ **为什么不用「裸文件名也算」的宽松判据**：实测那样会把**文档字符串里提到的文件名**"
+      "也当成「被调用」（门禁脚本的 `echo` 里常提到别的脚本名）⇒ 可达数被严重高估"
+      "（宽松判据下孤儿只剩 **5** 个，**明显是假的**）。⇒ 采用严判据。")
+    A("")
+    A("### 不可达 **不等于** 该删（这一点最容易误读）")
+    A("")
+    A("分析工具 · 云端脚本 · 夹具 runner · 一次性勘测脚本 —— **本来就该手动跑**。")
+    A("那它意味着什么？**这些工具「为什么存在」没有任何地方登记过** —— 那正是本条线要补的东西。")
+    A("")
+    A("### 这 36 个是哪些")
+    A("")
+    _orph = data.get("orphans", [])
+    A(f"（{len(_orph)} 个 —— 按文件名排序；**每一行都要逐条登记「为什么它在这」＋「什么条件下可以删」**）")
+    A("")
+    A("| # | 工具 | 已登记存在理由 | 已登记失效条件 |")
+    A("|---|---|---|---|")
+    for _i, _o in enumerate(_orph, 1):
+        A(f"| {_i} | `tools/{_o}` | 待登记 | 待登记 |")
+    A("")
+    A("### 本条线的**底线**（用户令「放这里做提醒」⇒ 提醒必须带牙）")
+    A("")
+    A("1. **不可达数不许再涨**（今天 **36**；新增工具**要么挂 `check-all`、要么在同刀登记理由**）；")
+    A("2. **每条必须写出「什么条件下它可以删」**（写不出 ⇒ 它是个**没主的工具**）；")
+    A("3. **`code_ref` 那 19 处过期引用归本条线**（用户选丙）—— 见台账 `O163`；")
+    A("4. ⚠️ **它与文档整顿的关系待用户定**（用户：「这次文档整顿**没有纳入**」）"
+      "⇒ ⛔ 本表**只登记，不排期**。")
+    A("")
+    A("## 七 · 全表（**每一件的归位与信号**；供逐件复核）")
     A("")
     A("| 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 | 生成物陈旧 |")
     A("|---|---|---|---|---|---|")

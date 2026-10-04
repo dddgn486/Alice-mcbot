@@ -25,11 +25,11 @@
 | ③ 决策/裁定 | 4 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 38 | **0** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 42 | **0** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 115 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 119 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **0** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **447** | **0** | 这个合计**没有行动含义**（见上） |
+| **合计** | **451** | **0** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -97,11 +97,89 @@
 
 这与本项目既有读数一致（`RISK_*` 0.085 · `MINE_*` 0.032 · `DECISION_*` 0.056 · `CLIENT_*` 0.052 · `ALICE_PATHING_CORE_*` 0.052 —— 全部 < 0.085）⇒ **「前缀像、内容各写各的」是本仓的常态**，所以「合并」这一档在本仓几乎没有活可干。
 
-## 六 · 全表（**每一件的归位与信号**；供逐件复核）
+## 六 · 检查脚本整理线 —— 未开始（用户 2026-10-02 令：本轮只登记，放这里做提醒）
+
+> 用户逐字：「检查脚本我本来也要逐个检查整理的，但是这次文档整顿没有纳入，所以我还不清楚现状」
+> ⇒ 用户裁定：**选丙**（那 19 处 `code_ref` 过期引用**留在册**）＋「同时登记检查脚本整理线，直接放在施工计划书的末尾用来提醒」。
+
+### 为什么这条线**必须**存在（当场量的规模）
+
+| 量 | 值 | 怎么算 |
+|---|---|---|
+| `tools/` 下被跟踪文件 | **269** | `git ls-files tools/* \| wc -l` |
+| 其中 `.py` ／ `.sh` | **65** ／ **53** | 同上按后缀 |
+| 门禁脚本（`check-*`） | **60** | `git ls-files tools/check-* \| wc -l` |
+| 挂在 `check-all` 上的门禁 | **55** | `check-all` 的 `pass=` 口径 |
+| 从 `check-all.sh` **反向可达**的顶层工具 | **82** | 见下「判据」 |
+| **不可达（本线的靶子）** | **36** | 同上 |
+
+### 判据（**只有一条，而且是机械的**）
+
+> **从入口 `tools/check-all.sh` 反向可达吗？**
+
+⚠️ **诚实边界（如实写，不假装完整）**：它靠**正则找 `tools/xxx.py|sh` 全路径字样**⇒ **抓不到** `bash $VAR` 那种动态调用、**也抓不到**「被别的仓／工作流调」。⇒ 它给的是**不可达的上界**（**36**），真实孤儿只会**更少**。
+⚠️ **为什么不用「裸文件名也算」的宽松判据**：实测那样会把**文档字符串里提到的文件名**也当成「被调用」（门禁脚本的 `echo` 里常提到别的脚本名）⇒ 可达数被严重高估（宽松判据下孤儿只剩 **5** 个，**明显是假的**）。⇒ 采用严判据。
+
+### 不可达 **不等于** 该删（这一点最容易误读）
+
+分析工具 · 云端脚本 · 夹具 runner · 一次性勘测脚本 —— **本来就该手动跑**。
+那它意味着什么？**这些工具「为什么存在」没有任何地方登记过** —— 那正是本条线要补的东西。
+
+### 这 36 个是哪些
+
+（36 个 —— 按文件名排序；**每一行都要逐条登记「为什么它在这」＋「什么条件下可以删」**）
+
+| # | 工具 | 已登记存在理由 | 已登记失效条件 |
+|---|---|---|---|
+| 1 | `tools/alice-cloud-remote.sh` | 待登记 | 待登记 |
+| 2 | `tools/alice-cloudctl.sh` | 待登记 | 待登记 |
+| 3 | `tools/analyze-lumber-scene.py` | 待登记 | 待登记 |
+| 4 | `tools/analyze-trace.py` | 待登记 | 待登记 |
+| 5 | `tools/authz-map.py` | 待登记 | 待登记 |
+| 6 | `tools/authz-map.sh` | 待登记 | 待登记 |
+| 7 | `tools/capture-scene.py` | 待登记 | 待登记 |
+| 8 | `tools/check-machine-map.sh` | 待登记 | 待登记 |
+| 9 | `tools/cloud-restore-env.sh` | 待登记 | 待登记 |
+| 10 | `tools/cloud-rollback.sh` | 待登记 | 待登记 |
+| 11 | `tools/codespace-start-dsh.sh` | 待登记 | 待登记 |
+| 12 | `tools/codespace-zero.sh` | 待登记 | 待登记 |
+| 13 | `tools/death-persistence-e2e.sh` | 待登记 | 待登记 |
+| 14 | `tools/dsh-context-usage.sh` | 待登记 | 待登记 |
+| 15 | `tools/dsh-phone-qr.sh` | 待登记 | 待登记 |
+| 16 | `tools/exec-record.py` | 待登记 | 待登记 |
+| 17 | `tools/failure-ratio.py` | 待登记 | 待登记 |
+| 18 | `tools/fixture-hygiene.py` | 待登记 | 待登记 |
+| 19 | `tools/gate-inventory.py` | 待登记 | 待登记 |
+| 20 | `tools/gen-xray-pack.py` | 待登记 | 待登记 |
+| 21 | `tools/jar-content-hash.py` | 待登记 | 待登记 |
+| 22 | `tools/jar-content-hash.sh` | 待登记 | 待登记 |
+| 23 | `tools/kernel-predicates.py` | 待登记 | 待登记 |
+| 24 | `tools/llm-relay.py` | 待登记 | 待登记 |
+| 25 | `tools/make-agent-preset.py` | 待登记 | 待登记 |
+| 26 | `tools/make-cloud-tunnel-bundle.sh` | 待登记 | 待登记 |
+| 27 | `tools/make-preset-package.py` | 待登记 | 待登记 |
+| 28 | `tools/mirror-windows-workspace.sh` | 待登记 | 待登记 |
+| 29 | `tools/module-selftest.sh` | 待登记 | 待登记 |
+| 30 | `tools/policy-map.sh` | 待登记 | 待登记 |
+| 31 | `tools/recipe-readability.py` | 待登记 | 待登记 |
+| 32 | `tools/region-ore-scan.py` | 待登记 | 待登记 |
+| 33 | `tools/render-scene-preview.py` | 待登记 | 待登记 |
+| 34 | `tools/simulate-scene-plan.py` | 待登记 | 待登记 |
+| 35 | `tools/sync-windows-artifact.sh` | 待登记 | 待登记 |
+| 36 | `tools/transfer-clock.py` | 待登记 | 待登记 |
+
+### 本条线的**底线**（用户令「放这里做提醒」⇒ 提醒必须带牙）
+
+1. **不可达数不许再涨**（今天 **36**；新增工具**要么挂 `check-all`、要么在同刀登记理由**）；
+2. **每条必须写出「什么条件下它可以删」**（写不出 ⇒ 它是个**没主的工具**）；
+3. **`code_ref` 那 19 处过期引用归本条线**（用户选丙）—— 见台账 `O163`；
+4. ⚠️ **它与文档整顿的关系待用户定**（用户：「这次文档整顿**没有纳入**」）⇒ ⛔ 本表**只登记，不排期**。
+
+## 七 · 全表（**每一件的归位与信号**；供逐件复核）
 
 | 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 | 生成物陈旧 |
 |---|---|---|---|---|---|
-| `AGENTS.md` | ① 常驻规范 | 83 | 5 | — | — |
+| `AGENTS.md` | ① 常驻规范 | 85 | 5 | — | — |
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 23 | 0 | — | — |
 | `README.md` | ② 入口 ＋ 地图 | 48 | 0 | — | — |
 | `docs/README.md` | ② 入口 ＋ 地图 | 49 | 0 | — | — |
@@ -118,7 +196,7 @@
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 27 | 5 | — | — |
 | `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | 是 |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
-| `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
+| `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — | — |
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 4 | 0 | — | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 2 | — | — |
@@ -126,7 +204,7 @@
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 17 | 0 | — | 是 |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 16 | 0 | — | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 57 | 1 | — | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 58 | 1 | — | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — | — |
@@ -147,31 +225,31 @@
 | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 13 | 1 | — | — |
 | `docs/plans/README.md` | ④ 状态 ＋ 构想 | 49 | 0 | — | 是 |
 | `docs/reference/ROAD_MATHEMATICAL_MODEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
-| `.alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/legacy-ascend-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/minetask-scene-a-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/minetask-scene-b-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/minetask-scene-c-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/minetask-unreachable-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-1-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-2-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-3-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-4-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-5-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-6a-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-6b-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/movement-physics-experiment-6c-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/pathing-core-r2b-traverse-20260907/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 73 | 0 | — | — |
+| `.alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/legacy-ascend-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/minetask-scene-a-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/minetask-scene-b-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/minetask-scene-c-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/minetask-unreachable-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-1-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-2-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-3-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-4-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-5-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-6a-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-6b-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/movement-physics-experiment-6c-20260906/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/pathing-core-r2b-traverse-20260907/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2b-traverse-20260907/evidence/r2b-traverse-logs.txt` | ⑤ 报告 ＋ 证据 | 3 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2b-traverse-20260907/test-case.md` | ⑤ 报告 ＋ 证据 | 3 | 0 | — | — |
-| `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 73 | 0 | — | — |
+| `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/round1-diag-ok-ascend-descend-fail-r2c-logs.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/round2-ascend-partial-descend-fail-r2c-logs.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/round3-diagnostic-probe-r2c-logs.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/round4-final-descend-r2c-logs.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — | — |
 | `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/test-case.md` | ⑤ 报告 ＋ 证据 | 3 | 0 | — | — |
-| `.alice-supervision/client-tests/pathing-r3-battery-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
-| `.alice-supervision/client-tests/pathing-r4-session-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 74 | 0 | — | — |
+| `.alice-supervision/client-tests/pathing-r3-battery-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
+| `.alice-supervision/client-tests/pathing-r4-session-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
 | `.alice-supervision/client-tests/protection-loop-guard-20260919/NOTES.md` | ⑤ 报告 ＋ 证据 | 3 | 0 | — | — |
 | `.alice-supervision/client-tests/stage3a-a4b-cookingtab-20260913/NOTES.md` | ⑤ 报告 ＋ 证据 | 3 | 0 | — | — |
 | `.alice-supervision/client-tests/stage3a-a4b-cookingtab-20260913/evidence/latest-log-excerpt.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — | — |
@@ -194,12 +272,14 @@
 | `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 8 | 1 | — | — |
 | `tools/analyze-trace.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/archive-index.py` | ⑥ 边界即机器 | 10 | 0 | — | — |
-| `tools/authz-map.py` | ⑥ 边界即机器 | 13 | 0 | — | — |
-| `tools/authz-map.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
+| `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — | — |
+| `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 18 | 0 | — | — |
 | `tools/capture-scene.py` | ⑥ 边界即机器 | 5 | 1 | — | — |
 | `tools/check-all.sh` | ⑥ 边界即机器 | 86 | 2 | — | — |
 | `tools/check-archive-index.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
+| `tools/check-authz-code-refs.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
+| `tools/check-authz-code-refs.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/check-authz-registry.sh` | ⑥ 边界即机器 | 12 | 2 | — | — |
 | `tools/check-baritone-anchor.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-capability-list.sh` | ⑥ 边界即机器 | 10 | 0 | — | — |
@@ -210,6 +290,8 @@
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 13 | 3 | — | — |
+| `tools/check-e4-offrepo.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
+| `tools/check-e4-offrepo.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/check-effective-trace.py` | ⑥ 边界即机器 | 5 | 0 | — | — |
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
@@ -286,7 +368,7 @@
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 8 | 0 | — | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
-| `tools/policy-map.py` | ⑥ 边界即机器 | 26 | 4 | — | — |
+| `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — | — |
 | `tools/recipe-readability.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
@@ -316,10 +398,10 @@
 | `docs/TASK_TOP_LEVEL_FREEZE.txt` | ⑦ 事实/数据 | 10 | 1 | — | — |
 | `docs/THERMAL_FACTS.md` | ⑦ 事实/数据 | 8 | 0 | — | — |
 | `docs/THERMAL_S1_FACTS.md` | ⑦ 事实/数据 | 8 | 1 | — | — |
-| `docs/authz/AUTHZ_REGISTRY.csv` | ⑦ 事实/数据 | 14 | 2 | — | — |
+| `docs/authz/AUTHZ_REGISTRY.csv` | ⑦ 事实/数据 | 16 | 2 | — | — |
 | `docs/authz/CONTAINER_WRITE_SITES.csv` | ⑦ 事实/数据 | 10 | 1 | — | — |
 | `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 14 | 2 | — | — |
-| `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 22 | 3 | — | — |
+| `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
@@ -329,51 +411,51 @@
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/2298dd3-p1-physics-observation-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/2ef35e5-bot-death-filter-manual-test.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V1-basic/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V2-multi-slot/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V3-selector/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V1-basic/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V2-multi-slot/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V3-selector/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/test-fail-root-cause.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A1-permission-command/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A2-normal-transfer/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A3-in-transit/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A4-capacity-rejection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A5-destination-conflict/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A6-hazard/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A7-restart/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A8-abort/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A9-chest-gui/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A1-permission-command/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A2-normal-transfer/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A3-in-transit/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A4-capacity-rejection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A5-destination-conflict/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A6-hazard/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A7-restart/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A8-abort/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A9-chest-gui/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R10-restart-expiry/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R2-source-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R3-destination-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R4-invalid-endpoint/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R9-status-clear-retain/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R10-restart-expiry/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R2-source-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R3-destination-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R4-invalid-endpoint/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R9-status-clear-retain/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest-result.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/8bb2d7b.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E1-item-permission/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E10-restart-expiry/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E2-source-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E3-destination-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E4-invalid-endpoint/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E5-same-cross/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E6-default-submit/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E7-explicit-drift/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E8-command-consistency/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E9-status-clear-retain/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E1-item-permission/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E10-restart-expiry/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E2-source-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E3-destination-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E4-invalid-endpoint/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E5-same-cross/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E6-default-submit/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E7-explicit-drift/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E8-command-consistency/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E9-status-clear-retain/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V1-basic/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V2-different-items/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V3-multi-slot/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V1-basic/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V2-different-items/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V3-multi-slot/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/ab510fd-p1-client-sync-fix-retest.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/evidence/8bb2d7b/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/evidence/8bb2d7b/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-3.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-4.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-5.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
@@ -382,17 +464,17 @@
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-8.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G1-open/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G8-task-guard/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G9-idle-interact/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G1-open/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G8-task-guard/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G9-idle-interact/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f33292c-mainhand-residue-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C1-external-mutation/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C2-hazard-interrupt/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C3-restart-takeover/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C4-vanilla-gui/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 73 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C1-external-mutation/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C2-hazard-interrupt/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C3-restart-takeover/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C4-vanilla-gui/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 74 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/container-mod-compatibility.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/container-quick-move-explained.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/dsh-3082-e2e-verification-20260824.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
@@ -528,7 +610,7 @@
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 57 | 1 | — | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 58 | 1 | — | — |
 | `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — | — |
 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 10 | 0 | 已实现 | — |
@@ -549,5 +631,5 @@
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 4 | 0 | — | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — | — |
 
-<!-- CLEANUP_ROWS 447 -->
+<!-- CLEANUP_ROWS 451 -->
 
