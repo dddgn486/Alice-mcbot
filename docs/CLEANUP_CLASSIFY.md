@@ -25,11 +25,11 @@
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 54 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 167 | **125** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 119 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 121 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **590** | **139** | 这个合计**没有行动含义**（见上） |
+| **合计** | **592** | **139** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -293,10 +293,10 @@
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 4 | 0 | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
-| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 18 | 0 | — |
+| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
-| `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 16 | 0 | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 59 | 1 | — |
+| `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 17 | 0 | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 60 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
@@ -542,7 +542,7 @@
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-layer-direction.py` | ⑥ 边界即机器 | 24 | 7 | — |
 | `tools/check-machine-map.sh` | ⑥ 边界即机器 | 18 | 2 | — |
-| `tools/check-new-home.sh` | ⑥ 边界即机器 | 8 | 0 | — |
+| `tools/check-new-home.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/check-policy-matrix.sh` | ⑥ 边界即机器 | 11 | 0 | — |
@@ -556,6 +556,7 @@
 | `tools/check-quote-lint.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-quote-lint.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-redline-gates.sh` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/check-ref-anchors.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-ref-integrity.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-risk-surface.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-scene-connectivity.py` | ⑥ 边界即机器 | 15 | 0 | — |
@@ -605,7 +606,8 @@
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
 | `tools/recipe-readability.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
-| `tools/ref-integrity.py` | ⑥ 边界即机器 | 11 | 0 | — |
+| `tools/ref-anchors.py` | ⑥ 边界即机器 | 3 | 0 | — |
+| `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/render-scene-preview.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/risk-surface.py` | ⑥ 边界即机器 | 12 | 1 | — |
@@ -842,7 +844,7 @@
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 59 | 1 | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 60 | 1 | — |
 | `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 10 | 0 | 已实现 |
@@ -863,5 +865,5 @@
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 4 | 0 | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
 
-<!-- CLEANUP_ROWS 590 -->
+<!-- CLEANUP_ROWS 592 -->
 
