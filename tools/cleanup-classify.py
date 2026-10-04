@@ -18,7 +18,7 @@
 | 信号 | 怎么算（机械） | 它意味着什么 |
 |---|---|---|
 | **零引用** | 全仓（`*.md/*.py/*.sh/*.yml/*.java/*.csv`）除自身外零命中（路径或 basename） | 只是**候选** —— `§D′-9` 9.3 判据② |
-| **生成物陈旧** | 文件名在「有生成器 ＋ 有门禁」的名单里 ⇒ 跑它的门禁 | 陈旧 ⇒ 该跑 `--write`（不是该删） |
+| ~~**生成物陈旧**~~ | ⛔ **已于 2026-10-04 移出本表**（`P2-1`）：它**归各生成物自己的门禁** —— 本表复制那个判断时**恒报「陈旧」（假阳性）**，而且**天然自指 ⇒ 迟早震荡**。本表只保留"**名单本身**不许陈旧"（逐字节比对） |
 | **同族重复度** | 同前缀族内两两 **8-gram Jaccard** | `§D′-9` 9.3 判据④的**量化门**；本项目实测普遍很低 |
 | **归位** | 命中 `DEST` 哪一类（**复用 `new-home-audit.py` 的同一张表**，不抄第二份） | 「它是什么（形态）」 |
 
@@ -188,26 +188,6 @@ def refs(rel: str) -> int:
     return len([x for x in r.stdout.split() if x and x != rel])
 
 
-def generated_stale(rel: str) -> tuple[bool, str]:
-    """生成物是不是陈旧。非生成物一律返回 (False, "")。
-
-    ⚠️ **本函数一律不起子进程** —— ⛔ 这是刻意设计，不是省事：
-      · 若去跑**那份生成物的门禁**，而名单里**又包含本文件自己**（`docs/CLEANUP_CLASSIFY.md`
-        也有生成器 ＋ 门禁）⇒ `--check` 会调到自己 ⇒ **无限递归**。
-      · ⭐ 所以本表**不外包**这个判断，改用**同一条判据**：把「重新生成的结果」与
-        "磁盘上的文件"**逐字节比**（缺文件一律算陈旧）。⇒ 判据**不弱**，
-        而且对**任何**生成物都成立（含本文件自己）。
-    """
-    for path, _gen, _gate in GENERATED:
-        if path != rel:
-            continue
-        disk = ROOT / path
-        if not disk.exists():
-            return True, "文件不存在"
-        return disk.read_text(encoding="utf-8", errors="ignore") != _OUT_TEXT, "与重新生成的结果不同"
-    return False, ""
-
-
 def ngrams(text: str, n: int = 8) -> set[str]:
     toks = re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[\u4e00-\u9fff]", text)
     return {" ".join(toks[i:i + n]) for i in range(max(0, len(toks) - n + 1))}
@@ -309,15 +289,18 @@ def classify() -> dict:
             # 除自身以外：谁提到它（索引天然排掉它自己 —— 文件不会"提到"自己）
             n = len(idx.get(b, set()) - {rel})
             ns = len(sidx.get(b, set()))
-            stale, why = generated_stale(rel)
             rows.append({"rel": rel, "home": home_of(rel), "refs": n, "src": ns,
-                         "claim": claims_effective(rel), "stale": stale, "why": why})
+                         "claim": claims_effective(rel)})
         reach, orphans = tool_reach()
         data = {"items": items, "rows": rows, "dups": dup_pairs(items),
                 "reach": reach, "orphans": orphans}
-        _CACHE[key] = data
-        _OUT_TEXT = render(data)   # ⚠️ 此时 rows 已定 ⇒ 生成物新鲜度可以直接比
+        # ⭐⭐ **单遍渲染**（2026-10-04 修 `P2-1`）：本表**不再算生成物新鲜度**（见 §四 的说明）。
+        #   ⚠️ 旧版是"两遍"：先清 `_OUT_TEXT=""` 再比 ⇒ **8 个生成物全被标"陈旧"**（假阳性），
+        #   而 `--selftest` 没有一条臂覆盖它 ⇒ 一直没人抓到。
+        #   ⇒ 正确形状 = ⛔ **不许第二份真相**：新鲜度归**各生成物自己的门禁**。
+        _OUT_TEXT = render(data)
         data["text"] = _OUT_TEXT
+        _CACHE[key] = data
     return _CACHE[key]
 
 
@@ -381,8 +364,6 @@ def render(data: dict) -> str:
         why = []
         if r["refs"] == 0:
             why.append("全仓**只有它自己**提到自己")
-        if r["stale"]:
-            why.append("**生成物已陈旧**（该跑 `--write`，不是该删）")
         A(f"| {i} | `{r['rel']}` | {r['home']} | **{r['refs']}** | {'；'.join(why) or '—'} "
           "| ☐ | ☐ | ☐ | ☐ |")
     A("")
@@ -423,16 +404,22 @@ def render(data: dict) -> str:
     else:
         A("（无）")
     A("")
-    A("## 四 · 生成物新鲜度（陈旧 ⇒ 该重生成，**不是该删**）")
+    A("## 四 · 生成物名单（⛔ **本表不报新鲜度**）")
     A("")
-    A("| 生成物 | 门禁 | 现在 |")
+    A("⭐ **每件生成物的新鲜度由它自己的门禁判** —— ⛔ **本表不复制那个判断**（复制 = 第二份真相）。")
+    A("")
+    A("⚠️ **为什么删掉这一栏（`P2-1`，2026-10-04 当场实测）**：旧版在这里报「陈旧／新鲜」，"
+      "而它的实现是拿每件生成物的磁盘内容去比 `_OUT_TEXT` ——")
+    A("⛔ 而 `_OUT_TEXT` 是**本表自己的**渲染结果 ⇒ **8 件全部被标「陈旧」（假阳性）**，"
+      "而它们 8 道门禁在 `check-all` 里**全是绿的**。")
+    A("⚠️ 而且这一栏**天然自指**（本表显示新鲜度 ⇒ 改本表内容 ⇒ 又影响新鲜度）⇒ 迟早震荡。")
+    A("⇒ ⭐ **判据归位**：新鲜度 = 各生成物**自己门禁**的事；本表只负责**名单本身**不许陈旧"
+      "（`tools/check-cleanup-classify.sh` 逐字节比对）。")
+    A("")
+    A("| 生成物 | 生成器 | 门禁（新鲜度由它判） |")
     A("|---|---|---|")
-    for path, _gen, gate in GENERATED:
-        r = next((x for x in rows if x["rel"] == path), None)
-        if r is None:
-            A(f"| `{path}` | `{gate}` | **不在件清单里** |")
-            continue
-        A(f"| `{path}` | `{gate}` | {'**陈旧**' if r['stale'] else '新鲜'} |")
+    for path, gen, gate in GENERATED:
+        A(f"| `{path}` | `{gen}` | `{gate}` |")
     A("")
     A("## 五 · 同族重复度（8-gram Jaccard >= **0.30** 才列）")
     A("")
@@ -462,11 +449,10 @@ def render(data: dict) -> str:
     A("")
     A("## 七 · 全表（**每一件的归位与信号**；供逐件复核）")
     A("")
-    A("| 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 | 生成物陈旧 |")
-    A("|---|---|---|---|---|---|")
+    A("| 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 |")
+    A("|---|---|---|---|---|")
     for r in sorted(rows, key=lambda r: (r["home"], r["rel"])):
-        A(f"| `{r['rel']}` | {r['home']} | {r['refs']} | {r['src']} | "
-          f"{r['claim'] or '—'} | {'是' if r['stale'] else '—'} |")
+        A(f"| `{r['rel']}` | {r['home']} | {r['refs']} | {r['src']} | {r['claim'] or '—'} |")
     A("")
     A(f"<!-- CLEANUP_ROWS {len(rows)} -->")
     A("")
@@ -545,8 +531,11 @@ def selftest() -> int:
     #        ⇒ 教训（正是 `§D′-9` 9.3 判据②那条）：**"提到它"会被当成"引用它"** ——
     #        所以本臂不能用"我以为没人提"的件，只能用**定义上不可能被提到的路径**：
     #        ① 一个不存在于仓里的路径 ⇒ 必须 0；② 一份已知被引的件 ⇒ 必须 > 0。
+    # ⚠️ **探针必须运行时拼**：字面量写进源码 ⇒ `git grep -F` 会**命中本文件自己**
+    #    ⇒ 计数 1 ≠ 0 ⇒ **臂恒红**（2026-10-04 实测到的自污染，已修）。
+    _probe = "/nonexistent/" + "probe-" + "9f3a" + ".md"
     arms.append(("F 自身被排除（零引用不是永真断言）", "",
-                 refs("docs/HANDOVER.md") > 0 and refs("/nonexistent/probe-9f3a.md") == 0))
+                 refs("docs/HANDOVER.md") > 0 and refs(_probe) == 0))
 
     # 臂 G：`claims_effective` 必须**真的能读出自称**（否则批 1 那节恒为空 ⇒ 永真断言）。
     #        ⚠️ 用**正对照**（一份已知自称生效的件）＋ **反对照**（工具脚本，必然 None）。
@@ -569,6 +558,19 @@ def selftest() -> int:
     others = [r for r in data["rows"] if r["claim"] and r["src"] > 0]
     arms.append(("H 批 1 排除有 src/ 落点的件", "未筛",
                  all(r["src"] == 0 for r in cand) and (not others or all(r["src"] > 0 for r in others))))
+
+    # 臂 I ⭐ **生成物新鲜度不许自指震荡**（2026-10-04 补 —— `P2-1` 的防复发臂）。
+    #   ⚠️ 缺陷形状：本表**显示**生成物新鲜度，而"新鲜度" = 磁盘内容 vs **本表重新生成的结果**
+    #   ⇒ 本表**自己在名单里** ⇒ 写一次、内容变一次 ⇒ **震荡**（同族：`archive-index.py` 第一版）。
+    #   判据 = ⭐ **清掉缓存、连算两次，产物必须逐字节相同**（不动点）＋ 自评栏必须是"不自评"。
+    _CACHE.clear()
+    _t1 = render(classify())
+    _CACHE.clear()
+    _t2 = render(classify())
+    arms.append(("I 不自指震荡（清缓存连算两次，产物逐字节相同）", "震荡", _t1 == _t2))
+    #   ⭐ 本臂守的是这一族：**"本表显示的东西" 又反过来决定 "本表的内容"** ⇒ 写一次变一次。
+    #   ⚠️ 旧版的活样本就是 §四 的「生成物新鲜度」栏（它比的是本表自己的渲染结果）——
+    #      那一栏已按 `P2-1` 整栏删除；本臂留着防**下一个**同族写法。
 
     bad = 0
     for name, want, ok in arms:

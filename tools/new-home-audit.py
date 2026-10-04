@@ -91,7 +91,15 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
       "docs/MULTI_BOT_INTERFACE_RESERVATION.md", "docs/BATTERY_CURATION.md",
       "docs/reference/ROAD_MATHEMATICAL_MODEL.md")),
     ("⑤ 报告 ＋ 证据", "可引 ⛔ 不可当依据 · 四类证据 E1–E4",
-     ("survey/*.md", "docs/reviews/*.md", "docs/reviews/archive/*.md",
+     # ⚠️ 2026-10-04：这里原来还有一条 `docs/reviews/archive/*.md` ⇒ ⛔ **已删（冗余）**。
+     #    ⭐ 原因：本文件的匹配器是 `fnmatch`，而 **`fnmatch` 的 `*` 会跨 `/`**
+     #    ⇒ `docs/reviews/*.md` **本来就覆盖** `docs/reviews/archive/*.md`
+     #    ⇒ 两条同时命中同一件 = **同类内冗余通配**（本审计自己的一条断言：迟早分叉）。
+     #    ⚠️ **为什么以前没红**：`docs/reviews/archive/` 里**只有 1 份件、且是中文名**
+     #    ⇒ 它一直在 `git ls-files` 那个盲区里被跳过 ⇒ **臂 F 修好盲区，这条冗余当场暴露**。
+     #    ⛔ **不要**改成"让匹配器路径敏感"来保这条——那会让 `docs/archive/*` 失去 `docs/archive/legacy-*/…`
+     #    （35 件当场无家可归）。⇒ 最小正确修法 = 删冗余那条。
+     ("survey/*.md", "docs/reviews/*.md",
       ".alice-supervision/client-tests/*",
       "docs/RISK_SYSTEM_REVIEW_*.md", "docs/RISK_SYSTEM_ISSUE_LIST.md",
       "docs/REVIEW_2026-*.md", "docs/R4_BARITONE_ALIGNMENT_AUDIT.md",
@@ -136,11 +144,22 @@ SKIP = re.compile(r"^(\.git|build|run|\.gradle|gradle)/|\.(png|jpg|jpeg|gif|svg|
 
 
 def old_home_items(root: Path) -> list[str]:
-    """旧家 = **被 git 跟踪**的全部"文档型"件（⛔ 不含图片/日志正文，它们在证据目录里被整目录归类）。"""
+    """旧家 = **被 git 跟踪**的全部"文档型"件（⛔ 不含图片/日志正文，它们在证据目录里被整目录归类）。
+
+    ⚠️⚠️ **必须 `-z`**（2026-10-04 修 —— `P2-7`）：不带 `-z` 时 `git ls-files` 会把
+    **非 ASCII 路径加引号**（`"survey/52-\\346\\211\\271…md"`）⇒ 下面的 `endswith(...)`
+    **全部为假** ⇒ ⭐ **139 件中文名的件被静默跳过**（≈ 全部件的 23%），**而本表照报「无家可归 0」**。
+    ⇒ ⭐ 这是**同一个错第二次**（`tools/check-e4-offrepo.py` 犯过一模一样的一次，
+       当时 3 份文件被静默跳过而报绿，修法也是 `-z` ＋ 加一条专防它的臂）。
+    ⭐ 防它的是 **臂 F**（喂一个中文名文件，断言它**真的**出现在清单里）。
+    """
     import subprocess
-    out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True).stdout
+    out = subprocess.run(["git", "ls-files", "-z"], cwd=root,
+                         capture_output=True, text=True).stdout
     items = []
-    for l in out.splitlines():
+    for l in out.split("\0"):
+        if not l:
+            continue
         if SKIP.search(l):
             continue
         # ⚠️⚠️ **必须含 `.py` / `.sh`** —— 第一版只收 `.md/.csv/.txt/.yml` ⇒
@@ -312,6 +331,17 @@ def selftest() -> int:
         globals()["DEST"] = [(f"类{i}", "" if i == 0 else "判据", (f"docs/x{i}*",)) for i in range(DEST_FLOOR)]
         probs = [f"⛔ 载体「{n}」**没有判据**" for n, w, _ in DEST if not w.strip()]
         arms.append(("C 空判据", "没有判据", bool(probs)))
+
+        # 臂 F ⭐ **非 ASCII 路径不许被静默跳过**（2026-10-04 补 —— `P2-7` 的防复发臂）。
+        #   ⚠️ 它防的是一个**真实发生过**的缺陷：`git ls-files` 不带 `-z` ⇒ 中文名被加引号
+        #   ⇒ `endswith(...)` 为假 ⇒ **139 件从未被评估，而本表照报「无家可归 0」**。
+        #   ⛔ 判据不许耦合到"仓里现在有几个中文名文件"（那会随文档增删假红/假绿）——
+        #   所以喂一个**临时**中文名文件，断言它**进得来**。
+        (r / "docs" / "中文件.md").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=r, check=True)
+        _items = old_home_items(r)
+        arms.append(("F 非 ASCII 路径不被静默跳过（-z）", "漏件",
+                     any("中文件" in x for x in _items)))
 
     bad = 0
     for name, want, ok in arms:

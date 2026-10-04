@@ -92,6 +92,13 @@ LIVE: list[tuple[str, str, tuple]] = [
      ("cmd", r"ls docs/reviews/*.md | wc -l | tr -d ' '")),
     ("`docs/` 根设计件份数", "14",
      ("regex", "docs/DESIGN_INDEX.md", r"^\| 顶层设计件（`docs/` 根） \| \*\*(\d+)\*\* \|")),
+    # ⭐ **本条的来历（2026-10-04，`P1`）**：批 2 的靶子数原先**只写在散文里**（`181`）
+    # ⇒ ⛔ **没有任何东西盯它** ⇒ 它烂掉很久没人发现（真值 = `docs/` 根 `.md` **55**，
+    #    而 `181` 是"`docs/` **全树**"的数被 `survey/51:60` 填进了"根"那一行）。
+    # ⇒ ⭐ 修法**不是**把 181 改成 55 就完事 —— 是**把它变成门禁读数**，此后漂了当场红。
+    # ⚠️ 必须 `-z`：非 ASCII 路径不带 `-z` 会被 git 加引号 ⇒ 分类/计数错（`P2-7` 同一个坑）。
+    ("`docs/` 根 `.md` 份数", "55",
+     ("cmd", "git ls-files -z 'docs/*.md' | tr '\\0' '\\n' | grep -cE '^docs/[^/]+\\.md$' | tr -d ' '")),
     ("`survey/` 报告份数", "51",
      ("regex", "survey/README.md", r"^\| 报告份数 \| \*\*(\d+)\*\* \|")),
     ("常驻件当前总行数", "1501",
@@ -315,7 +322,8 @@ WAVES: list[tuple[str, str, list[tuple]]] = [
          "⚠️ 用户同时**改正了我的判据**：「**声称生效的对象不限于代码**」⇒ ⛔ `src/` 零命中**不足以**判它错，"
          "✅ **该句已于 2026-10-04 补进 `§D′-9` 9.3 判据②**（判「零引用」必须按它自称生效的那个层面去找引用）；"
          "「丢」= 🔴 档 ⇒ 必须用户逐条点头", "`O155`", "进行中"),
-        ("W7′-4", "**批 2..N**：`docs/` 根 **181** 份 ＋ `docs/reviews/` **75** ＋ `survey/` **50** 的搬迁／合并／过期"
+        ("W7′-4", "**批 2..N**：`docs/` 根 **{ROOT_MD_N}** 份 ＋ `docs/reviews/` **75** ＋ `survey/` **50** 的搬迁／合并／过期"
+         "（⚠️ **靶子数 2026-10-04 已更正**：原写 `181` —— 那是 **`docs/` 全树**的数，`P1` 当场复算真值 = **55**；⭐ 且此后它是 `LIVE` 门禁读数，漂了当场红）"
          "（⭐ **分批口径 = 按目录大小，即本行原计划** —— 2026-10-02 用户在取舍 1 上选「**先按目录大小分批**」，"
          "理由逐字：「反正**审批完的会保留**，**随时可以换审批顺序**」⇒ ⛔ 本行不再改成按过期密度）",
          "🟡", "W7′-3",
@@ -356,7 +364,7 @@ WAVES: list[tuple[str, str, list[tuple]]] = [
          "（已更正标题、原题留档）· `RISK_SYSTEM_DESIGN_DRAFT.md` 缺状态行（已补）· ⛔ `*.csv` **不搬**"
          "（`policy-map.py` 路径写死）",
          "`tools/check-proposal-status.py`", DONE),
-        ("W7-9", "`docs/` 根 **181** 份的内部重复度（`*_DESIGN*`／`RISK_*`／两个 `HANDOVER`）", "🟡", "W7-1",
+        ("W7-9", "`docs/` 根 **{ROOT_MD_N}** 份的内部重复度（`*_DESIGN*`／`RISK_*`／两个 `HANDOVER`）", "🟡", "W7-1",
          "✅ **已量完（`O154` ⑤）**：按前缀挑 5 族量 8-gram Jaccard —— `RISK_*` **0.085** · `MINE_*` 0.032 · "
          "`DECISION_*` 0.056 · `CLIENT_*` 0.052 · `ALICE_PATHING_CORE_*` 0.052 ⇒ **全部 < 0.085**"
          "（「前缀像、内容各写各的」）⇒ ⭐ **「合并」这一档在本仓几乎没有活可干**；"
@@ -469,6 +477,32 @@ def inline_readings(source: str) -> list[str]:
     return [m for body in A_CALL.findall(source) for m in INLINE.findall(body)]
 
 
+def nonf_live_calls(source: str) -> list[str]:
+    """⭐ 找出「**不是 f-string** 却写了 `live_value(…)`」的 `A(...)` 调用（返回「第 N 行」）。
+
+    ⚠️⚠️ **必须走 AST，⛔ 不许用正则扫源码**（2026-10-04 实测撞到两次）：
+      正则会把**本文件 selftest 里拼出来的假源码**、以及**注释里的举例**当成真调用
+      ⇒ **门禁自己判自己红**（姊妹函数 `inline_readings` 第一版就踩过这个坑）。
+      ⭐ AST 的判据天然干净：**f-string 是 `JoinedStr`、普通字符串是 `Constant`**
+      ⇒ 只认 `Constant` 就等于「不是 f-string」，⛔ 不会被文档文字骗到。
+    """
+    import ast as _ast
+    try:
+        tree = _ast.parse(source)
+    except SyntaxError:
+        return []
+    out: list[str] = []
+    for node in _ast.walk(tree):
+        if not (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name)
+                and node.func.id == "A" and node.args):
+            continue
+        a0 = node.args[0]
+        if (isinstance(a0, _ast.Constant) and isinstance(a0.value, str)
+                and "live_value(" in a0.value):
+            out.append(f"第 {node.lineno} 行")
+    return sorted(set(out))
+
+
 def prose_freshness(source: str) -> list[str]:
     """散文新鲜度自证 —— 返回问题列表（空 = 过）。"""
     called = inline_readings(source)
@@ -479,6 +513,13 @@ def prose_freshness(source: str) -> list[str]:
     if not called:
         out.append("⛔ 散文新鲜度自证**没扫到任何** `live_value(…)` 调用 ⇒ "
                    "绑定被删了（扫不到就报绿的入口，不放过）")
+    # ⭐⭐ **注册了 ≠ 生效**（2026-10-04 当场撞到，`P2-9`）：
+    #   `A_CALL` 的正则**允许可选的 `f`**，而 `inline_readings` **不管有没有 `f`** 都算「引了读数」
+    #   ⇒ ⛔ 一处**非 f** 的 `A(…)` 能**通过检查**，却把 `{live_value('…')}` **原样印进计划书**
+    #      （人读到的是一段代码，不是一个数）。⇒ 判据：**引了读数的 `A(...)` 必须是 f-string**。
+    for _where in nonf_live_calls(source):
+        out.append(f"⛔ {_where} 的 `A(…)` **不是 f-string** 却写了 `live_value(…)` ⇒ "
+                   "计划书里会原样印出 `{live_value('…')}` 字面量（⛔ **注册了 ≠ 生效**）")
     return out
 
 
@@ -516,6 +557,9 @@ def live_value(name: str) -> str:
 
 def render() -> str:
     L: list[str] = []
+    # ⭐ `docs/` 根 `.md` 份数 = **批 2 的靶子数**。⛔ 正文里不许写死它（`P1`：写死的 `181`
+    #   烂了很久没人发现）⇒ 统一在这里取一次，正文用 `{ROOT_MD_N}` 记号替换。
+    _root_md = live_value("`docs/` 根 `.md` 份数")
     # ⭐ **检查脚本整理线**（§九）现算 —— 由 `cleanup-classify.py` 的 `tool_reach()` 提供。
     _reach, _orphans = cc.tool_reach()
     _tools_n = len([x for x in sh("git ls-files tools/").splitlines() if x.strip()])
@@ -738,7 +782,8 @@ def render() -> str:
     A("| **2** | `docs/reference/` **3** 份怎么分 | 🟡 | 三份**分属三种类**（决策／事实／设计）⇒ 是**改类**不是搬文件 |")
     A("| **3** | `docs/authz/` 的「提案 vs 已生效」（3 md ＋ 3 CSV） | 🟡 | 提案件**没有格** |")
     A("| **4** | `PLAYBOOK` **17** 处软约束逐条归档 | 🟡 | ⭐ **「是软还是习惯」是用户的判断** ⇒ `W7-6` 先勘测 |")
-    A("| **5** | `docs/` 根 **181** 份的内部重复度 | 🟡 | ⛔ **一次都没量过**（多个 `*_DESIGN*`／`RISK_*`／两个 `HANDOVER`） |")
+    A("| **5** | `docs/` 根 **{ROOT_MD_N}** 份的内部重复度 | 🟡 | ⛔ **一次都没量过**（多个 `*_DESIGN*`／`RISK_*`／两个 `HANDOVER`） |"
+      .replace("{ROOT_MD_N}", _root_md))
     A("| **6** | E4 附件策略：**(甲)** 原件进仓 ／ **(丙)** 独立附件仓 | 🔴 | 用户已裁 **(乙)** ⇒ (甲)(丙) 待勘测 |")
     A("| **7** | ⑥ 归档判据（**两套归档**：`docs/archive/` 31 按内容类型 · `.alice-supervision/archive/` 154 按日期世代） | 🟡 | "
       "⚠️ 草案 v1 写的「`docs/archive/` **4 目录**」是**不完整描述** |")
@@ -755,7 +800,8 @@ def render() -> str:
     A("| # | 本节原文 | 实测 | 处置 |")
     A("|---|---|---|---|")
     A("| **1** | 「`skills/README.md` 是否变生成物」 | ✅ **已变**（`check-skills-index`，`O154` ①） | **销账** |")
-    A("| **5** | 「`docs/` 根 181 份的内部重复度 · ⛔ 一次都没量过」 | ✅ **已量完**（5 族 8-gram **全 < 0.085** ⇒ 无活可干，`O154` ⑤） | **销账**（＝ `W7-9` 已完成） |")
+    A("| **5** | 「`docs/` 根 {ROOT_MD_N} 份的内部重复度 · ⛔ 一次都没量过」 | ✅ **已量完**（5 族 8-gram **全 < 0.085** ⇒ 无活可干，`O154` ⑤） | **销账**（＝ `W7-9` 已完成） |"
+      .replace("{ROOT_MD_N}", _root_md))
     A("| **7** | 「⑥ 归档判据（两套归档）」 | ✅ **已出**（6 个 README ＋ `check-archive-index`，`O154` ⑦） | **销账**（⛔ 只剩「何时入库、谁来判」未裁） |")
     A("")
     A("⭐ **销账规则（本节新增，即刻生效）**：**任何一条被别的波解决 ⇒ 必须回来把本行改成 `✅ 已销账（落点）`**，")
@@ -773,7 +819,9 @@ def render() -> str:
         A("| # | 工序 | 档 | 前置 | ⭐ 判据（做完怎么知道对了） | 落点 | 状态 |")
         A("|---|---|---|---|---|---|---|")
         for iid, nm, tier, pre, crit, dest, st in items:
-            A(f"| `{iid}` | {nm} | {tier} | {pre} | {crit} | {dest} | {st} |")
+            # ⚠️ f-string **不会递归展开**被代入字符串里的 `{…}` ⇒ 用记号替换。
+            A(f"| `{iid}` | {nm} | {tier} | {pre} | {crit} | {dest} | {st} |"
+              .replace("{ROOT_MD_N}", _root_md))
         A("")
     A("## 七 · ⛔ 本计划明确**不做**的")
     A("")
@@ -1012,6 +1060,17 @@ def selftest() -> int:
     e_out = "PLAN_DOC_REFACTOR_RESULT FAIL\n" + "\n".join(
         "  [FAIL] " + p for p in prose_freshness(fake))
     arms.append(("E 散文引未登记读数", "`LIVE` 表里没有", e_out))
+
+    # 臂 F ⭐ **非 f-string 的 `A(...)` 里写 `live_value(…)` ⇒ 必须红**
+    #   （2026-10-04 补：这是"注册了 ≠ 生效"那一族 —— 检查通过，正文却印出一段代码）。
+    # ⚠️ **必须运行时拼**：假源码里那个调用形状一旦**字面**留在文件里，
+    #    `check()` 扫真源码时就会**命中它自己** ⇒ **门禁自己判自己红**（本函数 docstring 早有此警告）。
+    _q = chr(34)
+    fakeF = ("def render():\n    " + "A(" + _q
+             + "靶子数 = {live_value(" + chr(39) + "X" + chr(39) + ")} 份" + _q + ")\n")
+    f_out = "PLAN_DOC_REFACTOR_RESULT FAIL\n" + "\n".join(
+        "  [FAIL] " + p for p in prose_freshness(fakeF))
+    arms.append(("F 非 f-string 的 A(...) 引读数", "不是 f-string", f_out))
 
     bad = 0
     for name, want, out in arms:
