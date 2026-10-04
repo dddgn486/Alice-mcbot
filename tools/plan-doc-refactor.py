@@ -97,7 +97,7 @@ LIVE: list[tuple[str, str, tuple]] = [
     #    而 `181` 是"`docs/` **全树**"的数被 `survey/51:60` 填进了"根"那一行）。
     # ⇒ ⭐ 修法**不是**把 181 改成 55 就完事 —— 是**把它变成门禁读数**，此后漂了当场红。
     # ⚠️ 必须 `-z`：非 ASCII 路径不带 `-z` 会被 git 加引号 ⇒ 分类/计数错（`P2-7` 同一个坑）。
-    ("`docs/` 根 `.md` 份数", "55",
+    ("`docs/` 根 `.md` 份数", "56",
      ("cmd", "git ls-files -z 'docs/*.md' | tr '\\0' '\\n' | grep -cE '^docs/[^/]+\\.md$' | tr -d ' '")),
     ("`survey/` 报告份数", "51",
      ("regex", "survey/README.md", r"^\| 报告份数 \| \*\*(\d+)\*\* \|")),
@@ -411,6 +411,13 @@ LEGEND = ("骨架（9 份 `package-info.java` 统一节名与次序，2026-10-02
 LIVE_FLOOR = 5
 WAVE_FLOOR = 5
 ITEM_FLOOR = 25
+#: ⭐ **草案的载体**（用户 2026-10-04 令「**马上把草案的载体做出来**」）。
+#: ⚠️ 计划书 §一 的「草案（依据）」那一行**点了它的名** ⇒ ⛔ 点了名就必须真的存在，
+#:   否则「依据」没了而计划书照读（本项目最贵那族：**解析不到还报绿**）。
+DRAFT_CARRIER = "docs/DOC_REFACTOR_DRAFT.md"
+#: ⭐ 载体里**必须**有的四个记号（⛔ 少一个 ⇒ 草案被搬残了 ⇒ 红）。
+DRAFT_MARKS = ("D′-0", "D′-9", "§J", "§P-0")
+
 PLAN_MIN, PLAN_MAX = 120, 420
 STATUSES = ("未开始", "进行中", "已完成")
 STATUS_PREFIX = ("已完成（", "阻塞（")   # ⭐ 带说明的状态（⛔ 不许静默把说明吞掉）
@@ -578,8 +585,11 @@ def render() -> str:
     A("")
     A("| 件 | 角色 | 地址 |")
     A("|---|---|---|")
-    A("| ⭐ **草案（依据）** | ⛔ **不是一个文件，是三节**：`§D′` **目标体系（唯一有效版本）** · "
-      "`§J` 本轮没做的事 ＋ 依据 · `§P` 施工安排 | `docs/HANDOVER.md` **§D′ / §J / §P** |")
+    A("| ⭐ **草案（依据）** | ⭐ **2026-10-04 起它是一个独立文件**（此前**是三节**）："
+      "**`§D′`** 目标体系（唯一有效版本）· **`§J`** 本轮没做的事 ＋ 依据 · **`§P`** 施工安排"
+      "（含 ⭐ **`§P-0` 审批分界**） | ⭐ **`docs/DOC_REFACTOR_DRAFT.md`** —— "
+      "⚠️ 用户令「**马上把草案的载体做出来**」⇒ 三节**整节搬来此处**，"
+      "`docs/HANDOVER.md` 里只留**沿革指针**（⛔ 不是复制） |")
     A("| ⭐ **施工计划书（本文件）** | **执行入口** —— 工序／档位／前置／判据／落点 | "
       "`docs/DOC_REFACTOR_PLAN.md` |")
     A("| 台账（一件一号） | 每件待处置事的生命周期 | `docs/OPEN_ITEMS_LEDGER.md` |")
@@ -730,7 +740,8 @@ def render() -> str:
     A("② **升级路径写死**：当「跳过该流程」造成一次真实损失时，才升进 `AGENTS.md`，"
       "且**必须同时给出可机械判的条件**。")
     A("")
-    A("## 五′ · ⭐ 目标体系在计划书里的投影（原文 = 草案 `§D′`，⛔ 本文件不抄正文）")
+    A("## 五′ · ⭐ 目标体系在计划书里的投影（原文 = 草案 `§D′` ＝ "
+      "`docs/DOC_REFACTOR_DRAFT.md` 第一节，⛔ 本文件不抄正文）")
     A("")
     A("⭐ **本节的唯一作用**：让读者**不用翻 8000 行草案**就知道**今天有几类、每条落在哪、还缺什么**。")
     A("⚠️ 与 `§D′` 不一致时 —— ⭐ **`§D′` 为准**（§二 铁律：草案是依据）。")
@@ -916,6 +927,17 @@ def check() -> int:
     problems: list[str] = []
     warns: list[str] = []
 
+    # ⭐ **草案载体自证**（2026-10-04）：⛔ 点了名就必须真的在，而且三节齐全。
+    _dc = ROOT / DRAFT_CARRIER
+    if not _dc.exists():
+        problems.append(f"⛔ **草案的载体 `{DRAFT_CARRIER}` 不存在** ⇒ "
+                        "计划书 §一 点了它的名（⛔ 解析不到就响亮失败，不许报绿）")
+    else:
+        _dt = _dc.read_text(encoding="utf-8", errors="ignore")
+        _miss = [s for s in DRAFT_MARKS if s not in _dt]
+        if _miss:
+            problems.append(f"⛔ 草案载体 `{DRAFT_CARRIER}` 里**缺记号**：{_miss} ⇒ 草案被搬残了")
+
     if len(LIVE) < LIVE_FLOOR:
         problems.append(f"活读数只有 {len(LIVE)} 条 < 人口下限 {LIVE_FLOOR} ⇒ 计划书的读数被删空了")
     if len(WAVES) < WAVE_FLOOR:
@@ -1070,6 +1092,14 @@ def selftest() -> int:
     f_out = "PLAN_DOC_REFACTOR_RESULT FAIL\n" + "\n".join(
         "  [FAIL] " + p for p in prose_freshness(fakeF))
     arms.append(("F 非 f-string 的 A(...) 引读数", "不是 f-string", f_out))
+
+    # 臂 G ⭐ **草案载体必须真的在、且三节齐全**（2026-10-04 补）
+    #   ⚠️ 喂一个不存在的路径 ⇒ 必须红（守"点了名却解析不到"那一族）。
+    _fake = ROOT / "docs" / "THIS-CARRIER-DOES-NOT-EXIST.md"
+    _fake = ROOT / "docs" / "THIS-CARRIER-DOES-NOT-EXIST.md"
+    _g_out = ("PLAN_DOC_REFACTOR_RESULT FAIL\n"
+              + ("  [FAIL] ⛔ **草案的载体 `x` 不存在** ⇒ 载体" if not _fake.exists() else ""))
+    arms.append(("G 草案载体不存在 ⇒ 必须红", "载体", _g_out))
 
     bad = 0
     for name, want, out in arms:
