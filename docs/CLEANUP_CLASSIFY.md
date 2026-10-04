@@ -64,7 +64,7 @@
 | 3 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 1 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 4 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 6 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 5 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 10 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 6 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ③ 决策/裁定 | **已拍板** | 9 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 6 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ③ 决策/裁定 | **已拍板** | 10 | **0** | ☐ | ☐ | ☐ | ☐ |
 
 ⚠️ ⛔ **`src/` 里零命中不等于它错了** —— 文档本来就不必被代码引用。
 它只说明：**这份自称生效的东西，在代码里没有落点**。⇒ 该由你来判「这句话对不对／过期没有」。
@@ -185,7 +185,7 @@
 | `docs/README.md` | ② 入口 ＋ 地图 | 49 | 0 | — | — |
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 110 | 7 | — | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 25 | 0 | — | 是 |
-| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ③ 决策/裁定 | 9 | 0 | 已拍板 | — |
+| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ③ 决策/裁定 | 10 | 0 | 已拍板 | — |
 | `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ③ 决策/裁定 | 5 | 0 | — | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | — |
 | `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 32 | 0 | — | — |
@@ -194,7 +194,7 @@
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 9 | 0 | — | — |
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 27 | 5 | — | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | 是 |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | 是 |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — | — |
@@ -309,7 +309,7 @@
 | `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 10 | 1 | — | — |
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-layer-direction.py` | ⑥ 边界即机器 | 24 | 7 | — | — |
-| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 15 | 2 | — | — |
+| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 16 | 2 | — | — |
 | `tools/check-new-home.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 12 | 0 | — | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
@@ -336,7 +336,7 @@
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
+| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
