@@ -24,12 +24,12 @@
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 55 | **13** | **待用户判**（本表只报数） |
-| ⑤ 报告 ＋ 证据 | 167 | **125** | **待用户判**（本表只报数） |
+| ⑤ 报告 ＋ 证据 | 168 | **126** | **待用户判**（本表只报数） |
 | ⑥ 边界即机器 | 123 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **595** | **139** | 这个合计**没有行动含义**（见上） |
+| **合计** | **596** | **140** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -41,7 +41,7 @@
 ⇒ ⭐ **结论**：本节**不是**主要行动面（⛔ 别把 `0 件` 读成「没活可干」）；
     真正有信息的是**下一节**（自称生效而 `src/` 零落点）。
 
-**138 件** —— 打勾栏：`保留` / `丢` / `合并到 X` / `已过期`（`§D′-9` 9.5 的四个选项）。
+**139 件** —— 打勾栏：`保留` / `丢` / `合并到 X` / `已过期`（`§D′-9` 9.5 的四个选项）。
 
 | # | 件 | 好家 | 提到它的文件数 | 候选理由（机械） | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|
@@ -183,6 +183,7 @@
 | 136 | `survey/50-S-W4-package-info骨架勘测-2026-10-02.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 137 | `survey/51-全仓文档清点与目标体系对位-2026-10-02.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 138 | `survey/52-批2开工前勘测-靶子复算与判据体检-2026-10-04.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 139 | `survey/53-批1剩余22件-逐件打勾表-2026-10-04.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 
 ## 三 · **批 1 的靶子**：自称生效、而 `src/` 里零引用 ⭐⭐
 
@@ -193,16 +194,16 @@
 ⚠️ 判据两条**都是机械的**：① 头部 40 行里出现「已生效／生效中／已落地／已接线／已实现／已拍板」
 （**文件自己的自称**，⛔ 不是我的判断）② 全仓 `src/` 下**零命中它的文件名**。
 
-**24 件** —— 打勾栏同 `§D′-9` 9.5。
+**25 件** —— 打勾栏同 `§D′-9` 9.5。
 
 | # | 件 | 好家 | 自称 | 全仓提到它 | `src/` 里 | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | **已落地** | 11 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 2 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 1 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 3 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 1 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 4 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 6 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 5 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 10 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 6 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | **已拍板** | 11 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 2 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 2 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 3 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 2 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 4 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 7 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 5 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 11 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 6 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | **已拍板** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 7 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 8 | `docs/reviews/2026-09-14-survey07-可行动条目核实.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 9 | `docs/reviews/2026-09-14-无头回归通道T2-首轮实测.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
@@ -221,6 +222,7 @@
 | 22 | `survey/38-定义修复与语义收口-20260926.md` | ⑤ 报告 ＋ 证据 | **已生效** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 23 | `survey/43-框架面清单与巩固顺序-20260927.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 24 | `survey/47-马上能做的三件与形状验收-2026-09-28.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 25 | `survey/53-批1剩余22件-逐件打勾表-2026-10-04.md` | ⑤ 报告 ＋ 证据 | **已生效** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 
 ⚠️ ⛔ **`src/` 里零命中不等于它错了** —— 文档本来就不必被代码引用。
 它只说明：**这份自称生效的东西，在代码里没有落点**。⇒ 该由你来判「这句话对不对／过期没有」。
@@ -286,7 +288,7 @@
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 28 | 5 | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
@@ -297,7 +299,7 @@
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 18 | 0 | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 61 | 1 | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 62 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
@@ -316,7 +318,7 @@
 | `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 18 | 2 | — |
 | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 13 | 1 | — |
-| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | 11 | 0 | 已拍板 |
+| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | 12 | 0 | 已拍板 |
 | `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/plans/2026-09-21-水中逃生计划.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
 | `docs/plans/2026-09-21-鱼骨挖矿计划.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
@@ -498,6 +500,7 @@
 | `survey/50-S-W4-package-info骨架勘测-2026-10-02.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `survey/51-全仓文档清点与目标体系对位-2026-10-02.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `survey/52-批2开工前勘测-靶子复算与判据体检-2026-10-04.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
+| `survey/53-批1剩余22件-逐件打勾表-2026-10-04.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | 已生效 |
 | `survey/INTENT.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — |
 | `survey/README.md` | ⑤ 报告 ＋ 证据 | 50 | 0 | — |
 | `tools/alice-cloud-remote.sh` | ⑥ 边界即机器 | 3 | 0 | — |
@@ -644,7 +647,7 @@
 | `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 51 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/active-plan.md` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/active-plan.md` | ⑧ 域外（⛔ 不进体系） | 14 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/bot-inventory-gui-investigation-report.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/2298dd3-p1-physics-observation-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/client-tests/2ef35e5-bot-death-filter-manual-test.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
@@ -823,17 +826,17 @@
 | `docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
 | `docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md` | ⑧ 域外（⛔ 不进体系） | 5 | 1 | — |
-| `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | 已实现 |
+| `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | 已实现 |
 | `docs/archive/legacy-2026-08/M0_ARCHITECTURE.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
 | `docs/archive/legacy-2026-08/MINETASK_WORLD_EDIT_TEST_SCENES.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | 已实现 |
+| `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | 已实现 |
 | `docs/archive/legacy-2026-08/MOVEMENT_EXPERIMENT_6_RESULT_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-2026-08/MOVEMENT_PHYSICS_EXPERIMENT_1.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-2026-08/MOVEMENT_SYSTEM_ARCHITECTURE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | 6 | 0 | 已实现 |
+| `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | 7 | 0 | 已实现 |
 | `docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — |
 | `docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
@@ -847,10 +850,10 @@
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 51 | 0 | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 61 | 1 | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 62 | 1 | — |
 | `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 51 | 0 | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
-| `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 10 | 0 | 已实现 |
+| `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 11 | 0 | 已实现 |
 | `docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `docs/archive/legacy-workflow/supervision/CLIENT_TEST_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `docs/archive/legacy-workflow/supervision/RESEARCH_REPORT_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
@@ -868,5 +871,5 @@
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 6 | 0 | — |
 
-<!-- CLEANUP_ROWS 595 -->
+<!-- CLEANUP_ROWS 596 -->
 
