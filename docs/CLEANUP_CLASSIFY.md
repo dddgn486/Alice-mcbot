@@ -59,7 +59,7 @@
 
 | # | 件 | 好家 | 自称 | 全仓提到它 | `src/` 里 | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | **已落地** | 9 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 1 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | **已落地** | 11 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 2 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 1 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 3 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 1 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 4 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 6 | **0** | ☐ | ☐ | ☐ | ☐ |
@@ -132,7 +132,7 @@
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — | — |
 | `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 1 | 已落地 | — |
 | `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
-| `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 9 | 0 | 已落地 | — |
+| `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 11 | 0 | 已落地 | — |
 | `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 12 | 3 | — | — |
 | `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 15 | 1 | — | — |
 | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 1 | — | — |
@@ -254,7 +254,7 @@
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 4 | 0 | — | — |
+| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
