@@ -110,51 +110,51 @@
 | 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 | 生成物陈旧 |
 |---|---|---|---|---|---|
 | `AGENTS.md` | ① 常驻规范 | 85 | 5 | — | — |
-| `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 23 | 0 | — | — |
-| `README.md` | ② 入口 ＋ 地图 | 48 | 0 | — | — |
-| `docs/README.md` | ② 入口 ＋ 地图 | 49 | 0 | — | — |
-| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 110 | 7 | — | — |
-| `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 25 | 0 | — | 是 |
+| `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 24 | 0 | — | — |
+| `README.md` | ② 入口 ＋ 地图 | 49 | 0 | — | — |
+| `docs/README.md` | ② 入口 ＋ 地图 | 50 | 0 | — | — |
+| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 111 | 7 | — | — |
+| `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 26 | 0 | — | 是 |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | — |
-| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 32 | 0 | — | — |
+| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 33 | 0 | — | — |
 | `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 13 | 0 | — | — |
 | `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — | — |
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — | — |
-| `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 9 | 0 | — | — |
-| `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 27 | 5 | — | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | 是 |
+| `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — | — |
+| `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 28 | 5 | — | — |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 7 | 0 | — | 是 |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
-| `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | — |
+| `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 7 | 0 | — | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — | — |
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 4 | 0 | — | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 2 | — | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 11 | 0 | — | — |
-| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 17 | 0 | — | 是 |
+| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 18 | 0 | — | 是 |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 16 | 0 | — | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 58 | 1 | — | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 59 | 1 | — | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — | — |
-| `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 1 | 已落地 | — |
+| `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 1 | 已落地 | — |
 | `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 11 | 0 | 已落地 | — |
 | `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 12 | 3 | — | — |
-| `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 15 | 1 | — | — |
+| `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 16 | 1 | — | — |
 | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 1 | — | — |
 | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — | — |
-| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 51 | 4 | 已落地 | — |
+| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 52 | 4 | 已落地 | — |
 | `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
 | `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 6 | 2 | — | — |
 | `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 10 | 0 | — | — |
 | `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 19 | 0 | — | — |
 | `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 0 | — | — |
-| `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 17 | 2 | — | — |
+| `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 18 | 2 | — | — |
 | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 13 | 1 | — | — |
 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | 10 | 0 | 已拍板 | — |
 | `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
-| `docs/plans/README.md` | ④ 状态 ＋ 构想 | 49 | 0 | — | 是 |
+| `docs/plans/README.md` | ④ 状态 ＋ 构想 | 50 | 0 | — | 是 |
 | `docs/reference/ROAD_MATHEMATICAL_MODEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
 | `.alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
 | `.alice-supervision/client-tests/legacy-ascend-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
@@ -187,7 +187,7 @@
 | `.alice-supervision/client-tests/stage3a-a4b-cookingtab-20260913/evidence/round3-pass.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — | — |
 | `docs/BARITONE_ANCHORS.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — | — |
 | `docs/BARITONE_CONTRAST_TESTING.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — | — |
-| `docs/R4_BARITONE_ALIGNMENT_AUDIT.md` | ⑤ 报告 ＋ 证据 | 13 | 0 | — | — |
+| `docs/R4_BARITONE_ALIGNMENT_AUDIT.md` | ⑤ 报告 ＋ 证据 | 14 | 0 | — | — |
 | `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告 ＋ 证据 | 3 | 0 | — | — |
 | `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告 ＋ 证据 | 13 | 1 | — | — |
 | `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告 ＋ 证据 | 9 | 2 | — | — |
@@ -195,9 +195,9 @@
 | `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告 ＋ 证据 | 7 | 2 | — | — |
 | `docs/reference/BARITONE_PORTING_CHECKLIST.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — | — |
 | `docs/reviews/2026-09-20-mine-round3-root-cause.md` | ⑤ 报告 ＋ 证据 | 6 | 2 | — | — |
-| `docs/reviews/README.md` | ⑤ 报告 ＋ 证据 | 49 | 0 | — | 是 |
+| `docs/reviews/README.md` | ⑤ 报告 ＋ 证据 | 50 | 0 | — | 是 |
 | `survey/INTENT.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — | — |
-| `survey/README.md` | ⑤ 报告 ＋ 证据 | 48 | 0 | — | 是 |
+| `survey/README.md` | ⑤ 报告 ＋ 证据 | 49 | 0 | — | 是 |
 | `tools/alice-cloud-remote.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
 | `tools/alice-cloudctl.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
 | `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 9 | 1 | — | — |
@@ -221,7 +221,7 @@
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 13 | 3 | — | — |
-| `tools/check-e4-offrepo.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
+| `tools/check-e4-offrepo.py` | ⑥ 边界即机器 | 3 | 0 | — | — |
 | `tools/check-e4-offrepo.sh` | ⑥ 边界即机器 | 2 | 0 | — | — |
 | `tools/check-effective-trace.py` | ⑥ 边界即机器 | 5 | 0 | — | — |
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
@@ -241,7 +241,7 @@
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-layer-direction.py` | ⑥ 边界即机器 | 24 | 7 | — | — |
 | `tools/check-machine-map.sh` | ⑥ 边界即机器 | 18 | 2 | — | — |
-| `tools/check-new-home.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
+| `tools/check-new-home.sh` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 12 | 0 | — | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — | — |
 | `tools/check-policy-matrix.sh` | ⑥ 边界即机器 | 11 | 0 | — | — |
@@ -267,7 +267,7 @@
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
+| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 8 | 0 | — | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 3 | 0 | — | — |
 | `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
@@ -297,7 +297,7 @@
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 11 | 2 | — | — |
-| `tools/new-home-audit.py` | ⑥ 边界即机器 | 8 | 0 | — | — |
+| `tools/new-home-audit.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 9 | 0 | — | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — | — |
@@ -318,9 +318,9 @@
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — | — |
 | `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — | — |
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 5 | 0 | — | — |
-| `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 28 | 1 | — | — |
-| `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 16 | 0 | — | — |
-| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 14 | 0 | — | 是 |
+| `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 29 | 1 | — | — |
+| `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 17 | 0 | — | — |
+| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 15 | 0 | — | 是 |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 9 | 1 | — | — |
 | `docs/MACHINE_MAP.csv` | ⑦ 事实/数据 | 19 | 0 | — | — |
 | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 8 | 0 | — | — |
@@ -334,7 +334,7 @@
 | `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 14 | 2 | — | — |
 | `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — | — |
-| `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
+| `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan.md` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — | — |
@@ -465,7 +465,7 @@
 | `.alice-supervision/archive/legacy-2026-08/PROJECT-CLEANUP-2025.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/PROJECT-STATUS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/QUICKSTART.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — | — |
-| `.alice-supervision/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
+| `.alice-supervision/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/TASK-BACKLOG.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/debugging-methodology-reflection.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/inventory-helper-design.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
@@ -491,7 +491,7 @@
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/skills-manifest.yml` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — | — |
-| `.alice-supervision/skills/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | 是 |
+| `.alice-supervision/skills/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | 是 |
 | `.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |
 | `.alice-supervision/skills/alice-client-artifact-acceptance.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/skills/alice-discussion-before-repair.skill.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
@@ -530,18 +530,18 @@
 | `docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — | — |
 | `docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
 | `docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `docs/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
+| `docs/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | — |
 | `docs/archive/legacy-2026-08/TASK_OUTCOME_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
 | `docs/archive/legacy-design/AI_PLAYER_NOTES.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
 | `docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `docs/archive/legacy-design/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
+| `docs/archive/legacy-design/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | — |
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
+| `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 58 | 1 | — | — |
-| `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 59 | 1 | — | — |
+| `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 50 | 0 | — | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — | — |
 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 10 | 0 | 已实现 | — |
 | `docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |

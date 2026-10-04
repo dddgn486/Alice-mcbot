@@ -92,7 +92,7 @@ LIVE: list[tuple[str, str, tuple]] = [
      ("cmd", r"ls docs/reviews/*.md | wc -l | tr -d ' '")),
     ("`docs/` 根设计件份数", "14",
      ("regex", "docs/DESIGN_INDEX.md", r"^\| 顶层设计件（`docs/` 根） \| \*\*(\d+)\*\* \|")),
-    ("`survey/` 报告份数", "50",
+    ("`survey/` 报告份数", "51",
      ("regex", "survey/README.md", r"^\| 报告份数 \| \*\*(\d+)\*\* \|")),
     ("常驻件当前总行数", "1501",
      ("cmd", "cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '")),
