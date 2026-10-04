@@ -96,7 +96,7 @@
 |---|---|---|---|
 | 决策条目标题数 | **724** | 724 ✅ | `grep -cE '^#{2,4} D-[0-9]+' docs/AI_DECISIONS.md || true` |
 | 决策条目标题数（门禁口径） | **723** | 723 ✅ | `python3 -c "import re,sys;print(sum(1 for l in open('docs/AI_DECISIONS.md',encoding='utf-8') if re.match(r'^(#{2,4})\\s+(D-\\d+)(?![\\d\\w])',l)))"` |
-| `AI_DECISIONS.md` 行数 | **27952** | 27952 ✅ | `wc -l < docs/AI_DECISIONS.md | tr -d ' '` |
+| `AI_DECISIONS.md` 行数 | **27953** | 27953 ✅ | `wc -l < docs/AI_DECISIONS.md | tr -d ' '` |
 | `package-info.java` 份数 | **9** | 9 ✅ | `find src -name package-info.java | wc -l | tr -d ' '` |
 | `src/` 顶层包数 | **30** | 30 ✅ | `docs/DESIGN_INDEX.md` |
 | 顶层包有设计说明 | **7** | 7 ✅ | `docs/DESIGN_INDEX.md` |
@@ -155,7 +155,7 @@
 
 ⭐ **裁定建议：进 skill，不立规矩**（完整论证见 `docs/HANDOVER.md` §J-6）。三条理由：
 
-1. 它过不了本项目自己的**准入三问**（问不了「能让构建失败吗」）
+1. 它过不了本项目自己的**按标准检查**那三问（问不了「能让构建失败吗」）
 2. **样本只有 3 次** ⇒ 从 3 次里立永久规矩**正是本项目反复踩的坑**
 3. ⭐ **计划书本身就是带牙齿的载体** —— 约束力来自**产物的判据**，不来自散文条文
 
