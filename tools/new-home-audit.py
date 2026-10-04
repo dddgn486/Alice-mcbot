@@ -53,11 +53,16 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      ("AGENTS.md", "docs/AI_DEVELOPMENT_PLAYBOOK.md")),
     ("② 入口 ＋ 地图", "谁说了算 · 从哪开始读", ("README.md", "docs/README.md")),
     ("③ 决策/裁定", "为什么这样定 ＋ 还算不算数 ⇒ 必须配索引",
-     ("docs/AI_DECISIONS.md", "docs/DECISIONS_INDEX.md", "docs/authz/PROPOSAL_*.md",
-      "docs/authz/POLICY_MATRIX_PROPOSAL.md")),
+     # ⚠️ 2026-10-04 用户裁「**门禁没有权利否决草案**」⇒ 两个 `*PROPOSAL*` **已搬到 ④**
+     #    （草案 `§D′-1` ④ 身份格逐字把它们列在「提案未裁」里）—— 见 `§D′-8` 第 7 条。
+     ("docs/AI_DECISIONS.md", "docs/DECISIONS_INDEX.md")),
     ("④ 状态 ＋ 构想", "做到哪了／下一步／卡在哪 ＋ ⭐ 提案未裁 ＋ 施工域（plans）",
+     # ⭐ **「提案未裁」这一半的两个具体位置**（2026-10-04 从 ③ 与 ⑧ 搬来 —— 撞上的是
+     #    草案 `§D′-1` ④ 的身份格，按「门禁没有权利否决草案」跟着草案走）。
      ("docs/HANDOVER.md", "docs/OPEN_ITEMS_LEDGER.md", "docs/AI_PROJECT_STATE.md",
       "docs/QUESTIONS_LEDGER.md", "docs/plans/*.md",
+      ".alice-supervision/improvements/*",
+      "docs/authz/PROPOSAL_*.md", "docs/authz/POLICY_MATRIX_PROPOSAL.md",
       # ⚠️ 设计件：⛔ **不许**写成 `docs/*DESIGN*` —— 那会把 ⑦ 的**索引生成物**
       #    `docs/DESIGN_INDEX.md` 与 ⑧ 的 `docs/archive/**/*_DESIGN.md` 一起吞进来
       #    （⭐ 本审计第一版就是这么撞出 5 件"多归属"的 —— 记在脚本头的诚实边界里）。
@@ -113,8 +118,11 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      (".tmp-*",)),
 
     ("⑧ 域外（⛔ 不进体系）", "不同世代 / 受许可证约束 / 跨项目资产 / 仓外工具配置",
+     # ⚠️ 2026-10-04：`.alice-supervision/improvements/*` **已搬去 ④** —— 它原先在这张表里，
+     #    但它既不是"不同世代"、也不受许可证约束、也不是跨项目资产、也不是仓外工具配置
+     #    （实测 = 2026-09-08 的**仓内改造提案**）⇒ 撞上草案 `§D′-1` ④ 的「提案未裁」。
      (".alice-supervision/archive/*", ".alice-supervision/skills/*",
-      ".alice-supervision/improvements/*", ".alice-supervision/skills-manifest.yml",
+      ".alice-supervision/skills-manifest.yml",
       "docs/archive/*",
       "src/**/CREDITS.md", "tools/agent-presets/*", "tools/client-agent/*",
       "tools/cloud-tunnel-README.txt", ".github/*", "steward-entry/*")),

@@ -22,13 +22,13 @@
 |---|---|---|---|
 | ① 常驻规范 | 2 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
-| ③ 决策/裁定 | 4 | **0** | **待用户判**（本表只报数） |
-| ④ 状态 ＋ 构想 | 38 | **0** | **待用户判**（本表只报数） |
+| ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
+| ④ 状态 ＋ 构想 | 41 | **0** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 42 | **0** | **待用户判**（本表只报数） |
 | ⑥ 边界即机器 | 119 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
-| ⑧ 域外（⛔ 不进体系） | 225 | **0** | **合法** —— 域外件不进体系，本来就没人引 |
+| ⑧ 域外（⛔ 不进体系） | 224 | **0** | **合法** —— 域外件不进体系，本来就没人引 |
 | **合计** | **451** | **0** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
@@ -64,7 +64,7 @@
 | 3 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 1 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 4 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 6 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 5 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 10 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 6 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ③ 决策/裁定 | **已拍板** | 10 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 6 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | **已拍板** | 10 | **0** | ☐ | ☐ | ☐ | ☐ |
 
 ⚠️ ⛔ **`src/` 里零命中不等于它错了** —— 文档本来就不必被代码引用。
 它只说明：**这份自称生效的东西，在代码里没有落点**。⇒ 该由你来判「这句话对不对／过期没有」。
@@ -185,8 +185,7 @@
 | `docs/README.md` | ② 入口 ＋ 地图 | 49 | 0 | — | — |
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 110 | 7 | — | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 25 | 0 | — | 是 |
-| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ③ 决策/裁定 | 10 | 0 | 已拍板 | — |
-| `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ③ 决策/裁定 | 5 | 0 | — | — |
+| `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — | — |
 | `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 32 | 0 | — | — |
 | `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 13 | 0 | — | — |
@@ -223,6 +222,8 @@
 | `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 0 | — | — |
 | `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 17 | 2 | — | — |
 | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 13 | 1 | — | — |
+| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | 10 | 0 | 已拍板 | — |
+| `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
 | `docs/plans/README.md` | ④ 状态 ＋ 构想 | 49 | 0 | — | 是 |
 | `docs/reference/ROAD_MATHEMATICAL_MODEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — | — |
 | `.alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 75 | 0 | — | — |
@@ -271,7 +272,7 @@
 | `tools/alice-cloudctl.sh` | ⑥ 边界即机器 | 4 | 0 | — | — |
 | `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 8 | 1 | — | — |
 | `tools/analyze-trace.py` | ⑥ 边界即机器 | 2 | 0 | — | — |
-| `tools/archive-index.py` | ⑥ 边界即机器 | 10 | 0 | — | — |
+| `tools/archive-index.py` | ⑥ 边界即机器 | 11 | 0 | — | — |
 | `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — | — |
 | `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 18 | 0 | — | — |
@@ -559,7 +560,6 @@
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-interface-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — | — |
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `.alice-supervision/skills-manifest.yml` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — | — |
 | `.alice-supervision/skills/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | 是 |
 | `.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — | — |
