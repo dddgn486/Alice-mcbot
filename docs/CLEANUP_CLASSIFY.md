@@ -33,12 +33,12 @@
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
-⚠️⚠️ **本节的读数会被「提及」污染 —— 实测过一次，如实记**：本表头一版列了 **2 件**
+⚠️⚠️ **本节这个信号会被「提及」污染 —— 实测过一次，如实记**：本表头一版列了 **2 件**
 （`tools/dsh-phone-qr.sh` · `tools/render-scene-preview.py`），而**下一个提交里**
 主工作流在台账 `O155` 写了这两个文件名 ⇒ 它们**当场变成「被提到过 1 次」** ⇒ 本节归零。
 ⭐ **那两次读数都对**，差的是**我改了仓**（不是判据漂了）—— 而它暴露的是 `§D′-9` 9.3 判据②
 自己写下的那条：**「提到它」会被当成「引用它」**，所以本列只叫**被提到过**，⛔ 不叫被引用。
-⇒ ⭐ **结论**：本节**不是**主要行动面（⛔ 别把 `0 件` 读成「没事可干」）；
+⇒ ⭐ **结论**：本节**不是**主要行动面（⛔ 别把 `0 件` 读成「没活可干」）；
     真正有信息的是**下一节**（自称生效而 `src/` 零落点）。
 
 **0 件** —— 打勾栏：`保留` / `丢` / `合并到 X` / `已过期`（`§D′-9` 9.5 的四个选项）。
@@ -126,7 +126,7 @@
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 17 | 0 | — | 是 |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 16 | 0 | — | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 56 | 1 | — | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 57 | 1 | — | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — | — |
@@ -528,7 +528,7 @@
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
 | `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 56 | 1 | — | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 57 | 1 | — | — |
 | `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 49 | 0 | — | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — | — |
 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 10 | 0 | 已实现 | — |
