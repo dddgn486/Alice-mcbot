@@ -319,7 +319,7 @@
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 25 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 66 | 1 | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 67 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
@@ -879,7 +879,7 @@
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 58 | 0 | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 66 | 1 | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 67 | 1 | — |
 | `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 58 | 0 | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 11 | 0 | 已实现 |
