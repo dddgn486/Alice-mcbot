@@ -305,22 +305,22 @@
 | `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
-| `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 28 | 5 | — |
+| `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 27 | 5 | — |
 | `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 4 | 0 | — |
-| `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 15 | 2 | — |
+| `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 24 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 65 | 1 | — |
-| `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
+| `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — |
-| `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
+| `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
 | `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 1 | 已落地 |
 | `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 11 | 0 | 已落地 |
@@ -526,7 +526,7 @@
 | `survey/README.md` | ⑤ 报告 ＋ 证据 | 56 | 0 | — |
 | `tools/alice-cloud-remote.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/alice-cloudctl.sh` | ⑥ 边界即机器 | 5 | 0 | — |
-| `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 9 | 1 | — |
+| `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 8 | 1 | — |
 | `tools/analyze-trace.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/archive-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — |
@@ -563,7 +563,7 @@
 | `tools/check-glossary.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-glossary.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-goal-vocabulary.sh` | ⑥ 边界即机器 | 7 | 0 | — |
-| `tools/check-item-models.sh` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/check-item-models.sh` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-job-kind-contracts.sh` | ⑥ 边界即机器 | 20 | 4 | — |
 | `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 10 | 1 | — |
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — |
@@ -588,7 +588,7 @@
 | `tools/check-ref-anchors.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-ref-integrity.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-risk-surface.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/check-scene-connectivity.py` | ⑥ 边界即机器 | 15 | 0 | — |
+| `tools/check-scene-connectivity.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/check-selftests.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-selftests.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-skills-index.sh` | ⑥ 边界即机器 | 5 | 0 | — |
