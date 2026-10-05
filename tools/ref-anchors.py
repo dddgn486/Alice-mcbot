@@ -97,6 +97,23 @@ def load_baseline() -> dict[tuple[str, str], int]:
     return out
 
 
+def increments(old: dict[tuple[str, str], int], new: dict[tuple[str, str], int]) -> list[str]:
+    """→ **新增的引用**（⭐ 含"新出现的引用对"与"同一对处数变大"两类），排好序。
+
+    ⭐ **为什么单独一个函数**（2026-10-05，回执 `002` 的 `F1`，开发者批「批 #4」）：
+    起因 = ⚠️ ⭐ **本轮主工作流亲手踩过** —— 它在 `QUESTIONS_LEDGER` 里写了一处**新增**的行号引用
+    （= 违反本节那条「**只许变短**」），而 `--write` **默默把它收进了基线**（**357 → 358**），⛔ **没有报红**。
+    ⭐ 那个 `--write` 的语义**本来是"我批准这个新增"**，却长得像"重新生成一下" ⇒ ⛔ **违例被洗成合规**。
+    """
+    out: list[str] = []
+    for k in set(old) | set(new):
+        o, n = old.get(k, 0), new.get(k, 0)
+        if n > o:
+            tag = "新出现的引用对" if k not in old else "同一对的处数变大"
+            out.append(f"{k[0]} → {k[1]}：{o} → {n}（{tag}）")
+    return sorted(out)
+
+
 def write_baseline(pairs: dict[tuple[str, str], int]) -> None:
     lines = ["# 文档「行号引用」存量基线 —— ⛔ 只许变短（新增 ⇒ 红；减少 ⇒ 必须同步本文件）。",
              "# 生成：python3 tools/ref-anchors.py --write　·　列：引用方文件 <TAB> 被引方文件 <TAB> 处数",
@@ -171,7 +188,21 @@ def selftest() -> int:
     ]
     arms.append(("D 锚点式引用必须安静", "", not any(DOCREF.search(s) for s in anchor_samples)))
 
-    # 臂 E：⭐ **活样本不许写进本文件**（否则门禁命中自己 —— 同族坑本仓踩过多次）
+    #: ⭐⭐ 臂 H/I/J：**`--write` 的写入口守卫**（2026-10-05，回执 `002` 的 `F1`，开发者批「批 #4」）。
+    #:   ⚠️ 起因 = 本轮主工作流写了一处**新增**引用，`--write` **默默收下**（357 → 358）⇒ 违例被洗成合规。
+    #:   ⭐ 这三臂**直接测 `increments()`** —— 它就是写入口判据的本体（⛔ 不是测注释）。
+    arms.append(("H 增量被判出（新出现的对）⇒ `--write` 须拒绝", "", 
+                 increments({}, {("a.md", "b.md"): 1}) == ["a.md → b.md：0 → 1（新出现的引用对）"]))
+    arms.append(("I 增量被判出（同一对处数变大）⇒ `--write` 须拒绝", "",
+                 increments({("a.md", "b.md"): 1}, {("a.md", "b.md"): 2})
+                 == ["a.md → b.md：1 → 2（同一对的处数变大）"]))
+    #: ⭐ **反臂**：减量 **⛔ 不许**被判成增量 —— 否则「只许变短」这条规则自己把路堵死
+    #:（本仓踩过同族坑：门禁把**合法**动作也拦下 ⇒ 下一个人学会绕过它）。
+    arms.append(("J **减量不许**被判成增量（否则合法路径被堵）", "",
+                 increments({("a.md", "b.md"): 2}, {("a.md", "b.md"): 1}) == []
+                 and increments({("a.md", "b.md"): 1}, {}) == []))
+
+    # ⭐ **活样本不许写进本文件**（否则门禁命中自己 —— 同族坑本仓踩过多次）
     me = Path(__file__).read_text(encoding="utf-8")
     arms.append(("E 本文件自身不含可命中的活样本", "自污染", not DOCREF.search(me)))
 
@@ -197,11 +228,28 @@ def main() -> int:
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    #: ⭐ `--force`：**唯一**能批准"新增引用"的方式（2026-10-05，回执 `002` 的 `F1`，开发者批「批 #4」）。
+    ap.add_argument("--force", action="store_true",
+                    help="批准本轮的**新增**行号引用（⛔ 不加它时，`--write` 一遇到增量就拒绝写）")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
     if a.write:
         pairs = scan()
+        #: ⭐⭐ **「只许变短」必须在写入口生效** —— ⛔ 不能只写在注释里：注释挡不住 `--write`。
+        #: 起因：⭐ 本轮主工作流写了一处新增引用，`--write` **默默收下**（357 → 358）⇒ 违例被洗成合规。
+        inc = increments(load_baseline(), pairs)
+        if inc and not a.force:
+            print("REF_ANCHORS_RESULT REFUSED: ⛔ 检测到**新增**的行号引用 ⇒ 拒绝写入（本基线「只许变短」）")
+            for line in inc:
+                print(f"  + {line}")
+            print("  ⇒ ⭐ 若这是**有意批准**的新增，请用 `--write --force`（⭐ 那一步 = 你的显式批准）")
+            print("  ⇒ ⛔ 若这不是有意的：把新写的那处行号引用**删掉**（改用锚点，见 `§D′-9` 9.5）")
+            return 1
+        if inc:
+            print("⚠️  `--force` ⇒ **批准**以下新增（⭐ 请确认这是有意的）：")
+            for line in inc:
+                print(f"  + {line}")
         write_baseline(pairs)
         print(f"已写入 {BASELINE.relative_to(ROOT)}：{total(pairs)} 处 / {len(pairs)} 对")
         return 0
