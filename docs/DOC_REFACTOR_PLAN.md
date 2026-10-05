@@ -106,7 +106,7 @@
 | `docs/` 根设计件份数 | **14** | 14 ✅ | `docs/DESIGN_INDEX.md` |
 | `docs/` 根 `.md` 份数 | **56** | 56 ✅ | `git ls-files -z 'docs/*.md' | tr '\0' '\n' | grep -cE '^docs/[^/]+\.md$' | tr -d ' '` |
 | `survey/` 报告份数 | **55** | 55 ✅ | `survey/README.md` |
-| 常驻件当前总行数 | **1249** | 1249 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
+| 常驻件当前总行数 | **1277** | 1277 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
 | 门禁项数（`check-all` 计数行） | **58** | 58 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
 ### 冻结值（只有用户裁定能改）
@@ -240,7 +240,7 @@
 | `W0-4` | `tools/check-all.sh` 注释里的过期读数（写 1508／超 32）改掉 | 🟢 | — | 注释与实际一致（实测 1501／超 25 ⇒ 改后 1501／余额 0） | `tools/check-all.sh` | 已完成 |
 | `W0-6` | skill §四 加第 ④′ 步（出施工计划书）＋ 三条门槛 ＋ 升级路径 | 🟢 | W0-2 | `large-refactor-survey-and-verify.skill.md` 含 ④′ 与升级路径；skills INDEX 有该 skill 行 | `.alice-supervision/skills/` | 已完成 |
 | `W0-5` | 预算清点机制 —— 常驻件多久看一次 · 只出不进的落点 | 🔴 | W0-3 | 用户裁定后才动手；本轮不夹带（§J-6-5 第 2 条） | `O143` | 未开始 |
-| `W0-7` | `AGENTS.md:40` 的 **1476** 要不要改（改就要同刀删等量行，需用户点名删哪些） | 🔴 | — | ⛔ 故意没改并已登记（§J-8）：加任何一行都会把预算门禁再顶红 | `AGENTS.md` · `O140` ⑧ | 阻塞（待用户裁：改 ／ 不改） |
+| `W0-7` | 预算顶红 ⇒ 常驻件加不了行（当时**余额 0**，改任何一行都撞门禁） | 🔴 | — | ⭐ **2026-10-05 已销账**：裁「同刀删等量行」⇒ `STATE` 移出两段历史存档（**263 行**）＋ 删掉 `AGENTS.md` 里三个写死的数（`36 项`／`34 道`／`1,476 行`）⇒ 常驻件三份 **1501 → 1277**，余额 **0 → 224**（`check-doc-budget` 绿） | `AGENTS.md` · `docs/AI_PROJECT_STATE.md` | 已完成 |
 
 ### W1 · ③ 类：裁定（门禁 ＋ 状态词表）—— 主体已完成
 
