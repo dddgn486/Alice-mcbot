@@ -462,6 +462,39 @@ def sh(cmd: str) -> str:
     return p.stdout.strip()
 
 
+def sync_live_literals() -> list[str]:
+    """⛔ **把 `LIVE` 表里的字面值刷成重算值**（写回本文件）。→ 改动说明的列表。
+
+    ⭐⭐ **2026-10-05 新增**（回执 `002` 的 `F2`；开发者批「给 `--write` 加自动同步字面值」）。
+    ⭐ **它解决的是"人手同步"**：本轮我**每改一刀常驻件就撞红一次**（实测 **5 次**），
+    而每次修法都是"手改这个生成器的源码里的一个字符串" ⇒ ⭐ **一次 `--write` 就够**。
+
+    ⚠️ ⭐ **它不取消那个红** —— `--check`（门禁调的那个）**照旧**比字面值与重算值，
+    漂了**照旧红**。⭐ 本函数只是把"**修**"这一步自动化。
+    ⚠️ ⭐ **诚实边界**：它**降低摩擦，也降低摩擦的信号** —— 若某次漂是**真写错了**（⛔ 不是正常增删），
+    `--write` 会**一并抹掉**提示 ⇒ 所以调用点**必须打印**它改了什么（⛔ 不许被 `>/dev/null` 吞掉）。
+    """
+    me = Path(__file__)
+    src = me.read_text(encoding="utf-8")
+    changed: list[str] = []
+    for name, claimed, how in LIVE:
+        if not how or how[0] == "frozen":
+            continue
+        try:
+            got = measure(how)
+        except Exception:                                       # noqa: BLE001
+            continue                                            #: ⛔ 复算不出来 ⇒ 交给 `--check` 报红，⛔ 不在这里吞
+        if got == claimed:
+            continue
+        old, new_s = f'("{name}", "{claimed}"', f'("{name}", "{got}"'
+        if src.count(old) == 1:
+            src = src.replace(old, new_s)
+            changed.append(f"{name}：{claimed} → {got}")
+    if changed:
+        me.write_text(src, encoding="utf-8")
+    return changed
+
+
 def measure(src: tuple) -> str:
     kind = src[0]
     if kind == "cmd":
@@ -1172,6 +1205,17 @@ def main() -> int:
         return 1 if bad else 0
 
     if a.write:
+        #: ⭐⭐ **2026-10-05 新增（回执 `002` 的 `F2`；开发者批「给 `--write` 加自动同步字面值」）**：
+        #: ⛔ **先把 `LIVE` 表里的字面值刷成重算值**，再生成计划书。
+        #: ⭐ **为什么**：这些字面值**要人手同步**，而本轮**每改一刀常驻件就撞红一次**（实测 **5 次**：
+        #: `1249 → 1253 → 1277 → 1278 → 1279`）—— ⚠️ 而它**不是缺陷、是设计**（`C-2`：漂了就停下重勘）：
+        #: ⇒ ⭐ **红的那一步（`--check`）照旧保留**（门禁仍会当场告诉你漂了），
+        #:   只是**修它的动作**从"手改生成器源码"变成"跑一次 `--write`"。
+        #: ⚠️ ⭐ **诚实记**：这**降低了摩擦力，也降低了摩擦的信号** ——
+        #:   若哪次漂是**真的写错了**（而非正常增删），`--write` 会**一并抹掉**那个提示。
+        #:   ⇒ 所以本函数的输出**必须打印**（⛔ 不许 `>/dev/null` 吞掉）：改了什么要看得见。
+        for line in sync_live_literals():
+            print(f"  ↻ 活读数已同步：{line}")
         text = render()
         PLAN.write_text(text, encoding="utf-8")
         print(f"已写入 {PLAN.relative_to(ROOT)}（{len(text.splitlines())} 行）")
