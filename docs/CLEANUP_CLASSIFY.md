@@ -538,7 +538,7 @@
 | `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 18 | 0 | — |
 | `tools/capture-scene.py` | ⑥ 边界即机器 | 6 | 1 | — |
-| `tools/check-all.sh` | ⑥ 边界即机器 | 92 | 2 | — |
+| `tools/check-all.sh` | ⑥ 边界即机器 | 93 | 2 | — |
 | `tools/check-archive-index.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-authz-code-refs.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-authz-code-refs.sh` | ⑥ 边界即机器 | 2 | 0 | — |

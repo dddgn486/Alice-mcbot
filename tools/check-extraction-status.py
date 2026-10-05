@@ -177,6 +177,13 @@ def selftest() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="「提取」三阶段状态门禁")
+    #: ⚠️⭐ **`--check` 必须显式存在（哪怕是空操作）** —— 2026-10-05 落地当天当场踩到：
+    #:   `argparse` 遇到**不认识的参数**会**退 2**，而 `tools/check-all.sh` 的 `run_gate`
+    #:   把 **退 2 读成 WARN** ⇒ ⭐ **一个拼错的参数会被静默降级成"警告"**（⛔ 不是红）。
+    #:   ⇒ 本仓的生成物型门禁（`cleanup-classify`／`plan-doc-refactor`／`ref-anchors`）都有 `--check`
+    #:   ⇒ 本门禁跟上，⛔ 不给那条静默通道留口子。⚠️ **那条通道是仓级潜在洞**（任何门禁拼错参数同病），
+    #:   ⛔ 本刀不扩范围去修它。
+    ap.add_argument("--check", action="store_true", help="（默认行为）校验；⛔ 显式保留以免误退 2 = WARN")
     ap.add_argument("--write", action="store_true", help="把当前计数写进基线（⭐ 拒绝任何下降）")
     ap.add_argument("--force", action="store_true", help="允许基线下降（＝对「撤条目」的显式批准）")
     ap.add_argument("--selftest", action="store_true")
