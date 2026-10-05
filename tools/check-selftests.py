@@ -47,7 +47,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TOOLS = (
     "archive-index", "check-authz-code-refs", "check-consult-pairs", "check-e4-offrepo",
     "check-effective-trace", "check-expected-reds", "check-facts-tiers", "check-glossary",
-    "check-proposal-status", "check-quote-lint", "check-scene-connectivity", "cleanup-classify",
+    "check-project-state-freshness", "check-proposal-status", "check-quote-lint",
+    "check-scene-connectivity", "cleanup-classify",
     "failure-ratio", "new-home-audit", "plan-doc-refactor", "recipe-graph", "redline-gates",
     "ref-anchors", "skills-index",
 )

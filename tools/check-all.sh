@@ -479,6 +479,37 @@ run_expected_reds() {
 }
 run_expected_reds
 
+# ⭐ **2026-10-05 新增：`AI_PROJECT_STATE.md` 保鲜期**（回执 `001` 的 `T4`）。
+# ⚠️ ⭐ **必须走专用函数，⛔ 不能挂 `run_gate`** —— `run_gate` 把**任何非零都记 FAIL**，
+#    而本门禁的 **exit 2 = 警告**（回执逐字「超过 14 天未更新 ⇒ 门禁**警告**」，⛔ 不是红）。
+#    ⭐ 这是本文件**既有的三态写法**（同 `run_headless_battery` / `run_machine_map` / `run_expected_reds`）。
+# ⭐ **挂在最尾** —— 按本文件那条纪律「新增的门禁一律往尾部挂」：位置前移会把后面所有行号推走，
+#    而 `docs/` 有若干处按 `tools/check-all.sh:NN` 检索 ⇒ ⛔ 那些引用会静默指错。
+run_project_state_freshness() {
+  GATES=$((GATES + 1))
+  local out rc
+  out="$(bash tools/check-project-state-freshness.sh 2>&1)"; rc=$?
+  case "$rc" in
+    0)
+      PASSED=$((PASSED + 1))
+      printf '  [PASS] %-30s %s\n' "check-project-state-freshness" \
+        "$(printf '%s' "$out" | grep -E 'PROJECT_STATE_FRESHNESS_RESULT' | tail -1 | trunc110)"
+      ;;
+    2)
+      WARNED=$((WARNED + 1))
+      printf '  [WARN] %-30s %s\n' "check-project-state-freshness" \
+        "⚠️ 状态陈旧（超保鲜期）⇒ ⛔ 本门禁**有意不判红**（回执 001 T4 逐字是「门禁警告」）"
+      printf '%s\n' "$out" | grep -E 'PROJECT_STATE_FRESHNESS_RESULT' | sed 's/^/         /'
+      ;;
+    *)
+      FAILED=$((FAILED + 1))
+      printf '  [FAIL] %-30s exit=%d\n' "check-project-state-freshness" "$rc"
+      printf '%s\n' "$out" | tail -n 12 | sed 's/^/         /'
+      ;;
+  esac
+}
+run_project_state_freshness
+
 hr
 #: ⭐⭐ `C4` 的落地：**成本当场可见**（⛔ 不判红 —— 理由见文件头那三行）。
 #: ⚠️ 这一行**不叫 `*_RESULT`**、也**不含 `run_gate` 字样** ⇒ ⛔ 不干扰任何按输出格式解析的消费者
