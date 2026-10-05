@@ -2884,6 +2884,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **O163** | ⏳ **`docs/authz/` 两份 CSV 的 19 处 `code_ref` 过期引用 —— 待用户裁（2026-10-02 由新门禁 `check-authz-code-refs` 一次抓出）**：<br>**甲族 12 处（名字在、路径错 ⇒ 可机械修，但改哪一份有讲究）**：<br>&nbsp;&nbsp;· `AUTHZ_REGISTRY.csv`（**手维真源**，可改）：`L1-1` `pathing/core/search/PathRequest.java` ⇒ `pathing/calc/` · `L1-2` `PathRequest.java` · `L1-3` `pathing/core/search/SearchBudget.java` · `L2-2` `core/RecoverabilityPolicy.java` · `L2-3` `core/IntrinsicReversibility.java` · `L2-5` `action/WritePolicyMatrix.java` ⇒ `write/` · `L2-5` `pathing/core/search/CorePathPlanner.java` · `L3-1` `core/CapabilityGate.java`（⭐ 后三条的 `core/`/`action/` 前缀都是**改革前的旧路径**）<br>&nbsp;&nbsp;· `POLICY_MATRIX.csv`（**生成物**，⛔ 改它没用）：`P-01`/`P-23` `action/PathRequest.java` · `P-11`/`P-22` `action/Attribution.java` ⇒ 源头 = **`write/WritePolicyMatrix.java` 的字符串**（改它 = 改 `src/`）<br>**乙族 7 处（`src/` 零命中 ⇒ 类已删/改名 ⇒ ⛔ 要人判"改名了还是删了"）**：`L1-4` `action/WriteGrant.java` · `L2-1` `ExecutionFactory.java` · `L2-5`/`L3-3` `action/WriteBudget.java`（⭐ `O131` 已裁 `WriteBudget → Quota`）· `L3-4` `action/WriteAudit.java`（⭐ 已搬 `ledger/`）· `P-10` `CheckTask.java` · `P-10` `Item.java`（后两条是**同行里的两个裸名**）。<br>**⚠️ 与「检查脚本逐个整理」那条线的关系**：用户 2026-10-02 逐字「**检查脚本我本来也要逐个检查整理的**，但是**这次文档整顿没有纳入**，所以我还不清楚现状」⇒ ⭐ 本行就是那次整理的**第一个具体样本**，⛔ **归属待用户定**（算文档整顿？算检查脚本整理线？还是单列）。 | ⏳ **待裁**（改 `AUTHZ_REGISTRY.csv` = 🔴 逐条点头 · 改 `src/` 字符串 = 另一刀）。 |
 | **O164** | ⭐⭐ **检查脚本整理线已登记（用户 2026-10-02 选丙 ＋ 令「直接放在施工计划书的末尾用来提醒」）**：<br>**① 用户逐字**：「**选丙**，同时**登记检查脚本整理线**，**直接放在施工计划书的末尾**用来提醒」。⇒ 落点 = ⭐ **2026-10-04 用户令「移出去」后已改**：`docs/DOC_REFACTOR_PLAN.md` **末尾 §九**（**只作提醒** —— ⛔ 不进 `WAVES`、⛔ 不排期）＋ 本行；⛔ **不再放 `docs/CLEANUP_CLASSIFY.md`**（放在那张清旧家判据表里会被**读成文档整顿的一部分**）。<br>**② 当场量的规模（⛔ 此前从没量过）**：`tools/` 下被跟踪文件 **269**（`.py` **65** · `.sh` **53**）· 门禁脚本 `check-*` **60** · 挂在 `check-all` 上的门禁 **55** · ⭐ **从 `check-all.sh` 反向可达的顶层工具 82** · ⭐⭐ **不可达 36**。<br>**③ 判据只有一条且机械**：「**从入口 `tools/check-all.sh` 反向可达吗**」。⚠️ **诚实边界**：靠正则找 `tools/xxx.py|sh` **全路径**字样 ⇒ 抓不到 `bash $VAR` 动态调用、也抓不到"被别的仓调" ⇒ 它给的是**不可达的上界**。⚠️ **宽松判据（裸文件名也算）已实测证伪**：那样会把**文档字符串里提到的文件名**当成"被调用"（门禁脚本 `echo` 里常提别的脚本名）⇒ 孤儿只剩 **5** 个，**明显是假的**。<br>**④ ⛔ 不可达 ≠ 该删**（最容易误读的一点）：分析工具 · 云端脚本 · 夹具 runner · 一次性勘测脚本**本来就该手动跑**。它意味着的是 ⭐ **这些工具的"存在理由"没有任何地方登记过**。<br>**⑤ ⭐ 那条线一开就当场抓到一个真缺陷**：`tools/check-machine-map.sh` **是一道门禁脚本，却不在任何调用链上** —— `check-all.sh` 走的是 `machine-map.py`（inline 调），⛔ **那个 `.sh` 包装没有任何东西调用**。⇒ 已进孤儿表。<br>**⑤′ ⭐ 36 项的表 2026-10-04 已挪到本文件末尾的 `### K` 附表**（用户裁「③乙」：计划书 §九 只留提醒正文 ⇒ ⭐ 计划书 **440 → 404 行**，回到它自己的行数上限内；⛔ **内容一处没丢**）。<br>**⑥ 本线的底线（2026-10-04 已写进计划书 §九：提醒带牙，且数字由生成器现算）**：**不可达数不许再涨**（现算 **36**）· 每条必须写出「什么条件下它可以删」· **`code_ref` 那 19 处过期引用归本线**（用户选丙）· ✅ **它与文档整顿的关系已定 = 不属本次**（用户 2026-10-04「移出去」）⇒ **只登记，不排期**。<br>**⑦ ⚠️ 我在本刀上自己造的错（如实记，同一类第 3 次）**：我用**批量正则**去修中文语境里的裸引号，**把 96 处正常代码也改了**（连 docstring 都中招）⇒ ⭐ **`git checkout` 整文件回滚重做**，改用「**把内容放独立文件、按行读进来、⛔ 不经任何转义**」的写法。⚠️ 代价：回滚**过头了**，把先前已提交的 `tool_reach()` 一起冲掉 ⇒ 又补了一遍（⭐ 教训：`git checkout` 回滚前**先看那个文件里还有哪些"未提交但已生效"的东西**）。 | ✅ **已登记**（2026-10-04 移至计划书 §九 · 现算 ＋ 挂门禁）· ⏳ 36 条待逐条登记「存在理由／失效条件」。 |
 | **O165** | ⭐⭐⭐ **批 1 收口：剩余 22 件逐件审批（2026-10-04 起）** —— 用户令「**在会话里一件一件让我审批，带上简单摘要**」＋「**一定要保证当前名单不动**」＋「**选一个改一个审批状态**」＋「**被压缩随时能接上**」。⇒ ⭐ **进度载体 = 本文件末尾 `### L` 附表**（编号 `B1-01`…`B1-22`，**⛔ 顺序冻结、⛔ 不许重排、⛔ 不许删行**，只有**状态列**会变）⇒ ⭐ **接着做的第一件 = 表里第一个 `⏳ 待批`**。**靶子口径**：`W7′-3` 的 24 件 − 已判 2 件 = **22**；⚠️ 其中 **4 件是 ⑧ 域外**，而 `§D′-9` 9.3 判据② 的**行动面排除 ⑧** ⇒ ⛔ **口径不一致，待裁**。⭐ **材料** = `survey/53-批1剩余22件-逐件打勾表-2026-10-04.md`（四型分类：A 真自称 6 · D 引述别事 14 · B 否定句 1 · C 图例定义 1）。 | ✅✅ **已收口（2026-10-04）**：**22 / 22 全判完** ⇒ 保留 **14** · 销案 **6**（⑧ 域外 4 ＋ 判据假阳性 2）· 已过期 **2**；⭐ 两笔就地标记**已做**（`B1-03`／`B1-04`）。⚠️ **本行状态曾滞后**（收口时仍写「22 件待批（0/22）」）—— 由主工作流 2026-10-04 批 2 开工前勘测复算时发现并更正 ⇒ ⭐ **教训：收口必须同刀改台账行的状态列**，⛔ 只改附表不算改完 |
+| **O166** | ⭐⭐ **批 2 · 56 件审批台（2026-10-05 展开）** —— 靶子 = `docs/` 根 **56** 件（`W7′-4` 的第一段；分批口径 = 按目录大小）⇒ ⭐ **进度载体 = 本文件的 `§M` 附表**；⛔ 编号冻结／顺序不重排／行不删，**只改状态列**。⭐ 接着做的第一件 = `§M` 里第一个 `⏳ 待批`。 | 🟡 进行中 |
 
 ### K. ⭐ `O164` 附表：**36 个「从入口反向不可达」的工具 —— 逐条登记位**
 
@@ -2993,3 +2994,85 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **B1-20** | `survey/47-马上能做的三件与形状验收-2026-09-28.md` | D | 表格记「两层 step 已落地」｜⑤ 报告 | ✅ 保留（⭐ **类豁免**：用户 2026-10-04 —— 「同类的**复算核对报告**我就不需要审批了，**本身就不会有问题**」；更早同次：「这类**回写**和一些**近期的勘测报告**基本都没什么需要我审批的，**本身就是正当的**」） |
 | **B1-21** | `survey/38-定义修复与语义收口-20260926.md` | B | ⛔ 假阳性：原文是「**不是**已生效的决策」（否定句）｜⑤ 报告 | ❌ 销案（**判据假阳性** —— 用户 2026-10-04 裁）· ⭐ **B 型样板**：原文是「文中建议文本是提案，**不是已生效的决策**」（否定句） |
 | **B1-22** | `docs/reviews/2026-09-26-Baritone功能面缺口清单.md` | C | ⛔ 假阳性：那是**表格图例**，在定义「已实现」这个词｜⑤ 报告 | ❌ 销案（**判据假阳性** —— 用户 2026-10-04 裁）· ⭐ **C 型样板**：命中的是它开头明写的「状态词汇表（四态）」图例 —— 在**定义术语**，不是在自称 |
+
+### M. ⭐⭐ `O166` 附表：**批 2 · 56 件审批台**（2026-10-05 展开）
+
+> ⭐ **协议（⛔ 压缩后照这条接上）**：沿用 `O165` 那一套（用户 2026-10-04 令）——
+> ①「**在会话里一件一件让我审批，带上简单摘要**」②「**一定要保证当前名单不动**」
+> ③「**选一个改一个审批状态**」④「**被压缩随时能接上**」。
+> ⇒ ⭐ **本表就是进度载体**：编号 `B2-01`…`B2-56` **⛔ 顺序冻结、⛔ 不许重排、⛔ 不许删行**；
+>   **状态列**是唯一会变的东西。⭐ **接着做的第一件 = 本表里第一个 `⏳ 待批`**。
+> **状态取值**（照 `O165`）：`⏳ 待批` · `✅ 保留` · `⛔ 丢` · `🔀 合并到 X` · `⌛ 已过期` · `❌ 销案（判据假阳性）` · `❌ 销案（⑧ 域外）`。
+
+> ⚠️ **靶子名单怎么来的**：⭐ `docs/` 根 `.md` **实算 56 件**（`LIVE`「`docs/` 根 `.md` 份数」= 56，漂了当场红）——
+>   ⭐ 它是 `W7′-4` 那句「**批 2..N**：`docs/` 根 **56** ＋ `docs/reviews/` **75** ＋ `survey/` **55**」的**第一段**；
+>   分批口径 = 用户 2026-10-02 在「取法 1」上选的「**先按目录大小分批**」（⭐ 理由逐字：「反正**审批完的会保留**，**随时可以换审批顺序**」）。
+> ⚠️ **`类` 列不是手抄的** —— 由生成物 `docs/CLEANUP_CLASSIFY.md` 的 `home_of()` 现算（⭐ 单一信源）。
+> ⚠️ **`沿革` 列默认 = 「原址 `docs/` 根」**（⭐ 这 56 件都是**没搬过**的）⇒ 逐件审批时再补为什么留在这里。
+>
+> ⚠️ ⭐ **两件事必须先说清（⛔ 免得审批时含糊）**：
+> 1. ⭐ **本表只管「件往哪去」**（`§D′-9` 9.3 的机械分类）；
+>    ⛔ **它不管「内容提没提取」** —— 那是**第一档（内容口径）**的活，见 `§P-8`；
+> 2. ⚠️ ⭐ **本表还不是「审批台」，是「待展开的靶子名单」**（56 件一次性摆出来）
+>    —— ⭐ 逐件材料（原文 ＋ 行号 ＋ 我的建议 ＋ 驱动信号）**按 `§D′-9` 9.5 一件一件出**（⛔ 不是一次 56 份）。
+
+| 序号 | 件 | 类 | 沿革 | 状态 |
+|---|---|---|---|---|
+| **B2-01** | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-02** | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-03** | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-04** | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-05** | `docs/AI_PROJECT_STATE.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-06** | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-07** | `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-08** | `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-09** | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-10** | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-11** | `docs/BARITONE_ANCHORS.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-12** | `docs/BARITONE_CONTRAST_TESTING.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-13** | `docs/BATTERY_CURATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-14** | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-15** | `docs/CLEANUP_CLASSIFY.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-16** | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-17** | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-18** | `docs/CLOUD_MIGRATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-19** | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-20** | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-21** | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-22** | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-23** | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-24** | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-25** | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-26** | `docs/EXPECTED_REDS.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-27** | `docs/GLOSSARY.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-28** | `docs/HANDOVER.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-29** | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-30** | `docs/JOB_LAYER_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-31** | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-32** | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-33** | `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-34** | `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-35** | `docs/MINE_TASK_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-36** | `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-37** | `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-38** | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-39** | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-40** | `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-41** | `docs/QUESTIONS_LEDGER.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-42** | `docs/R4_BARITONE_ALIGNMENT_AUDIT.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-43** | `docs/README.md` | ② 入口＋地图 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-44** | `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-45** | `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-46** | `docs/RISK_MODES_DISCUSSION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-47** | `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-48** | `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-49** | `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-50** | `docs/STAGE2_MODS_READABILITY.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-51** | `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-52** | `docs/TESTING_GUIDE.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-53** | `docs/THERMAL_FACTS.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-54** | `docs/THERMAL_S1_FACTS.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-55** | `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-56** | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+
+⭐ **进度：待批 56 / 56**（⛔ 每次改状态都要回来改这一行）。

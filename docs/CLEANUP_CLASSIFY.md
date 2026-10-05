@@ -301,37 +301,37 @@
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 118 | 7 | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 31 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
-| `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
+| `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 42 | 0 | — |
-| `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
-| `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
-| `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
+| `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
+| `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
+| `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 27 | 5 | — |
 | `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
-| `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
+| `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
-| `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 4 | 0 | — |
+| `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
-| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
+| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 25 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 66 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — |
-| `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
+| `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 1 | 已落地 |
-| `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
+| `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 0 | 已落地 |
-| `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 12 | 3 | — |
+| `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 3 | — |
 | `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 16 | 1 | — |
-| `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 1 | — |
+| `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 8 | 1 | — |
 | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 57 | 4 | 已落地 |
-| `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
+| `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
 | `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 6 | 2 | — |
 | `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
@@ -385,9 +385,9 @@
 | `.alice-supervision/client-tests/stage3a-a4b-cookingtab-20260913/evidence/latest-log-excerpt.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — |
 | `.alice-supervision/client-tests/stage3a-a4b-cookingtab-20260913/evidence/round3-pass.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — |
 | `docs/BARITONE_ANCHORS.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — |
-| `docs/BARITONE_CONTRAST_TESTING.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — |
+| `docs/BARITONE_CONTRAST_TESTING.md` | ⑤ 报告 ＋ 证据 | 8 | 0 | — |
 | `docs/R4_BARITONE_ALIGNMENT_AUDIT.md` | ⑤ 报告 ＋ 证据 | 14 | 0 | — |
-| `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告 ＋ 证据 | 3 | 0 | — |
+| `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告 ＋ 证据 | 4 | 0 | — |
 | `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告 ＋ 证据 | 13 | 1 | — |
 | `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告 ＋ 证据 | 9 | 2 | — |
 | `docs/STAGE2_MODS_READABILITY.md` | ⑤ 报告 ＋ 证据 | 9 | 0 | — |
@@ -655,7 +655,7 @@
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — |
-| `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 5 | 0 | — |
+| `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 6 | 0 | — |
 | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 29 | 1 | — |
 | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 18 | 0 | — |
 | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 18 | 0 | — |
