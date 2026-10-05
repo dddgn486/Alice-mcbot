@@ -99,6 +99,15 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
       #    （⛔ 不自称报告）。⭐ 归类这条**是 `design-index` 的覆盖自证逼出来的**：
       #    本刀落地时它当场报「既不是设计件、也没在名单里被点名」—— 那一报就是这条的目的。
       "docs/CLEANUP_CLASSIFY.md",
+      #: ⭐ `docs/EXTRACTED_KNOWLEDGE.md`（2026-10-05 开发者裁「**④ 家 ＋ 仍算容器**」）——
+      #:   **提取册**：装从旧件里**提取**出来的设计／经验／判据（`W7′-8` 工序的落点，回执 `003` 定）。
+      #:   ⭐ **归 ④ 的两个依据**：**(a)** 它**件头自报类标 = ④**（`cleanup-classify` 的
+      #:   「件自报优先」**要 `DEST` 先有同号那一行才生效** —— ⛔ 本行缺了，自报就被前置拦掉）；
+      #:   **(b)** 与 `DOC_REFACTOR_PLAN.md`／`CLEANUP_CLASSIFY.md` **同性质**（容器／判据表）。
+      #:   ⛔ **本行是「补登记」，⛔ 不是新分类决策** —— `#2` 落地时只登记了 `design-index.py` 的
+      #:   `NON_DESIGN_PATTERNS`、**漏了本表** ⇒ 覆盖臂当场红（⭐ **它抓对了**，见 `O167`）。
+      #:   ⚠️ **已知遗留**：册里提取出的**设计**不进 `DESIGN_INDEX`（登记在 `O167`，⛔ 待裁未修）。
+      "docs/EXTRACTED_KNOWLEDGE.md",
       "docs/MULTI_BOT_INTERFACE_RESERVATION.md", "docs/BATTERY_CURATION.md",
       "docs/reference/ROAD_MATHEMATICAL_MODEL.md")),
     ("⑤ 报告 ＋ 证据", "可引 ⛔ 不可当依据 · 四类证据 E1–E4",

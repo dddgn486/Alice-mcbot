@@ -24,7 +24,7 @@
 | ①-code 设计说明（`package-info.java`） | 9 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
-| ④ 状态 ＋ 构想 | 55 | **13** | **待用户判**（本表只报数） |
+| ④ 状态 ＋ 构想 | 56 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
 | ⑥ 边界即机器 | 129 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
@@ -320,6 +320,7 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 27 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 67 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
@@ -613,7 +614,7 @@
 | `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 16 | 0 | — |
-| `tools/design-index.py` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/design-index.py` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
@@ -894,10 +895,10 @@
 | `steward-entry/entry.txt` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `tools/agent-presets/alice-forge-assistant/agent.cordis.yml` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
 | `tools/agent-presets/alice-forge-assistant/persona.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `tools/agent-presets/alice-forge-assistant/preset.yml` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `tools/agent-presets/alice-forge-assistant/preset.yml` | ⑧ 域外（⛔ 不进体系） | 7 | 0 | — |
 | `tools/client-agent/make-preset-package.py` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
 | `tools/client-agent/presets/alice-client-master/agent.cordis.yml` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
-| `tools/client-agent/presets/alice-client-master/preset.yml` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `tools/client-agent/presets/alice-client-master/preset.yml` | ⑧ 域外（⛔ 不进体系） | 7 | 0 | — |
 | `tools/cloud-tunnel-README.txt` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 6 | 0 | — |
@@ -908,7 +909,6 @@
 | `consult/request/001-七类表缺维护栏.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | 0 | 0 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | （无家） | 5 | 0 | — |
 
 <!-- CLEANUP_ROWS 622 -->
 
