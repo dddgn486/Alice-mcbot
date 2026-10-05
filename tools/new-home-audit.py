@@ -51,6 +51,17 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      # ⚠️ `PLAYBOOK` 是 **① 类里与 `AGENTS.md` 并列的第二件** —— 第一版**漏了它**，
      #    而它正是"常驻件总行数 1501"这条预算的被除数之一 ⇒ 漏了它这张表就不完整。
      ("AGENTS.md", "docs/AI_DEVELOPMENT_PLAYBOOK.md")),
+    #: ⭐⭐ **①-code：设计说明（`package-info.java`）—— `A2` 的落地**（用户 2026-10-05 裁「**可以马上批**」）。
+    #:  ⭐ **为什么是 ① 的"子类"而不是并在 ① 里**（出处 = 咨询回执 `001` `T3` 的裁定「代码注释**进体系**，
+    #:     作为 `①-code` 子类」）：① 的身份格是「agent 推断不出 · **每会话无条件读** ⇒ 唯一被严格限量的」，
+    #:     ⛔ 而 `package-info.java` **按需读、⛔ 不每会话读、⛔ 不占 1501 那笔预算**
+    #:     ⇒ 并在 ① 的载体里会让**那一格判据变假**（那种"读起来还正常"的错正是本表要拦的）。
+    #:  ⭐ **它此前没有家**：`old_home_items()` 有一行 `src/` 的非 `.md` 全排除
+    #:     ⇒ 本表**对 `src/` 一个保证都没有**，而 `package-info.java` 恰恰是 `src/` 里**唯一进体系**的那件
+    #:     （它**已经在写设计**：骨架第②③⑥节；`DESIGN_INDEX` 也**已经索引它**）。
+    ("①-code 设计说明（`package-info.java`）",
+     "① 的子类：**设计的一种载体**，住在它描述的那个包里（改代码的人顺手就能改）；⭐ 按需读 ⇒ ⛔ 不占 ① 的限量",
+     ("src/**/package-info.java",)),
     ("② 入口 ＋ 地图", "谁说了算 · 从哪开始读", ("README.md", "docs/README.md")),
     ("③ 决策/裁定", "为什么这样定 ＋ 还算不算数 ⇒ 必须配索引",
      # ⚠️ 2026-10-04 用户裁「**门禁没有权利否决草案**」⇒ 两个 `*PROPOSAL*` **已搬到 ④**
@@ -183,11 +194,16 @@ def old_home_items(root: Path) -> list[str]:
         #      ⇒ ⭐ **它们不是"文档体系成员"，是 game 资源与 CI 配置** —
         #      本表只回答"**文档**去哪儿"，⛔ 不回答"代码资源去哪儿"（那是另一条线）。
         #    · ⛔ 不收 `src/**` 的**非 `.md`** 件（同上）
-        if l.startswith("src/") and not l.endswith(".md"):
+        #    ⭐⭐ **2026-10-05 `A2` 开了一格**（用户裁「`check-new-home` 要收 `src/**/package-info.java`」）：
+        #      `package-info.java` **进普查** —— 它是 `src/` 里**唯一进体系**的那件（见 `DEST` 的 `①-code` 行）。
+        #      ⛔ **不放开整个 `.java`**：542 份 `.java` 是**主代码**，⛔ 不是文档体系成员
+        #      （`src/**` 的非 `.md` 仍**全部排除**，只开 `package-info.java` 这一格）。
+        if l.startswith("src/") and not l.endswith((".md", "package-info.java")):
             continue
         if l.startswith((".devcontainer/", ".github/workflows/build.yml")):
             continue
-        if l.endswith((".md", ".csv", ".txt", ".yml", ".yaml", ".py", ".sh", ".mjs")):
+        if l.endswith((".md", ".csv", ".txt", ".yml", ".yaml", ".py", ".sh", ".mjs",
+                       "package-info.java")):
             items.append(l)
     return items
 
@@ -351,6 +367,22 @@ def selftest() -> int:
         _items = old_home_items(r)
         arms.append(("F 非 ASCII 路径不被静默跳过（-z）", "漏件",
                      any("中文件" in x for x in _items)))
+
+        # 臂 G ⭐⭐ **`A2`（2026-10-05）的双向防复发臂** —— ⚠️ 缺任一半都测不出真缺陷：
+        #   · **G1 开得不够** ⇒ `①-code` 的判据**恒不命中** ⇒ ⭐ 本表对 `src/` 又回到"**零保证**"
+        #     （那正是 `A2` 要修的原缺陷 —— 它当时**没有任何东西会红**）；
+        #   · **G2 开得过头** ⇒ 542 份 `.java` 涌进普查 ⇒ 本表立刻**几百件"无家可归"**假红。
+        #   ⇒ ⭐ 只测 G1 会放过"把 `src/` 整个放开"，只测 G2 会放过"其实没放开"。
+        _y = r / "src" / "main" / "java" / "com" / "x" / "y"
+        _y.mkdir(parents=True)
+        (_y / "package-info.java").write_text("x", encoding="utf-8")
+        (_y / "Foo.java").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=r, check=True)
+        _items2 = old_home_items(r)
+        arms.append(("G1 `src/**/package-info.java` **进**普查（`A2`）", "漏件",
+                     any(x.endswith("package-info.java") for x in _items2)))
+        arms.append(("G2 普通 `.java` ⛔ **不进**普查（`A2` 只开一格）", "",
+                     not any(x.endswith("Foo.java") for x in _items2)))
 
     bad = 0
     for name, want, ok in arms:

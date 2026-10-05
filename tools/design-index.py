@@ -39,7 +39,26 @@ OUTPUT = ROOT / "docs" / "DESIGN_INDEX.md"
 
 #: ⚠️ 人口下限：2026-10-02 实测 **30** 个顶层包。留余量但拦得住崩塌
 #:（写坏路径 ⇒ 扫到 0 个包 ⇒ 必须**响亮失败**，⛔ 不许"索引里只剩一个包"也照样绿）
-ASSERTIONS = {"顶层包数": 25, "顶层设计件": 8}
+#:
+#: ⭐⭐ **`A3`（2026-10-05 开发者裁「作为缺口可以马上批」）**：本表从"**只有下限**"扩成
+#:   **两个方向**，形状 = `{量: (比较符, 阈值)}` —— ⭐ **两种判据共用同一个循环**（⛔ 不许写第二份，
+#:   那正是本仓那族"同一口径两份 ⇒ 必然漂移"的错）。
+#:   · `>=` = **人口下限**：防**静默删空**（表/包/设计件被删空也算通过 ⇒ 拦住）；
+#:   · `<=` = ⭐ **只许变短**（= 用户裁的「人口下限 ＋ 只许变短」这条形态，见咨询回执 `001` 的 `T2`）。
+#:
+#: ⭐ 新立的两条**专治"某包没有设计"**（`A3` 的原话：**今天 23 个缺口不报红**）：
+#:   `顶层包有设计说明 >= 7` 防**覆盖倒退**；`顶层包缺设计说明 <= 23` 防**缺口变大**。
+#:   ⚠️ **只加下限是不够的**：顶层包数下限是 25，若有人加 5 个新包却不写设计说明，
+#:   「有设计说明」可以恒 ≥ 7 **而缺口一路涨到 28** ⇒ ⭐ **必须同时有上界**，否则那条判据"看起来有、其实拦不住"。
+#:   ⚠️ 上界的**代价是明说的**：此后**新增顶层包必须同时补它的 `package-info.java`**，否则本门禁红。
+#:      ⭐ 那正是 `A3` 要的效果（缺口**只许还、不许涨**）；⚠️ 若日后包结构调整导致它假红，
+#:      **改这条数要走裁定**，⛔ 不许就地放宽。
+ASSERTIONS: dict[str, tuple[str, int]] = {
+    "顶层包数": (">=", 25),
+    "顶层设计件": (">=", 8),
+    "顶层包有设计说明": (">=", 7),
+    "顶层包缺设计说明": ("<=", 23),
+}
 
 #: ═══════════════════════════════════════════════════════════════════════════
 #: ⭐⭐ 第二层：`docs/` 根下的**设计件**（2026-10-02 用户裁定后新增）
@@ -373,11 +392,28 @@ def render(pkgs: list[dict], docs: list[dict]) -> str:
 def build() -> tuple[str, dict, list[dict]]:
     pkgs = collect()
     docs = design_docs()
-    stats = {"顶层包数": len(pkgs), "顶层设计件": len(docs)}
-    for key, floor in ASSERTIONS.items():
-        if stats[key] < floor:
-            print(f"DESIGN_INDEX_RESULT FAIL: 解析崩塌 —— {key}={stats[key]} < 下限 {floor}"
-                  f"（路径写坏 / 包没了 ⇒ 少读一截不许悄悄过）", file=sys.stderr)
+    stats = {
+        "顶层包数": len(pkgs),
+        "顶层设计件": len(docs),
+        #: ⭐ `A3`（2026-10-05）：**顶层包**里"有设计说明 / 没有设计说明"各几个。
+        #: ⚠️ 只数 `depth == 1` —— 子包（`action/craft` · `region/authz`）不进这两个量，
+        #:   否则"缺口"会因为**子包补了设计**而假降，⭐ 而缺口说的就是**顶层包**。
+        "顶层包有设计说明": sum(1 for p in pkgs if p["has"] and p["depth"] == 1),
+        "顶层包缺设计说明": sum(1 for p in pkgs if not p["has"] and p["depth"] == 1),
+    }
+    for key, (op, limit) in ASSERTIONS.items():
+        if key not in stats:
+            #: ⛔ **响亮失败**：`统计量` 与 `判据` 对不上名 ⇒ 那条判据会**静默失效**
+            #:（这正是本仓"名单里写错一个字 ⇒ 那一类静默不被检查"那一族的同族形状）。
+            print(f"DESIGN_INDEX_RESULT FAIL: 判据 `{key}` **没有对应的统计量** ⇒ "
+                  f"它会静默失效（可用：{', '.join(sorted(stats))}）", file=sys.stderr)
+            raise SystemExit(1)
+        bad = stats[key] < limit if op == ">=" else stats[key] > limit
+        if bad:
+            why = ("解析崩塌 / 覆盖倒退" if op == ">="
+                   else "⭐ **缺口变大**（只许变短）")
+            print(f"DESIGN_INDEX_RESULT FAIL: {why} —— {key}={stats[key]} {op} {limit} **不成立**"
+                  f"（⛔ 少读一截、或缺口涨了，都不许悄悄过）", file=sys.stderr)
             raise SystemExit(1)
     #: ⭐⭐ **双向覆盖自证**（第二层）：`docs/*.md` 每份都被分类 ÷ 名单里每个模式都真能命中。
     cov = design_coverage_check()

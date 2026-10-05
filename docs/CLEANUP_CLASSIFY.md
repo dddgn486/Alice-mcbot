@@ -21,6 +21,7 @@
 | 好家 | 件数 | 零引用 | 零引用**合法**吗 |
 |---|---|---|---|
 | ① 常驻规范 | 2 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
+| ①-code 设计说明（`package-info.java`） | 9 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 55 | **13** | **待用户判**（本表只报数） |
@@ -30,7 +31,7 @@
 | ⑪ 咨询通道（⭐ 类名待批） | 3 | **2** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **604** | **145** | 这个合计**没有行动含义**（见上） |
+| **合计** | **613** | **145** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -284,6 +285,15 @@
 |---|---|---|---|---|
 | `AGENTS.md` | ① 常驻规范 | 91 | 5 | — |
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 24 | 0 | — |
+| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/compat/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/debug/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/staging/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
+| `src/main/java/com/dddgn/alice/step/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `README.md` | ② 入口 ＋ 地图 | 55 | 0 | — |
 | `docs/README.md` | ② 入口 ＋ 地图 | 56 | 0 | — |
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 115 | 7 | — |
@@ -535,7 +545,7 @@
 | `tools/check-consult-pairs.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-consult-pairs.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 7 | 0 | — |
-| `tools/check-design-index.sh` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/check-design-index.sh` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 13 | 3 | — |
@@ -595,7 +605,7 @@
 | `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 16 | 0 | — |
-| `tools/design-index.py` | ⑥ 边界即机器 | 8 | 0 | — |
+| `tools/design-index.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
@@ -618,7 +628,7 @@
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
-| `tools/new-home-audit.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/new-home-audit.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
@@ -887,5 +897,5 @@
 | `consult/receipt/001-七类表缺维护栏.md` | ⑪ 咨询通道（⭐ 类名待批） | 0 | 0 | — |
 | `consult/request/001-七类表缺维护栏.md` | ⑪ 咨询通道（⭐ 类名待批） | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 604 -->
+<!-- CLEANUP_ROWS 613 -->
 
