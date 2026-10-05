@@ -26,12 +26,12 @@
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 56 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 129 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 131 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道 | 7 | **6** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **622** | **149** | 这个合计**没有行动含义**（见上） |
+| **合计** | **624** | **149** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -320,7 +320,7 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 27 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 67 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
@@ -562,6 +562,8 @@
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-expected-reds.py` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/check-extraction-status.py` | ⑥ 边界即机器 | 4 | 0 | — |
+| `tools/check-extraction-status.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-far-goal-usage.py` | ⑥ 边界即机器 | 14 | 4 | — |
@@ -910,5 +912,5 @@
 | `consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 622 -->
+<!-- CLEANUP_ROWS 624 -->
 
