@@ -548,7 +548,7 @@
 | `tools/check-consult-pairs.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-design-index.sh` | ⑥ 边界即机器 | 11 | 0 | — |
-| `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 4 | 0 | — |
+| `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — |
