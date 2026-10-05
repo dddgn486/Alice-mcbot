@@ -177,7 +177,7 @@ def package_declaration_check(src: Path = SRC) -> list[str]:
       · **包被删** ⇒ 文件随目录**一起消失** ⇒ ⛔ **无需判据**（自证）；
       · **包改名而 `package` 声明没跟着改** ⇒ ⚠️ 今天**只有编译器会拦**，
         而 ⛔ **`check-all` 不含编译**（`./gradlew build` 在 CI 层跑）
-        ⇒ ⭐ **静态门禁层原本没有这一格**。本函数**把编译期才发现的事提到静态层**。
+        ⇒ ⭐ **静态门禁层原本没有这一条判据**。本函数**把编译期才发现的事提到静态层**。
 
     ⚠️ ⭐ **它判不了**（如实记）：注释**内容**是否还描述着那个包的真实行为 ——
       那是「**行为变了、注释没改**」，⛔ **没有可靠机械判据**（`A4` 那半已明说是「靠人」）。
@@ -187,7 +187,7 @@ def package_declaration_check(src: Path = SRC) -> list[str]:
     """
     problems: list[str] = []
     if not src.is_dir():
-        return [f"`{src}` **不存在** ⇒ 这一格**扫不到任何东西**（⛔ 不许「扫不到就报绿」）"]
+        return [f"`{src}` **不存在** ⇒ 这一条判据**扫不到任何东西**（⛔ 不许「扫不到就报绿」）"]
     n = 0
     for f in sorted(src.rglob("package-info.java")):
         n += 1
@@ -200,7 +200,7 @@ def package_declaration_check(src: Path = SRC) -> list[str]:
                             f"（⛔ 这也会让「包被改名」那一路**永远发现不了**）")
         elif decl != expected:
             problems.append(f"`{rel}` 声明的是 `package {decl};`，而它住在 `{expected}` "
-                            f"⇒ **不一致**（⭐ 编译期会报，但 `check-all` 不含编译 ⇒ 本格补的就是那一格）")
+                            f"⇒ **不一致**（⭐ 编译期会报，但 `check-all` 不含编译 ⇒ 本判据补的就是那一条）")
     if n == 0:
         problems.append("全树**一个 `package-info.java` 都没扫到** ⇒ 路径写坏？"
                         "（⛔ 「扫不到」与「都没问题」必须能分辨）")
@@ -470,7 +470,7 @@ def build() -> tuple[str, dict, list[dict]]:
         raise SystemExit(1)
 
     #: ⭐⭐ **`A4` 的载体**（2026-10-05）：`package-info.java` 的 `package` 声明必须与目录一致。
-    #: ⛔ 与 `check-all` 的其余部分**不重叠** —— 那一格原本**只有编译器拦**。
+    #: ⛔ 与 `check-all` 的其余部分**不重叠** —— 那一条原本**只有编译器拦**。
     decl = package_declaration_check()
     if decl:
         print("DESIGN_INDEX_RESULT FAIL: `package-info.java` 的 `package` 声明与**所在目录对不上**：",

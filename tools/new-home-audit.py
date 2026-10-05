@@ -26,7 +26,7 @@
 3. ⭐⭐ **"域外"与"好家"可以同时成立（⛔ 不是二选一）** —— 实测抓到 4 件：
    `docs/archive/legacy-*/**/*_DESIGN.md` 既命中 ④（它**是**设计件）又命中 ⑧（它**是**上一代/已归档）。
    ⇒ ⭐ 正确读法 = **⑧ 管"它进不进体系（效力）"，④ 管"它是什么（形态）"** ——
-   ⛔ **两个轴，不是一个格**。本脚本用"⑧ 兜底优先"给出**唯一落点**，但**如实保留这条边界**。
+   ⛔ **两个轴，不是一个**落点****。本脚本用"⑧ 兜底优先"给出**唯一落点**，但**如实保留这条边界**。
 4. ⚠️ `DEST` 是**我从草案 `§D′` 抽出来的** —— ⚠️ 它与草案不一致时，**以草案为准**，
    本脚本要跟着改（⭐ 这正是 `C-2`：读数漂了就停下重勘）。
 
@@ -53,9 +53,9 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      ("AGENTS.md", "docs/AI_DEVELOPMENT_PLAYBOOK.md")),
     #: ⭐⭐ **①-code：设计说明（`package-info.java`）—— `A2` 的落地**（用户 2026-10-05 裁「**可以马上批**」）。
     #:  ⭐ **为什么是 ① 的"子类"而不是并在 ① 里**（出处 = 咨询回执 `001` `T3` 的裁定「代码注释**进体系**，
-    #:     作为 `①-code` 子类」）：① 的身份格是「agent 推断不出 · **每会话无条件读** ⇒ 唯一被严格限量的」，
+    #:     作为 `①-code` 子类」）：① 的**身份栏**是「agent 推断不出 · **每会话无条件读** ⇒ 唯一被严格限量的」，
     #:     ⛔ 而 `package-info.java` **按需读、⛔ 不每会话读、⛔ 不占 1501 那笔预算**
-    #:     ⇒ 并在 ① 的载体里会让**那一格判据变假**（那种"读起来还正常"的错正是本表要拦的）。
+    #:     ⇒ 并在 ① 的载体里会让**那一栏的判据变假**（那种"读起来还正常"的错正是本表要拦的）。
     #:  ⭐ **它此前没有家**：`old_home_items()` 有一行 `src/` 的非 `.md` 全排除
     #:     ⇒ 本表**对 `src/` 一个保证都没有**，而 `package-info.java` 恰恰是 `src/` 里**唯一进体系**的那件
     #:     （它**已经在写设计**：骨架第②③⑥节；`DESIGN_INDEX` 也**已经索引它**）。
@@ -65,11 +65,11 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
     ("② 入口 ＋ 地图", "谁说了算 · 从哪开始读", ("README.md", "docs/README.md")),
     ("③ 决策/裁定", "为什么这样定 ＋ 还算不算数 ⇒ 必须配索引",
      # ⚠️ 2026-10-04 用户裁「**门禁没有权利否决草案**」⇒ 两个 `*PROPOSAL*` **已搬到 ④**
-     #    （草案 `§D′-1` ④ 身份格逐字把它们列在「提案未裁」里）—— 见 `§D′-8` 第 7 条。
+     #    （草案 `§D′-1` ④ **身份栏**逐字把它们列在「提案未裁」里）—— 见 `§D′-8` 第 7 条。
      ("docs/AI_DECISIONS.md", "docs/DECISIONS_INDEX.md")),
     ("④ 状态 ＋ 构想", "做到哪了／下一步／卡在哪 ＋ ⭐ 提案未裁 ＋ 施工域（plans）",
      # ⭐ **「提案未裁」这一半的两个具体位置**（2026-10-04 从 ③ 与 ⑧ 搬来 —— 撞上的是
-     #    草案 `§D′-1` ④ 的身份格，按「门禁没有权利否决草案」跟着草案走）。
+     #    草案 `§D′-1` ④ 的**身份栏**，按「门禁没有权利否决草案」跟着草案走）。
      ("docs/HANDOVER.md", "docs/OPEN_ITEMS_LEDGER.md", "docs/AI_PROJECT_STATE.md",
       "docs/QUESTIONS_LEDGER.md", "docs/plans/*.md",
       ".alice-supervision/improvements/*",
@@ -194,10 +194,10 @@ def old_home_items(root: Path) -> list[str]:
         #      ⇒ ⭐ **它们不是"文档体系成员"，是 game 资源与 CI 配置** —
         #      本表只回答"**文档**去哪儿"，⛔ 不回答"代码资源去哪儿"（那是另一条线）。
         #    · ⛔ 不收 `src/**` 的**非 `.md`** 件（同上）
-        #    ⭐⭐ **2026-10-05 `A2` 开了一格**（用户裁「`check-new-home` 要收 `src/**/package-info.java`」）：
+        #    ⭐⭐ **2026-10-05 `A2` 开了**一处****（用户裁「`check-new-home` 要收 `src/**/package-info.java`」）：
         #      `package-info.java` **进普查** —— 它是 `src/` 里**唯一进体系**的那件（见 `DEST` 的 `①-code` 行）。
         #      ⛔ **不放开整个 `.java`**：542 份 `.java` 是**主代码**，⛔ 不是文档体系成员
-        #      （`src/**` 的非 `.md` 仍**全部排除**，只开 `package-info.java` 这一格）。
+        #      （`src/**` 的非 `.md` 仍**全部排除**，只开 `package-info.java` 这一处）。
         if l.startswith("src/") and not l.endswith((".md", "package-info.java")):
             continue
         if l.startswith((".devcontainer/", ".github/workflows/build.yml")):
@@ -381,7 +381,7 @@ def selftest() -> int:
         _items2 = old_home_items(r)
         arms.append(("G1 `src/**/package-info.java` **进**普查（`A2`）", "漏件",
                      any(x.endswith("package-info.java") for x in _items2)))
-        arms.append(("G2 普通 `.java` ⛔ **不进**普查（`A2` 只开一格）", "",
+        arms.append(("G2 普通 `.java` ⛔ **不进**普查（`A2` 只开**一处**）", "",
                      not any(x.endswith("Foo.java") for x in _items2)))
 
     bad = 0
