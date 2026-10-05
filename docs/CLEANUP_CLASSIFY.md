@@ -284,7 +284,7 @@
 | 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 |
 |---|---|---|---|---|
 | `AGENTS.md` | ① 常驻规范 | 91 | 5 | — |
-| `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 24 | 0 | — |
+| `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 25 | 0 | — |
 | `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `src/main/java/com/dddgn/alice/compat/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
