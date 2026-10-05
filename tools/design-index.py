@@ -88,6 +88,9 @@ NON_DESIGN_PATTERNS: list[tuple[str, str]] = [
     ("DOC_REFACTOR_DRAFT.md", "文档改革**草案**（⭐ 依据 —— 与计划书同类，⛔ 不是 mod 设计件）"),
     ("CLEANUP_CLASSIFY.md", "清旧家判据表（**生成物**；由 `tools/cleanup-classify.py` 生成 ＋ 门禁盯着）"),
     ("ACCEPTANCE_GUIDE.md", "验收指引"),
+    #: ⭐ **2026-10-05 加**（咨询回执 `003` 落地）：它是**提取册**（容器），⛔ 不是设计件本身 ——
+    #:   内容 = 从旧件里**提取**出来的设计／经验／判据；⭐ 它的作用是**落点**，判定它自己"是不是设计"没有意义。
+    ("EXTRACTED_KNOWLEDGE.md", "提取册（容器 · 装从旧件提取的设计/经验/判据；由 `W7′-8` 工序产出）"),
     ("AI_*.md", "常驻件 ／ 旧态文档（`AI_DECISIONS` `AI_PROJECT_STATE` `AI_DEVELOPMENT_PLAYBOOK` `AI_CHANGELOG` `AI_TEST_MATRIX`）"),
     ("OPEN_ITEMS_LEDGER.md", "⑥ 类（进行中状态 · 待办总账）"),
     ("QUESTIONS_LEDGER.md", "⑥ 类（进行中状态 · 问题账）"),
