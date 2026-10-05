@@ -3022,7 +3022,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 | 序号 | 件 | 类 | 沿革 | 状态 |
 |---|---|---|---|---|
-| **B2-01** | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-01** | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ✅ 保留 |
 | **B2-02** | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-03** | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-04** | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 原址 `docs/` 根 | ⏳ 待批 |
@@ -3079,4 +3079,4 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **B2-55** | `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-56** | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 
-⭐ **进度：待批 51 / 56**（⛔ 销案 5 件不计入待批）（⛔ 每次改状态都要回来改这一行）。
+⭐ **进度：待批 50 / 56**（⛔ 销案 5 件不计入待批）（⛔ 销案 5 件不计入待批）（⛔ 每次改状态都要回来改这一行）。
