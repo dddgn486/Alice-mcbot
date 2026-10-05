@@ -25,6 +25,16 @@ cd "$ROOT"
 FAILED=0
 WARNED=0
 PASSED=0
+#: ⭐⭐ **`C4`（2026-10-05 开发者裁「计时 ＋ 打印（不硬红）」）**：
+#:   `GATES` = 本次**真的调用了几条门禁**（⭐ 由 `run_gate` 自己数，⛔ 不靠"数脚本里的行" ——
+#:   那个口径与 `plan-doc-refactor.py` 的 `LIVE`（数 `^run_gate` 行 **= 58**）**不是同一个量**）。
+#:   · ⭐ **为什么要有它**：回执 `001` 的 `T6` 批了「**门禁不设硬上界，改成本预算（`check-all` < 2 分钟）**」，
+#:     而 ⛔ **本脚本原本一点都不测时长** ⇒ ⭐ **那条裁定批了却没有任何载体 ⇒ 判不了**（=「批了原则没批载体」）。
+#:   · ⛔ **为什么只打印、不判红**（开发者 2026-10-05 明确选的）：⭐ 慢机器 / 冷缓存上**会假红**，
+#:     而假红会让下一个人学会"无视这一行" ⇒ 比没有更坏。⇒ ⭐ **上界值也不写死**（同 `AGENTS.md` 那条纪律：
+#:     写死的数会腐烂）。要升级成硬门禁是**另一条裁定**。
+GATES=0
+START_SECONDS=$SECONDS
 # ⭐ 2026-09-29（`D-536`）：电池 `verdict=FAIL` 且**红全部已登记**时为 1 ⇒ 汇总行按"已登记红"收口。
 BATTERY_REGISTERED_REDS=0
 
@@ -40,6 +50,7 @@ trunc110() { python3 -c 'import sys; sys.stdout.write(sys.stdin.read()[:110])'; 
 run_gate() {
   local label="$1"; shift
   local out rc
+  GATES=$((GATES + 1))
   out="$("$@" 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ]; then
     PASSED=$((PASSED + 1))
@@ -469,6 +480,11 @@ run_expected_reds() {
 run_expected_reds
 
 hr
+#: ⭐⭐ `C4` 的落地：**成本当场可见**（⛔ 不判红 —— 理由见文件头那三行）。
+#: ⚠️ 这一行**不叫 `*_RESULT`**、也**不含 `run_gate` 字样** ⇒ ⛔ 不干扰任何按输出格式解析的消费者
+#:    （`plan-doc-refactor.py` 的 `LIVE` 数是**脚本里的 `^run_gate` 行**，⛔ 不是本行）。
+printf '⏱  C4 成本读数：本次调用 **%d** 条门禁 · 总时长 **%d 秒**（⭐ 只打印、⛔ 不判红；上界值不写死 —— 回执 001 T6 的成本预算是 2 分钟）\n' \
+  "$GATES" "$((SECONDS - START_SECONDS))"
 if [ "$FAILED" -eq 0 ]; then
   if [ "$WARNED" -gt 0 ]; then
     printf 'CHECK_ALL_RESULT PASS_WITH_WARNINGS: pass=%d warning=%d failed=0\n' "$PASSED" "$WARNED"

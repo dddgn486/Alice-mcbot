@@ -306,7 +306,7 @@
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 28 | 5 | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
@@ -629,7 +629,7 @@
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 13 | 0 | — |
-| `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
