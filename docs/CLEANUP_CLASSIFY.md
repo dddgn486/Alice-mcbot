@@ -555,7 +555,7 @@
 | `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 13 | 3 | — |
 | `tools/check-e4-offrepo.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-e4-offrepo.sh` | ⑥ 边界即机器 | 2 | 0 | — |
-| `tools/check-effective-trace.py` | ⑥ 边界即机器 | 5 | 0 | — |
+| `tools/check-effective-trace.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-expected-reds.py` | ⑥ 边界即机器 | 9 | 0 | — |
@@ -629,7 +629,7 @@
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
 | `tools/kernel-predicates.py` | ⑥ 边界即机器 | 47 | 9 | — |
 | `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — |
-| `tools/machine-map.py` | ⑥ 边界即机器 | 29 | 2 | — |
+| `tools/machine-map.py` | ⑥ 边界即机器 | 30 | 2 | — |
 | `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
