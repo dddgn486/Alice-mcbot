@@ -435,6 +435,30 @@ def render(pkgs: list[dict], docs: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def assertion_problems(stats: dict, assertions: dict | None = None) -> list[str]:
+    """→ **不成立的那几条判据**（空列表 = 全绿）。
+
+    ⭐⭐ **抽成纯函数是为了 `A3` 能注入自证**（2026-10-05 开发者裁「加 `--selftest`」）：
+    ⛔ 原来这段**内联在 `build()` 里** ⇒ 它只读**真树** ⇒ ⛔ **测不了**
+    （「上界收到 22 就红吗」只能手跑、⛔ 不能固化成常驻臂）。
+    ⚠️ **本次是纯抽离**：判据、文案、顺序**逐字未改**（⛔ 不是借机改行为）。
+    """
+    problems: list[str] = []
+    for key, (op, limit) in (assertions or ASSERTIONS).items():
+        if key not in stats:
+            #: ⛔ **响亮失败**：`统计量` 与 `判据` 对不上名 ⇒ 那条判据会**静默失效**
+            #:（这正是本仓"名单里写错一个字 ⇒ 那一类静默不被检查"那一族的同族形状）。
+            problems.append(f"判据 `{key}` **没有对应的统计量** ⇒ "
+                            f"它会静默失效（可用：{', '.join(sorted(stats))}）")
+            continue
+        bad = stats[key] < limit if op == ">=" else stats[key] > limit
+        if bad:
+            why = ("解析崩塌 / 覆盖倒退" if op == ">=" else "⭐ **缺口变大**（只许变短）")
+            problems.append(f"{why} —— {key}={stats[key]} {op} {limit} **不成立**"
+                            f"（⛔ 少读一截、或缺口涨了，都不许悄悄过）")
+    return problems
+
+
 def build() -> tuple[str, dict, list[dict]]:
     pkgs = collect()
     docs = design_docs()
@@ -447,20 +471,10 @@ def build() -> tuple[str, dict, list[dict]]:
         "顶层包有设计说明": sum(1 for p in pkgs if p["has"] and p["depth"] == 1),
         "顶层包缺设计说明": sum(1 for p in pkgs if not p["has"] and p["depth"] == 1),
     }
-    for key, (op, limit) in ASSERTIONS.items():
-        if key not in stats:
-            #: ⛔ **响亮失败**：`统计量` 与 `判据` 对不上名 ⇒ 那条判据会**静默失效**
-            #:（这正是本仓"名单里写错一个字 ⇒ 那一类静默不被检查"那一族的同族形状）。
-            print(f"DESIGN_INDEX_RESULT FAIL: 判据 `{key}` **没有对应的统计量** ⇒ "
-                  f"它会静默失效（可用：{', '.join(sorted(stats))}）", file=sys.stderr)
-            raise SystemExit(1)
-        bad = stats[key] < limit if op == ">=" else stats[key] > limit
-        if bad:
-            why = ("解析崩塌 / 覆盖倒退" if op == ">="
-                   else "⭐ **缺口变大**（只许变短）")
-            print(f"DESIGN_INDEX_RESULT FAIL: {why} —— {key}={stats[key]} {op} {limit} **不成立**"
-                  f"（⛔ 少读一截、或缺口涨了，都不许悄悄过）", file=sys.stderr)
-            raise SystemExit(1)
+    #: ⭐ 判据交 `assertion_problems()`（纯函数 ⇒ **可注入自证**）；⛔ 行为与抽离前逐字相同。
+    for p in assertion_problems(stats):
+        print(f"DESIGN_INDEX_RESULT FAIL: {p}", file=sys.stderr)
+        raise SystemExit(1)
     #: ⭐⭐ **双向覆盖自证**（第二层）：`docs/*.md` 每份都被分类 ÷ 名单里每个模式都真能命中。
     cov = design_coverage_check()
     if cov:
@@ -497,12 +511,74 @@ def build() -> tuple[str, dict, list[dict]]:
     return render(pkgs, docs), stats, pkgs
 
 
+def selftest() -> int:
+    """**十臂**注入自证（`A3` 四条 ＋ `A4` 六条）—— ⭐「能过」≠「能抓」。
+
+    ⭐ 为什么必须固化（2026-10-05 开发者裁「加」）：这些注入**原先全是手跑的**
+    （记在 `check-design-index.sh` 头部）⇒ ⛔ **以后谁把它改坏了，没有任何东西会红**。
+    ⚠️ `A4` 那六条**喂临时树**（⛔ 不动 `src/`）—— `package_declaration_check()` 收 `src` 参数就是为了这个。
+    """
+    import tempfile
+    arms: list[tuple[str, bool]] = []
+
+    # ── A3：判据循环（⛔ 不是看"跑得过"，是看"该红时红不红"）─────────────────
+    base = {"顶层包数": 30, "顶层设计件": 14, "顶层包有设计说明": 7, "顶层包缺设计说明": 23}
+    arms.append(("A3-1 现算值 ⇒ 全绿", not assertion_problems(base)))
+    arms.append(("A3-2 上界收到 22（缺口 23 > 22）⇒ 红",
+                 any("缺口变大" in p for p in
+                     assertion_problems(base, {"顶层包缺设计说明": ("<=", 22)}))))
+    arms.append(("A3-3 下限抬到 8（有设计 7 < 8）⇒ 红",
+                 any("覆盖倒退" in p for p in
+                     assertion_problems(base, {"顶层包有设计说明": (">=", 8)}))))
+    arms.append(("A3-4 判据名拼错 ⇒ **响亮失败**（⛔ 不许静默失效）",
+                 any("没有对应的统计量" in p for p in
+                     assertion_problems(base, {"顶层包有设计说明（拼错）": (">=", 1)}))))
+
+    # ── A4：`package` 声明必须与目录一致（⭐ 六条，喂临时树）────────────────
+    def a4(name: str, files: dict[str, str], want_red: bool) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            r = Path(td)
+            for rel, body in files.items():
+                q = r / rel
+                q.parent.mkdir(parents=True, exist_ok=True)
+                q.write_text(body, encoding="utf-8")
+            got = package_declaration_check(r)
+            ok = bool(got) == want_red
+            arms.append((f"A4 {name} ⇒ {'期望红' if want_red else '期望安静'}", ok))
+            if not ok:
+                print(f"      ↳ 实得 {got!r}")
+
+    a4("声明与目录一致", {"a/b/package-info.java": "/** d */\npackage a.b;\n"}, False)
+    a4("声明与目录**不一致**（包改名）", {"a/b/package-info.java": "/** d */\npackage a.OLD;\n"}, True)
+    a4("**没有** `package` 声明", {"a/b/package-info.java": "/** d */\n"}, True)
+    a4("全树一个都没扫到 ⇒ ⛔ 不许报绿", {}, True)
+    #: ⭐ 这条**当初手跑时抓出过一个真 bug**（`rel` 对临时树算不出来）⇒ ⭐ 注入自证不是形式。
+    a4("注释里提到 `package` 但没真声明 ⇒ ⛔ 不许误认",
+       {"a/b/package-info.java": "/** package a.OLD; */\npackage a.b;\n"}, False)
+    a4("好坏混住 ⇒ 只报坏的那一个",
+       {"a/b/package-info.java": "/**d*/\npackage a.b;\n",
+        "a/c/package-info.java": "/**d*/\npackage WRONG;\n"}, True)
+
+    bad = 0
+    for name, ok in arms:
+        bad += not ok
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name}")
+    print(f"DESIGN_INDEX_SELFTEST {'PASS' if not bad else 'FAIL'}: arms={len(arms)} failed={bad}")
+    return 1 if bad else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="生成/校验 docs/DESIGN_INDEX.md")
-    g = ap.add_mutually_exclusive_group(required=True)
+    ap.add_argument("--selftest", action="store_true", help="十臂注入自证（⛔ 不读真树）")
+    g = ap.add_mutually_exclusive_group()
     g.add_argument("--write", action="store_true", help="写入 docs/DESIGN_INDEX.md")
     g.add_argument("--check", action="store_true", help="校验是否陈旧（陈旧 ⇒ 非零退出）")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
+    if not (args.write or args.check):
+        ap.error("要 --write 或 --check（或 --selftest）")
 
     rendered, stats, pkgs = build()
     n_top = sum(1 for p in pkgs if p["depth"] == 1)

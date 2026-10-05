@@ -26,12 +26,12 @@
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 55 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 125 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 127 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道（⭐ 类名待批） | 3 | **2** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **613** | **145** | 这个合计**没有行动含义**（见上） |
+| **合计** | **615** | **145** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -300,7 +300,7 @@
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 31 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
-| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 38 | 0 | — |
+| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 40 | 0 | — |
 | `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
@@ -576,6 +576,8 @@
 | `tools/check-precharge-containment.sh` | ⑥ 边界即机器 | 9 | 3 | — |
 | `tools/check-primitive-budget-injection.py` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-primitive-readings.py` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/check-project-state-freshness.py` | ⑥ 边界即机器 | 2 | 0 | — |
+| `tools/check-project-state-freshness.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-proposal-status.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-proposal-status.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-protection-install-point.py` | ⑥ 边界即机器 | 8 | 2 | — |
@@ -897,5 +899,5 @@
 | `consult/receipt/001-七类表缺维护栏.md` | ⑪ 咨询通道（⭐ 类名待批） | 0 | 0 | — |
 | `consult/request/001-七类表缺维护栏.md` | ⑪ 咨询通道（⭐ 类名待批） | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 613 -->
+<!-- CLEANUP_ROWS 615 -->
 
