@@ -58,12 +58,41 @@ def tracked_md() -> list[str]:
     return sorted(p for p in out.split("\0") if p.endswith(".md"))
 
 
+def target_exists(rel: str, target: str, names: set[str] | None = None) -> bool:
+    """→ 这个引用的**目标件真的存在**吗（⭐ 纯函数 ⇒ **可注入自证**）。
+
+    ⚠️ ⭐ **为什么必须过滤**：回执 `002` 在自己的 `F1` 建议里写了一段**示例引用**，
+    而旧 `scan()` **把"举例"读成了"引用"** ⇒ 基线被从 357 抬到 359 ⇒ ⛔ **「只许变短」被结构性污染**。
+    ⭐ `check-ref-integrity` **早就有这条分类**（「文件不存在（仅提示）」）⇒ 本函数与它对齐。
+    """
+    names = {Path(f).name for f in tracked_md()} if names is None else names
+    if "/" in target:
+        return (ROOT / target).is_file() or (ROOT / rel).parent.joinpath(target).is_file()
+    #: ⭐ 裸文件名（`AI_DECISIONS.md` 这种）：**按文件名在仓内解析** ——
+    #: ⚠️ 它们的真身多在 `docs/` 下，只试仓根会把 **120 处真引用**误判掉（我第一版就踩了）。
+    return target in names
+
+
 def scan() -> dict[tuple[str, str], int]:
     """→ {(引用方, 被引方): 处数}。
 
     ⚠️ **自己排掉自己**：本脚本自身**不在 `.md` 名单里** ⇒ 天然不参与（⛔ 不需要特判）。
+
+    ⭐⭐ **2026-10-05 加一条过滤（回执 `002` 落地时查出；开发者批）**：
+    ⛔ **目标文件不存在的引用不计入**。⭐ **为什么必须过滤**：
+    起因 = 存量基线从 **357 被抬到 359**，而 ⭐ **不是谁违规** ——
+    是回执 `002` 在它的 `F1` 建议里写了**一段示例引用**（形如「`docs/` 下某个**不存在**的 `.md` 名 ＋ 行号」），
+    而旧 `scan()` **把"示例"读成了"引用"** ⇒ ⭐ **每份新报告只要举例，基线就永久涨一处**
+    ⇒ ⛔ **「只许变短」被结构性污染**（不是纪律问题，是**判据口径**问题）。
+    ⭐ 而 `check-ref-integrity` **早就有这条分类**（它报「另有 N 处指向不存在文件的引用，不阻塞」）
+    ⇒ ⭐ **本函数现在与它对齐**：**只数"指向仓内真有一份 `.md`"的引用**。
     """
     pairs: dict[tuple[str, str], int] = {}
+    #: ⭐ 仓内所有受管 `.md` 的**文件名**集合 —— 用来判「这个引用指向的件真的存在吗」。
+    #: ⚠️ ⭐ **为什么不能只试仓根**：实测本仓的引用**大量写成裸文件名**（`AI_DECISIONS.md` ·
+    #:   `HANDOVER.md` …），而它们的**真身在 `docs/` 下** ⇒ 只试仓根会把 **120 处真引用**误判成"不存在"
+    #:   （⭐ 我第一版就这么写的，359 被砍到 **239** ⇒ 当场发现并改成按文件名解析）。
+    names = {Path(f).name for f in tracked_md()}
     for rel in tracked_md():
         try:
             text = (ROOT / rel).read_text(encoding="utf-8", errors="ignore")
@@ -72,9 +101,12 @@ def scan() -> dict[tuple[str, str], int]:
         for m in DOCREF.finditer(text):
             target = m.group(0).rsplit(":", 1)[0]
             # 只收"指向仓内真有一份 .md"的引用 —— ⛔ 裸文件名 + 行号那种不算
-            # ⚠️ **注释里也不许写 `.md` 加数字的活样本**：本门禁会命中它自己（臂 E 守这条）。
             base = target.rsplit("/", 1)[-1]
             key = (rel, target if "/" in target else base)
+            #: ⭐ **目标必须真存在** —— 判据抽在纯函数 `target_exists()` 里（⇒ **可注入自证**，臂 K/L）。
+            if not target_exists(rel, key[1], names):
+                continue
+            # ⚠️ **注释里也不许写 `.md` 加数字的活样本**：本门禁会命中它自己（臂 E 守这条）。
             pairs[key] = pairs.get(key, 0) + 1
     return pairs
 
@@ -201,6 +233,17 @@ def selftest() -> int:
     arms.append(("J **减量不许**被判成增量（否则合法路径被堵）", "",
                  increments({("a.md", "b.md"): 2}, {("a.md", "b.md"): 1}) == []
                  and increments({("a.md", "b.md"): 1}, {}) == []))
+
+    #: ⭐ 臂 K/L：**"举例"不许被当成"引用"**（2026-10-05 新过滤；开发者批）。
+    #:   ⚠️ 起因：回执 `002` 的 `F1` 里写了一段**示例引用**，旧 `scan()` 把它数进基线（357 → 359）。
+    #:   ⭐ 这两臂**直接测纯函数 `target_exists()`**（⛔ 不是测注释）。
+    arms.append(("K 目标不存在 ⇒ 该引用不计入（举例 ≠ 引用）", "",
+                 not target_exists("a.md", "docs/根本没有这个.md")
+                 and not target_exists("a.md", "根本没有这个.md")))
+    #: ⭐ **反臂**：真目标必须**照旧计入** —— ⛔ 否则过滤器会把真引用也砍掉
+    #:（⚠️ 我第一版就砍多了：359 → 239，因为裸名件的真身在 `docs/` 下）。
+    arms.append(("L 真目标不许被误砍（含裸名件的真身在 docs/ 下）", "",
+                 target_exists("a.md", "AGENTS.md") and target_exists("a.md", "AI_DECISIONS.md")))
 
     # ⭐ **活样本不许写进本文件**（否则门禁命中自己 —— 同族坑本仓踩过多次）
     me = Path(__file__).read_text(encoding="utf-8")

@@ -285,7 +285,7 @@
 
 | 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 |
 |---|---|---|---|---|
-| `AGENTS.md` | ① 常驻规范 | 93 | 5 | — |
+| `AGENTS.md` | ① 常驻规范 | 94 | 5 | — |
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 26 | 0 | — |
 | `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
@@ -298,7 +298,7 @@
 | `src/main/java/com/dddgn/alice/step/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `README.md` | ② 入口 ＋ 地图 | 57 | 0 | — |
 | `docs/README.md` | ② 入口 ＋ 地图 | 58 | 0 | — |
-| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 117 | 7 | — |
+| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 118 | 7 | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 31 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
