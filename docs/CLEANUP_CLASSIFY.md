@@ -644,7 +644,7 @@
 | `tools/skills-index.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/step-names.py` | ⑥ 边界即机器 | 7 | 0 | — |
-| `tools/survey-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
+| `tools/survey-index.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 12 | 1 | — |
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — |
