@@ -637,7 +637,7 @@
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
 | `tools/recipe-readability.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
-| `tools/ref-anchors.py` | ⑥ 边界即机器 | 3 | 0 | — |
+| `tools/ref-anchors.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/render-scene-preview.py` | ⑥ 边界即机器 | 3 | 0 | — |
