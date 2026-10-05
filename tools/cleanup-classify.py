@@ -140,10 +140,36 @@ def mention_index() -> dict[str, set[str]]:
     return idx
 
 
-#: 「声称生效」的机械判据 = 文件**头部 40 行**里出现这些词。⭐ 为什么可信：
-#:   它**不是我的判断**，是**文件自己的自称**（`§D′-9` 9.5：人判"对不对/过期没有"，
-#:   而"它自称生效"这件事本身是机械可读的）。⚠️ 与 `check-proposal-status` 同一个思路。
+#: 「**疑似自称生效**」的机械判据 = 文件**头部 40 行**里出现这些词。
+#: ⚠️⚠️ **它的名字从 2026-10-04 起改了**（批 1 收口查出的判据缺陷）：原文叫「**自称生效**」，
+#:   而实测 **22 件里只有 6 件是真自称** ⇒ ⭐ **「出现这个词」 ≠ 「这份文件在自称生效」**。
+#:   逐条读原文分四型：**A 真自称 6** · **D 引述别事 14** · **B 否定句 1** · **C 图例定义 1**。
+#: ⇒ ⭐ 本判据现在**只产出候选**，并且**必须配"输出原文"**（`survey/53` 的形状）——
+#:   ⛔ **不许**再把它的命中叫成「它自称生效」（那是本项目最贵那族：**判据的名字比判据本身说的多**）。
+#: ⚠️ 与 `check-proposal-status` 同一个思路。
 CLAIM_WORDS = ("已生效", "生效中", "已落地", "已接线", "已实现", "已拍板")
+
+#: ⭐ **必须在词前面 N 个字内出现的否定词** ⇒ 那一处命中**不算**（B 型样板：
+#:   「文中建议文本是提案，**不是已生效的决策**」—— 它说的是「**不是**」）。
+_NEG = ("不", "未", "非", "没", "无", "别", "尚未")
+
+
+def _is_negated(line: str, at: int) -> bool:
+    """该命中前面 4 个字里有否定词吗（⛔ 只看**紧邻**，⛔ 不做语义）。"""
+    return any(x in line[max(0, at - 4):at] for x in _NEG)
+
+
+def _is_quoted_mention(line: str, word: str) -> bool:
+    r"""这个词出现在**反引号里**吗（反引号包起来的词 = 在**谈论**它，⛔ 不是断言它）。"""
+    return f"`{word}`" in line
+
+
+def _is_column_name(lines: list[str], i: int, word: str) -> bool:
+    """该词**独占一个表格单元格**且**下一行是分隔行** ⇒ 它是在**定义列名**（C 型样板）。"""
+    if i + 1 >= len(lines) or not re.match(r"^\s*\|[\s:|-]+\|\s*$", lines[i + 1]):
+        return False
+    cells = [c.strip(" `*") for c in lines[i].strip().strip("|").split("|")]
+    return any(c == word for c in cells)
 
 
 def src_index() -> dict[str, set[str]]:
@@ -161,17 +187,43 @@ def src_index() -> dict[str, set[str]]:
     return idx
 
 
+def claims_of_lines(lines: list[str]) -> str | None:
+    """⭐ **臂用入口**：把"头部若干行"直接喂进来（⛔ 不读文件，⛔ 不碰真树）。
+
+    ⚠️ 它存在的理由 = `claims_effective` 的三条排除必须**能被注入验证**；
+    ⛔ 只靠"我当场对一个真文件跑了一次"不算臂（本仓纪律：**能过 ≠ 能抓**）。
+    """
+    return _claims(lines)
+
+
 def claims_effective(rel: str) -> str | None:
-    """头部 40 行里自称生效的词（⛔ 找不到就返回 `None`，**不猜**）。"""
+    """头部 40 行里**疑似自称生效**的词（⛔ 找不到就返回 `None`，**不猜**）。
+
+    ⭐ **2026-10-04 加了三条机械排除**（批 1 收口查出的缺陷，用户令「这四件事都一起做」）：
+      ① **否定句** —— 词前 4 字内有否定词 ⇒ ⛔ 不算（B 型样板）；
+      ② **被反引号包裹** —— `` `已实现` `` 是在**谈论**这个词 ⇒ ⛔ 不算；
+      ③ **列名** —— 该词独占一个表格单元格、且下一行是分隔行 ⇒ ⛔ 不算（C 型样板）。
+    ⛔ **它仍然判不了「引述」（D 型 14 件）** —— 那要语义；⭐ 补偿办法 = **输出必须带原文**。
+    """
     p = ROOT / rel
     if not p.exists() or p.suffix not in (".md",):
         return None
     try:
-        head = "".join(p.read_text(encoding="utf-8", errors="ignore").splitlines(True)[:40])
+        lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()[:40]
     except OSError:
         return None
+    return _claims(lines)
+
+
+def _claims(lines: list[str]) -> str | None:
+    """三条排除的唯一实现（⭐ 单一出处：`claims_effective` 与 `claims_of_lines` 都走它）。"""
     for w in CLAIM_WORDS:
-        if w in head:
+        for i, line in enumerate(lines):
+            at = line.find(w)
+            if at < 0:
+                continue
+            if _is_negated(line, at) or _is_quoted_mention(line, w) or _is_column_name(lines, i, w):
+                continue
             return w
     return None
 
@@ -367,7 +419,16 @@ def render(data: dict) -> str:
         A(f"| {i} | `{r['rel']}` | {r['home']} | **{r['refs']}** | {'；'.join(why) or '—'} "
           "| ☐ | ☐ | ☐ | ☐ |")
     A("")
-    A("## 三 · **批 1 的靶子**：自称生效、而 `src/` 里零引用 ⭐⭐")
+    A("## 三 · **批 1 的靶子**：**疑似**自称生效、而 `src/` 里零引用 ⭐⭐")
+    A("")
+    A("⚠️⚠️ **2026-10-04 判据更正（批 1 收口查出的缺陷）**：本节的判据原名「**自称生效**」，"
+      "而实测 **22 件里只有 6 件是真自称** ⇒ ⭐ **「出现这个词」 ≠ 「这份文件在自称生效」**。"
+      "逐条读原文分四型：**A 真自称 6 · D 引述别事 14 · B 否定句 1 · C 图例定义 1**"
+      "（⭐ 详见 `survey/53` §二）。")
+    A("✅ **已就地修掉能机械判的两型**：**否定句**（词前有「不／未／非／没」）· "
+      "**被反引号包裹**（在谈论它）· **列名**（独占单元格且下一行是分隔行）⇒ 三条都不再计入。")
+    A("⛔ **它仍然判不了「引述」（D 型）** —— 那要语义；⭐ **补偿纪律**："
+      "凡用本节出表，**必须带原文**（`survey/53` 的形状），⛔ 不许只给件名。")
     A("")
     A("**为什么单列这一节**：`W7′-3` 把批 1 定为「**声称生效但零 `src/` 引用**」。")
     A("⭐ 这是**最贵的一族假边界**的形状 —— 一份文档自称「已生效／已落地／已接线」，")
@@ -571,6 +632,17 @@ def selftest() -> int:
     #   ⭐ 本臂守的是这一族：**"本表显示的东西" 又反过来决定 "本表的内容"** ⇒ 写一次变一次。
     #   ⚠️ 旧版的活样本就是 §四 的「生成物新鲜度」栏（它比的是本表自己的渲染结果）——
     #      那一栏已按 `P2-1` 整栏删除；本臂留着防**下一个**同族写法。
+
+    # 臂 J/K/L/M ⭐ **三条机械排除 ＋ 真自称不许被误伤**（2026-10-04 补，`P2` 那一族）
+    #   ⚠️ 这一族必须有臂：⛔ 没有臂的判据改动 = **只有我一个人当场验过一次**（本仓最贵那族的形状）。
+    arms.append(("J 否定句不算（B 型）", "误伤",
+                 claims_of_lines(["文中建议文本是提案，不是已生效的决策。"]) is None))
+    arms.append(("K 反引号包裹不算（在谈论它）", "误伤",
+                 claims_of_lines(["`已实现` = Alice 有等价物"]) is None))
+    arms.append(("L 列名不算（C 型）", "误伤",
+                 claims_of_lines(["| 区域 | 功能点 | 已实现 |", "|---|---|---|"]) is None))
+    arms.append(("M 真自称仍要抓到（A 型）", "漏抓",
+                 claims_of_lines(["## 2. 通道实现（已落地）"]) == "已落地"))
 
     bad = 0
     for name, want, ok in arms:
