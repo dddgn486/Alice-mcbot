@@ -1,6 +1,6 @@
 # 文档「行号引用」存量基线 —— ⛔ 只许变短（新增 ⇒ 红；减少 ⇒ 必须同步本文件）。
 # 生成：python3 tools/ref-anchors.py --write　·　列：引用方文件 <TAB> 被引方文件 <TAB> 处数
-# 总计 357 处 / 153 对（49 个引用方文件）
+# 总计 358 处 / 154 对（49 个引用方文件）
 
 .alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md	docs/HANDOVER.md	2
 .alice-supervision/archive/2024-08-2024-09/reviews/20260821-c1-next-mainline-route.md	docs/PRODUCT_ARCHITECTURE_ROADMAP.md	1
@@ -69,6 +69,7 @@ docs/OPEN_ITEMS_LEDGER.md	docs/reviews/2026-09-28-断点十一-开工前复盘�
 docs/OPEN_ITEMS_LEDGER.md	reference/BARITONE_PORTING_CHECKLIST.md	1
 docs/OPEN_ITEMS_LEDGER.md	设计讨论.md	1
 docs/QUESTIONS_LEDGER.md	AGENTS.md	1
+docs/QUESTIONS_LEDGER.md	AI_PROJECT_STATE.md	1
 docs/R4_BARITONE_ALIGNMENT_AUDIT.md	docs/AI_DECISIONS.md	1
 docs/REVIEW_2026-09-13_FIX_AUDIT.md	AI_DECISIONS.md	1
 docs/TESTING_GUIDE.md	TESTING_GUIDE.md	1
