@@ -88,8 +88,41 @@ SCAN_GLOBS = ("*.md", "*.py", "*.sh", "*.yml", "*.java", "*.csv")
 OUTSIDE = "⑧"
 
 
-def home_of(rel: str) -> str:
-    """归属于哪个好家（与 `new-home-audit.py` 同一套 `DEST` 与优先级）。"""
+#: ⭐ 类标形态（与 `tools/check-doc-class-mark.py` **同一口径**：`§D′-9` 9.3b）。
+_CLASS_MARK = re.compile(r"^\s*>?\s*\*\*类标\*\*\s*[：:]\s*(.+?)\s*$", re.MULTILINE)
+#: ⚠️ ⭐ **只认 `①`–`⑦`**（2026-10-05 开发者裁：**类标的取值范围 = `①`–`⑦`**）。
+#: ⇒ ⛔ `⑧` 域外／`⑨` 待删／`⑪` 咨询通道 **都不是类标值** ⇒ 那些件**件自报不参与**本表。
+_CLASS_FIGS = "①②③④⑤⑥⑦"
+#: ⚠️ **只看件头**（`§D′-9` 9.3b 规定类标写在件头）—— ⛔ 全文件搜会把**讨论形态的散文**当成**声明**
+#:（⭐ 本仓已有一次实测教训，见 `check-doc-class-mark.py` 的 `HEAD_LINES`）。
+_HEAD_LINES = 30
+
+
+def declared_home(rel: str) -> str | None:
+    """→ 件头**自报**的类号对应的好家名（⭐ **只认 `①`–`⑦`**）；⛔ 没有／不在范围内 ⇒ `None`。
+
+    ⭐⭐ **2026-10-05 新增**（回执 `002` 的 `Q2`；开发者批「批 #7」）：
+    ⭐ 候选 `(甲)` 的理由逐字 = 「**件自报 = 单一信源**」⇒ 不会出现"生成物说它是 ⑤、件自己不知道"。
+    """
+    try:
+        head = (ROOT / rel).read_text(encoding="utf-8", errors="replace").splitlines()[:_HEAD_LINES]
+    except OSError:
+        return None
+    m = _CLASS_MARK.search("\n".join(head))
+    if not m:
+        return None
+    fig = m.group(1).strip()[:1]
+    if fig not in _CLASS_FIGS:
+        return None
+    #: ⭐ 只在 `DEST` 里找**同号**那一行；⚠️ 用 `fig + " "` 是为了⛔ **不误配子类**（`①-code …`）。
+    for name, _w, _p in nha.DEST:
+        if name.startswith(fig + " "):
+            return name
+    return None
+
+
+def pattern_home(rel: str) -> str:
+    """按 `DEST` 模式匹配定的好家（⭐ 件自报**没被采信**时用它）。"""
     hits: list[tuple[int, str]] = []
     for i, (name, _w, pats) in enumerate(nha.DEST):
         if nha.match(rel, pats):
@@ -97,6 +130,23 @@ def home_of(rel: str) -> str:
     if not hits:
         return "（无家）"
     return max(hits)[1]          # 优先级 = `DEST` 出现顺序（⑧ 域外排最后 ⇒ 它命中时赢）
+
+
+def home_of(rel: str) -> str:
+    """归属于哪个好家。⭐ **件自报优先**（回执 `002` 的 `Q2`：「件自报 = 单一信源」）。
+
+    ⚠️ ⭐⭐ **但有一个前置：只有"模式归类落在 `①`–`⑦` 之内"的件才采信自报** ——
+    ⛔ **为什么**（⭐ 我第一版没加它，当场踩了）：`consult/` 的件模式归类是 **`⑪ 咨询通道`**，
+    ⭐ 而 **类标的取值范围 = `①`–`⑦`**（2026-10-05 开发者裁）⇒ ⛔ **`⑪` 的件根本不适用类标**。
+    ⚠️ 不加这个前置时，`consult/receipt/002-…`（它在**件头里举例**写了 `> **类标**：⑤ 报告`）
+    会被读成"自报 ⑤" ⇒ ⭐ **从 `⑪` 翻成 `⑤`** —— ⛔ 那是**回归**（实测踩到，已修）。
+    """
+    pat = pattern_home(rel)
+    if pat[:1] in _CLASS_FIGS:          # ⭐ 只有 `①`–`⑦` 的件才谈得上"自报类标"
+        seen = declared_home(rel)
+        if seen:
+            return seen
+    return pat
 
 
 def _git_rev() -> str:

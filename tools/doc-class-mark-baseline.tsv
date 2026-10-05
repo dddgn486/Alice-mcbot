@@ -1,11 +1,8 @@
 # 「类标」欠账名单 —— ⭐ **只许变短**（新增欠账 ⇒ 红；还清一处 ⇒ 删一行）
 # 名单里的件 = **存量件**，按回执 002 的 Q3「⛔ 存量不追溯」暂时豁免；
 # 生成：python3 tools/check-doc-class-mark.py --write
-# 总计 238 件
+# 总计 235 件
 
-consult/receipt/001-七类表缺维护栏.md
-consult/request/001-七类表缺维护栏.md
-consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md
 docs/ACCEPTANCE_GUIDE.md
 docs/AI_CHANGELOG.md
 docs/AI_DECISIONS.md

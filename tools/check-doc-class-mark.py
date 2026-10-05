@@ -40,8 +40,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "tools" / "doc-class-mark-baseline.tsv"
 
-#: 被覆盖的件 = **体系内的 `.md`**（旧家 `docs/` 根与 `docs/reviews/` ＋ `survey/` ＋ 新通道 `consult/`）。
-COVERED_DIRS = ("docs", "survey", "consult")
+#: 被覆盖的件 = **类标适用范围内的 `.md`**。
+#: ⚠️ ⭐ **`consult/` 刻意不收**（2026-10-05 开发者裁：**类标的取值范围 = `①`–`⑦`**，而
+#:   `consult/` 属 **`⑪ 咨询通道`** ⇒ ⛔ **它不在类标的适用范围内**）。
+#: ⭐ **这一条同时解决了一处假阳性**：`consult/receipt/002-…` 的**件头里举例**写了 `> **类标**：⑤ 报告`，
+#:   而它其实**不适用类标** ⇒ 把它收进来只会误读（⛔ 或逼着人去改一份外部输入的件）。
+COVERED_DIRS = ("docs", "survey")
 #: ⚠️ `docs/` 是**递归**的（含 `docs/reviews/` 等子目录）；⛔ 但排除生成物所在的历史目录没意义 —— 全收。
 SKIP_NAMES = {"README.md"}
 
