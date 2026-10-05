@@ -303,33 +303,33 @@
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 121 | 7 | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 31 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
-| `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
+| `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 42 | 0 | — |
 | `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
-| `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
+| `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 9 | 0 | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 27 | 5 | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 2 | — |
-| `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
+| `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 27 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 67 | 1 | — |
-| `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
+| `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 26 | 11 | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 1 | 已落地 |
 | `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 16 | 0 | 已落地 |
-| `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 13 | 3 | — |
+| `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 3 | — |
 | `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 16 | 1 | — |
 | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 8 | 1 | — |
 | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
@@ -393,7 +393,7 @@
 | `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告 ＋ 证据 | 4 | 0 | — |
 | `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告 ＋ 证据 | 13 | 1 | — |
 | `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告 ＋ 证据 | 9 | 2 | — |
-| `docs/STAGE2_MODS_READABILITY.md` | ⑤ 报告 ＋ 证据 | 9 | 0 | — |
+| `docs/STAGE2_MODS_READABILITY.md` | ⑤ 报告 ＋ 证据 | 10 | 0 | — |
 | `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告 ＋ 证据 | 8 | 2 | — |
 | `docs/reference/BARITONE_PORTING_CHECKLIST.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — |
 | `docs/reviews/2026-09-14-3B-S3-机器映射勘察.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
@@ -663,7 +663,7 @@
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 9 | 0 | — |
 | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 29 | 1 | — |
 | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 18 | 0 | — |
-| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 18 | 0 | — |
+| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 19 | 0 | — |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/MACHINE_MAP.csv` | ⑦ 事实/数据 | 19 | 0 | — |
 | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 8 | 0 | — |
