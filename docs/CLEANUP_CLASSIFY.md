@@ -320,7 +320,7 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 27 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 67 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 10 | 2 | — |
