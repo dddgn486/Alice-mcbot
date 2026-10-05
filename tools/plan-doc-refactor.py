@@ -101,7 +101,7 @@ LIVE: list[tuple[str, str, tuple]] = [
      ("cmd", "git ls-files -z 'docs/*.md' | tr '\\0' '\\n' | grep -cE '^docs/[^/]+\\.md$' | tr -d ' '")),
     ("`survey/` 报告份数", "55",
      ("regex", "survey/README.md", r"^\| 报告份数 \| \*\*(\d+)\*\* \|")),
-    ("常驻件当前总行数", "1279",
+    ("常驻件当前总行数", "1284",
      ("cmd", "cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '")),
     # ⚠️ 口径说清（本条曾差点造成"同一个量两个数"）：`check-all` 报的 `pass=` 是**它跑完的**通过项数。
     #    ⭐ 2026-10-02 当场复算：`check-new-home` 挂上后 **注册行 51**、`pass=` 也是 **51** ⇒ 两者一致。
