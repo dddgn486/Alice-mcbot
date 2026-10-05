@@ -501,6 +501,8 @@ run_expected_reds
 # ⚠️ ⭐ **为什么仍挂在最尾** —— 按本文件那条纪律「新增的门禁一律往尾部挂」：位置前移会把
 #    后面所有行号推走，而 `docs/` 有若干处按 `tools/check-all.sh:NN` 检索 ⇒ ⛔ 那些引用会静默指错。
 run_gate             "check-project-state-freshness" bash tools/check-project-state-freshness.sh
+# ⭐ **2026-10-05 新增：类标形态**（回执 `002` 的 `Q3` ＋ 开发者批「批 #2」）。⭐ 仍挂尾部（同上理由）。
+run_gate             "check-doc-class-mark" bash tools/check-doc-class-mark.sh
 
 hr
 #: ⭐⭐ `C4` 的落地：**成本当场可见**（⛔ 不判红 —— 理由见文件头那三行）。

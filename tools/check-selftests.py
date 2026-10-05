@@ -45,7 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 #:   动态发现会把**本门禁自己**也扫进来（自指），而且"没扫到"会静默变成"没红"。
 #: ⚠️ 每一条都必须是**真的带 `--selftest`** 的脚本 —— 判据 ① 会逐条验它（解析不到就红）。
 TOOLS = (
-    "archive-index", "check-authz-code-refs", "check-consult-pairs", "check-e4-offrepo", "design-index",
+    "archive-index", "check-authz-code-refs", "check-consult-pairs", "check-doc-class-mark", "check-e4-offrepo", "design-index",
     "check-effective-trace", "check-expected-reds", "check-facts-tiers", "check-glossary",
     "check-project-state-freshness", "check-proposal-status", "check-quote-lint",
     "check-scene-connectivity", "cleanup-classify",
