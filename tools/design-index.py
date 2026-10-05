@@ -161,6 +161,52 @@ def all_package_names() -> list[str]:
                    for f in SRC.rglob("package-info.java")})
 
 
+#: `package x.y.z;` 声明（⭐ 只认**行首**的 `package`，⛔ 不认注释里提到的）
+PACKAGE_DECL = re.compile(r"^\s*package\s+([\w.]+)\s*;")
+
+
+def package_declaration_check(src: Path = SRC) -> list[str]:
+    """⭐⭐ **`A4` 的载体**（2026-10-05 开发者裁「**加一条静态判据**」）。
+
+    **判据**：每个 `package-info.java` 的 `package` 声明**必须**与它**所在目录**一致。
+
+    ⭐ **为什么需要它**（这是 `A4` 选的「可门禁」那半唯一的落地）：
+      `A4` 定的**失效条件** = 「**被管的符号被删 / 改名**」。对 `package-info.java` 来说，
+      被管的符号就是**它那个包**，于是拆成两种情形：
+
+      · **包被删** ⇒ 文件随目录**一起消失** ⇒ ⛔ **无需判据**（自证）；
+      · **包改名而 `package` 声明没跟着改** ⇒ ⚠️ 今天**只有编译器会拦**，
+        而 ⛔ **`check-all` 不含编译**（`./gradlew build` 在 CI 层跑）
+        ⇒ ⭐ **静态门禁层原本没有这一格**。本函数**把编译期才发现的事提到静态层**。
+
+    ⚠️ ⭐ **它判不了**（如实记）：注释**内容**是否还描述着那个包的真实行为 ——
+      那是「**行为变了、注释没改**」，⛔ **没有可靠机械判据**（`A4` 那半已明说是「靠人」）。
+
+    ⭐ 参数 `src` **可换** ⇒ 本函数**能注入自证**（喂一棵临时树，⛔ 不必动 `src/`）。
+    ⛔ 两个"扫不到就报绿"的口子都堵上：**路径写坏** 与 **一个都没扫到** 都**响亮失败**。
+    """
+    problems: list[str] = []
+    if not src.is_dir():
+        return [f"`{src}` **不存在** ⇒ 这一格**扫不到任何东西**（⛔ 不许「扫不到就报绿」）"]
+    n = 0
+    for f in sorted(src.rglob("package-info.java")):
+        n += 1
+        expected = f.parent.relative_to(src).as_posix().replace("/", ".")
+        decl = next((m.group(1) for line in f.read_text(encoding="utf-8").splitlines()
+                     if (m := PACKAGE_DECL.match(line))), None)
+        rel = f.relative_to(ROOT).as_posix() if f.is_relative_to(ROOT) else f.relative_to(src).as_posix()
+        if decl is None:
+            problems.append(f"`{rel}` **没有 `package` 声明** ⇒ 认不出它属于哪个包"
+                            f"（⛔ 这也会让「包被改名」那一路**永远发现不了**）")
+        elif decl != expected:
+            problems.append(f"`{rel}` 声明的是 `package {decl};`，而它住在 `{expected}` "
+                            f"⇒ **不一致**（⭐ 编译期会报，但 `check-all` 不含编译 ⇒ 本格补的就是那一格）")
+    if n == 0:
+        problems.append("全树**一个 `package-info.java` 都没扫到** ⇒ 路径写坏？"
+                        "（⛔ 「扫不到」与「都没问题」必须能分辨）")
+    return problems
+
+
 def read_package_info(pkg: Path) -> dict:
     """→ {has, summary, sections, cites}。`has=False` ⇒ 其余为空。"""
     f = pkg / "package-info.java"
@@ -420,6 +466,16 @@ def build() -> tuple[str, dict, list[dict]]:
     if cov:
         print("DESIGN_INDEX_RESULT FAIL: `docs/` 根的设计件**覆盖自证失败**：", file=sys.stderr)
         for c in cov:
+            print(f"  · {c}", file=sys.stderr)
+        raise SystemExit(1)
+
+    #: ⭐⭐ **`A4` 的载体**（2026-10-05）：`package-info.java` 的 `package` 声明必须与目录一致。
+    #: ⛔ 与 `check-all` 的其余部分**不重叠** —— 那一格原本**只有编译器拦**。
+    decl = package_declaration_check()
+    if decl:
+        print("DESIGN_INDEX_RESULT FAIL: `package-info.java` 的 `package` 声明与**所在目录对不上**：",
+              file=sys.stderr)
+        for c in decl:
             print(f"  · {c}", file=sys.stderr)
         raise SystemExit(1)
 
