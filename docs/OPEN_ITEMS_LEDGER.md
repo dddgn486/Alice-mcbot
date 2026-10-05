@@ -3002,8 +3002,12 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > ③「**选一个改一个审批状态**」④「**被压缩随时能接上**」。
 > ⇒ ⭐ **本表就是进度载体**：编号 `B2-01`…`B2-56` **⛔ 顺序冻结、⛔ 不许重排、⛔ 不许删行**；
 >   **状态列**是唯一会变的东西。⭐ **接着做的第一件 = 本表里第一个 `⏳ 待批`**。
-> **状态取值**（照 `O165`）：`⏳ 待批` · `✅ 保留` · `⛔ 丢` · `🔀 合并到 X` · `⌛ 已过期` · `❌ 销案（判据假阳性）` · `❌ 销案（⑧ 域外）`。
+> **状态取值**（照 `O165`）：`⏳ 待批` · `✅ 保留` · `⛔ 丢` · `🔀 合并到 X` · `⌛ 已过期` · `❌ 销案（判据假阳性）` · `❌ 销案（⑧ 域外）` · ⭐ `❌ 销案（生成物）`。
 
+> ⭐⭐ **用户令（2026-10-05，逐字）**：「**生成物不走审批**」⇒ ⭐ **5 件销案**
+>   （`B2-14`/`15`/`20`/`23`/`25`）；⭐ **依据**：本仓已裁过「**生成物陈旧 ⇒ 动作 = 重生成（跑 `--write`），⛔ 不是丢**」
+>   （`§D′-9` 9.3 丢掉档的注）；⛔ **行不删**（用户令「名单不动」）。
+>
 > ⚠️ **靶子名单怎么来的**：⭐ `docs/` 根 `.md` **实算 56 件**（`LIVE`「`docs/` 根 `.md` 份数」= 56，漂了当场红）——
 >   ⭐ 它是 `W7′-4` 那句「**批 2..N**：`docs/` 根 **56** ＋ `docs/reviews/` **75** ＋ `survey/` **55**」的**第一段**；
 >   分批口径 = 用户 2026-10-02 在「取法 1」上选的「**先按目录大小分批**」（⭐ 理由逐字：「反正**审批完的会保留**，**随时可以换审批顺序**」）。
@@ -3031,18 +3035,18 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **B2-11** | `docs/BARITONE_ANCHORS.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-12** | `docs/BARITONE_CONTRAST_TESTING.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-13** | `docs/BATTERY_CURATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
-| **B2-14** | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
-| **B2-15** | `docs/CLEANUP_CLASSIFY.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-14** | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ❌ 销案（生成物·用户令 2026-10-05）|
+| **B2-15** | `docs/CLEANUP_CLASSIFY.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ❌ 销案（生成物·用户令 2026-10-05）|
 | **B2-16** | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-17** | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-18** | `docs/CLOUD_MIGRATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-19** | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
-| **B2-20** | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-20** | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 原址 `docs/` 根 | ❌ 销案（生成物·用户令 2026-10-05）|
 | **B2-21** | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-22** | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
-| **B2-23** | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-23** | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 原址 `docs/` 根 | ❌ 销案（生成物·用户令 2026-10-05）|
 | **B2-24** | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
-| **B2-25** | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
+| **B2-25** | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ❌ 销案（生成物·用户令 2026-10-05）|
 | **B2-26** | `docs/EXPECTED_REDS.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-27** | `docs/GLOSSARY.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-28** | `docs/HANDOVER.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
@@ -3075,4 +3079,4 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **B2-55** | `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告＋证据 | 原址 `docs/` 根 | ⏳ 待批 |
 | **B2-56** | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态＋构想 | 原址 `docs/` 根 | ⏳ 待批 |
 
-⭐ **进度：待批 56 / 56**（⛔ 每次改状态都要回来改这一行）。
+⭐ **进度：待批 51 / 56**（⛔ 销案 5 件不计入待批）（⛔ 每次改状态都要回来改这一行）。
