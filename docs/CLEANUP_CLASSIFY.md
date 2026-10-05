@@ -304,7 +304,7 @@
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 15 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
-| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 23 | 0 | — |
+| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 24 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 18 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 64 | 1 | — |
@@ -594,7 +594,7 @@
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
-| `tools/decisions-index.py` | ⑥ 边界即机器 | 15 | 0 | — |
+| `tools/decisions-index.py` | ⑥ 边界即机器 | 16 | 0 | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
@@ -619,7 +619,7 @@
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 12 | 0 | — |
-| `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 11 | 0 | — |
+| `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
@@ -634,7 +634,7 @@
 | `tools/skills-index.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/step-names.py` | ⑥ 边界即机器 | 7 | 0 | — |
-| `tools/survey-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/survey-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 12 | 1 | — |
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — |
@@ -642,7 +642,7 @@
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 5 | 0 | — |
 | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 29 | 1 | — |
 | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 18 | 0 | — |
-| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 17 | 0 | — |
+| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 18 | 0 | — |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/MACHINE_MAP.csv` | ⑦ 事实/数据 | 19 | 0 | — |
 | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 8 | 0 | — |
