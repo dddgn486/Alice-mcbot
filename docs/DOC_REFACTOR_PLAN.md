@@ -107,7 +107,7 @@
 | `docs/` 根 `.md` 份数 | **56** | 56 ✅ | `git ls-files -z 'docs/*.md' | tr '\0' '\n' | grep -cE '^docs/[^/]+\.md$' | tr -d ' '` |
 | `survey/` 报告份数 | **55** | 55 ✅ | `survey/README.md` |
 | 常驻件当前总行数 | **1279** | 1279 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
-| 门禁项数（`check-all` 计数行） | **58** | 58 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
+| 门禁项数（`check-all` 计数行） | **59** | 59 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
 ### 冻结值（只有用户裁定能改）
 
@@ -175,7 +175,7 @@
 | **③ 决策/裁定** | `AI_DECISIONS.md` ＋ `DECISIONS_INDEX.md` | ✅ 索引 ＋ 三断言 · ⛔ `W6-2` 补状态未做 |
 | **④ 状态 ＋ 构想** | 「现在在哪」= `AI_PROJECT_STATE.md`（⛔ **今天还不是那个样子**：头 `2026-09-12` · 内容停 `2026-09-15` · 自述「首要文件」）／ 只追加的历史 = `HANDOVER` 断点 ／ 台账 ／ 本计划书 ／ `.alice-supervision/improvements/` · `PROPOSAL_*` | ✅ **现存 ④ 多处并存 —— 正常**（各记各的那一半）· ✅ **构想那一半的栏已定**（2026-10-04 用户裁「**门禁没有权利否决草案**」⇒ 门禁三处登记已按草案改 ⇒ `§D′-8` 第 7 条）· ⛔ `AI_PROJECT_STATE.md` 的归位属「草案目标达成后回到正常流程」的批次 |
 | **⑤ 报告 ＋ 证据（四类）** | `survey/` · `docs/reviews/`（＋ `docs/plans/` 为参考） | ⚠️ **E4 人工观察 = 零留存** ⇒ `W7-5` |
-| **⑥ 边界即机器** | `tools/check-*`（挂 `check-all`） | ✅ **58 项** |
+| **⑥ 边界即机器** | `tools/check-*`（挂 `check-all`） | ✅ **59 项** |
 | **⑦ 事实/数据（三档可变性）** | `*_FACTS.md` · `*.csv` · 生成物 | ⛔ **⑦c 无判据** ⇒ `W7-2` |
 | **⑩ 清旧家（⭐ 本轮重心）** | ⛔ **不是一个新目录** —— 它是**对旧家 441→443 件逐件动手**这件事本身 | ⭐ 载体 = `W7′` **总波**（用户令「支线变主线」）· 判据 = 草案 `§D′-9` · 开工前提 = `check-new-home` **无家可归 0**（⛔ 件数**刻意不入 `LIVE`** —— 它每加一份文档就变 | ⭐ 有信息的是「无家可归 = 0」，由门禁盯） |
 

@@ -46,20 +46,34 @@ hr() { printf '%s\n' "----------------------------------------------------------
 # 2026-09-30 实测踩到（台账 `O78`），故改用 python3 按字符切（locale 无关）。
 trunc110() { python3 -c 'import sys; sys.stdout.write(sys.stdin.read()[:110])'; }
 
-# 普通门禁：0 = PASS，其它 = FAIL
+# 普通门禁：0 = PASS · ⭐ **2 = WARN（警告，⛔ 不是红）** · 其它 = FAIL
 run_gate() {
   local label="$1"; shift
   local out rc
   GATES=$((GATES + 1))
   out="$("$@" 2>&1)"; rc=$?
-  if [ "$rc" -eq 0 ]; then
+  case "$rc" in
+  0)
     PASSED=$((PASSED + 1))
     printf '  [PASS] %-30s %s\n' "$label" "$(printf '%s' "$out" | grep -E '_RESULT|_CHECK ' | tail -1 | trunc110)"
-  else
+    ;;
+  #: ⭐⭐ **2026-10-05 新增（回执 `002` 的 `F3`，开发者批「批 #6」）**：**退出码 2 = 警告**（⛔ **不是红**）。
+  #:   ⭐ **为什么统一**：在此之前 `run_gate` 把**任何非零都记 FAIL**，而 WARN 只在**三个专用函数**里
+  #:   （`run_headless_battery` / `run_machine_map` / `run_expected_reds`）⇒ ⛔ **新门禁想"警告"就必须自己写
+  #:   `case` 分支** —— ⚠️ ⭐ **本轮我第一版就把保鲜期门禁的"警告"写成了红**（`failed=1`），当场才发现。
+  #:   ⭐ **风险实测 ≈ 0**（⛔ 不是估计）：全仓**只有 2 处**真会退 2 —— `machine-map.py` 与
+  #:   `check-project-state-freshness.py`，两处**都是有意为之** ⇒ ⛔ 不存在"存量门禁偶然退 2 被误读"。
+  #:   ⚠️ 仍如实记：**这条口径是新的** ⇒ 以后写门禁时，**退 2 = 声明"我这是警告"**（⛔ 不是失败）。
+  2)
+    WARNED=$((WARNED + 1))
+    printf '  [WARN] %-30s %s\n' "$label" "$(printf '%s' "$out" | grep -E '_RESULT|_CHECK ' | tail -1 | trunc110)"
+    ;;
+  *)
     FAILED=$((FAILED + 1))
     printf '  [FAIL] %-30s exit=%d\n' "$label" "$rc"
     printf '%s\n' "$out" | tail -n 12 | sed 's/^/         /'
-  fi
+    ;;
+  esac
 }
 
 # 无头回归电池（T2）：**默认不跑**（要 4 分钟 + 需要一次性装好的生产服务端）。
@@ -480,35 +494,13 @@ run_expected_reds() {
 run_expected_reds
 
 # ⭐ **2026-10-05 新增：`AI_PROJECT_STATE.md` 保鲜期**（回执 `001` 的 `T4`）。
-# ⚠️ ⭐ **必须走专用函数，⛔ 不能挂 `run_gate`** —— `run_gate` 把**任何非零都记 FAIL**，
-#    而本门禁的 **exit 2 = 警告**（回执逐字「超过 14 天未更新 ⇒ 门禁**警告**」，⛔ 不是红）。
-#    ⭐ 这是本文件**既有的三态写法**（同 `run_headless_battery` / `run_machine_map` / `run_expected_reds`）。
-# ⭐ **挂在最尾** —— 按本文件那条纪律「新增的门禁一律往尾部挂」：位置前移会把后面所有行号推走，
-#    而 `docs/` 有若干处按 `tools/check-all.sh:NN` 检索 ⇒ ⛔ 那些引用会静默指错。
-run_project_state_freshness() {
-  GATES=$((GATES + 1))
-  local out rc
-  out="$(bash tools/check-project-state-freshness.sh 2>&1)"; rc=$?
-  case "$rc" in
-    0)
-      PASSED=$((PASSED + 1))
-      printf '  [PASS] %-30s %s\n' "check-project-state-freshness" \
-        "$(printf '%s' "$out" | grep -E 'PROJECT_STATE_FRESHNESS_RESULT' | tail -1 | trunc110)"
-      ;;
-    2)
-      WARNED=$((WARNED + 1))
-      printf '  [WARN] %-30s %s\n' "check-project-state-freshness" \
-        "⚠️ 状态陈旧（超保鲜期）⇒ ⛔ 本门禁**有意不判红**（回执 001 T4 逐字是「门禁警告」）"
-      printf '%s\n' "$out" | grep -E 'PROJECT_STATE_FRESHNESS_RESULT' | sed 's/^/         /'
-      ;;
-    *)
-      FAILED=$((FAILED + 1))
-      printf '  [FAIL] %-30s exit=%d\n' "check-project-state-freshness" "$rc"
-      printf '%s\n' "$out" | tail -n 12 | sed 's/^/         /'
-      ;;
-  esac
-}
-run_project_state_freshness
+# ⭐⭐ **2026-10-05 简化（回执 `002` 的 `F3` 落地之后）**：它原来**必须走专用函数**，因为
+#    `run_gate` 把**任何非零都记 FAIL**；而 `#6` 已给 `run_gate` 加了 **退 2 = WARN** 的统一入口
+#    ⇒ ⭐ **本道门禁不再需要专用函数**，直接挂 `run_gate` 即可（本门禁 **exit 2 = 警告**，
+#    回执 `001` 的 `T4` 逐字「超过 14 天未更新 ⇒ 门禁**警告**」）。
+# ⚠️ ⭐ **为什么仍挂在最尾** —— 按本文件那条纪律「新增的门禁一律往尾部挂」：位置前移会把
+#    后面所有行号推走，而 `docs/` 有若干处按 `tools/check-all.sh:NN` 检索 ⇒ ⛔ 那些引用会静默指错。
+run_gate             "check-project-state-freshness" bash tools/check-project-state-freshness.sh
 
 hr
 #: ⭐⭐ `C4` 的落地：**成本当场可见**（⛔ 不判红 —— 理由见文件头那三行）。
