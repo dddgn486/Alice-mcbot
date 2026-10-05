@@ -389,7 +389,7 @@
 | `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告 ＋ 证据 | 13 | 1 | — |
 | `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告 ＋ 证据 | 9 | 2 | — |
 | `docs/STAGE2_MODS_READABILITY.md` | ⑤ 报告 ＋ 证据 | 9 | 0 | — |
-| `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告 ＋ 证据 | 7 | 2 | — |
+| `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告 ＋ 证据 | 8 | 2 | — |
 | `docs/reference/BARITONE_PORTING_CHECKLIST.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — |
 | `docs/reviews/2026-09-14-3B-S3-机器映射勘察.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `docs/reviews/2026-09-14-B4能力登记与起步位置确定性.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
