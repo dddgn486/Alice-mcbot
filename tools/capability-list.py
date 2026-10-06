@@ -10,7 +10,7 @@
 
 * **不引入第五个真相源**：这里**不新增**任何事实表 —— 每一节都只是把一个**已有的单一出处**读出来渲染成人读视图
   （`GoalAction` 白名单 / `JobRequest.Kind` + `JobKindContract` / `MovementType` / `CheckModules` + 模块 `CheckStep`
-  + `RegressionBatteryTask.CURATION` / `docs/MACHINE_MAP.csv` / `RiskSwitches` / `AreaPermission`）。
+  + `RegressionBatteryTask.CURATION` / `docs/data/MACHINE_MAP.csv` / `RiskSwitches` / `AreaPermission`）。
   清单与出处不一致时**以代码为准**，生成器改的是清单，不是代码。
 * **判据不许同义反复**（`A2`/`D-417` 的教训）：如果只断言"生成的文档 == 生成的文档"，只要重新生成就一定一致
   ⇒ 那是空判据。**强制力在 `--check` 的跨出处断言**（见 `ASSERTIONS`）：步声明 ↔ `CURATION`、
@@ -36,7 +36,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOC = ROOT / "docs" / "CAPABILITY_LIST.md"
-CSV = ROOT / "docs" / "MACHINE_MAP.csv"
+CSV = ROOT / "docs" / "data" / "MACHINE_MAP.csv"
 JAVA = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
 
 # --------------------------------------------------------------------------------------
@@ -246,11 +246,11 @@ def parse_machine_rows() -> tuple[list[dict], str]:
     """机器映射表的人读视图（**新鲜度由 `check-machine-map` 门禁**，这里只读它的行做人口/汇总）。"""
     if not CSV.is_file():
         fail(f"找不到 {CSV.relative_to(ROOT)}（跑 `python3 tools/machine-map.py --write` 生成）")
-        return [], "docs/MACHINE_MAP.csv（由 tools/machine-map.py 生成）"
+        return [], "docs/data/MACHINE_MAP.csv（由 tools/machine-map.py 生成）"
     rows = list(csv.DictReader(CSV.read_text(encoding="utf-8").splitlines()))
     if not rows:
         fail("[解析崩塌] MACHINE_MAP.csv 里一行都没有")
-    return rows, "docs/MACHINE_MAP.csv（由 tools/machine-map.py 生成）"
+    return rows, "docs/data/MACHINE_MAP.csv（由 tools/machine-map.py 生成）"
 
 
 def parse_risk_switches() -> tuple[dict[str, dict], str]:
@@ -584,7 +584,7 @@ def render(model: dict) -> str:
     for ns in sorted(namespaces):
         A(f"| `{ns}` | {namespaces[ns]} |")
     A("")
-    A(f"共 **{len(machines)}** 行；逐行明细 = `docs/MACHINE_MAP.csv`（生成物）。")
+    A(f"共 **{len(machines)}** 行；逐行明细 = `docs/data/MACHINE_MAP.csv`（生成物）。")
     A("")
     A("## §6 开关面：玩家**能调什么**（`RiskSwitches.KNOWN`）")
     A("")

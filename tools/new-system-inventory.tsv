@@ -25,7 +25,7 @@ docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构�
 docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
 docs/ALIGNMENT_OPEN_QUESTIONS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	内核对齐待决问题（专项讨论）	275	2026-09-09	
 docs/BATTERY_CURATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	回归电池分档与维护规则（D-197）	361	2026-10-01	
-docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	925	2026-10-06	
+docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	926	2026-10-06	
 docs/CLIENT_AGENT_CHANNEL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	客户端测试数据通道：**本地 agent + 文件信箱**（2026-09-24 用户裁定方向）	193	2026-10-03	
 docs/CLIENT_AGENT_NEW_DEVICE_TEST.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	新设备测试手册：客户端管家 agent（逐字照做版）	243	2026-09-24	
 docs/CLOUD_MIGRATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	云端迁移方案（**修补版 v2**，2026-09-23）	938	2026-10-02	
@@ -37,7 +37,7 @@ docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档整�
 docs/EXPECTED_REDS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
 docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	提取册（设计与经验）	1553	2026-10-06	
 docs/GLOSSARY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	术语速查（**讨论用解码表**）	239	2026-10-05	
-docs/HANDOVER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10241	2026-10-06	
+docs/HANDOVER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10249	2026-10-06	
 docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
 docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
 docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
@@ -339,6 +339,7 @@ tools/dsh-phone-qr.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash
 tools/dsh-session-log.mjs	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env node	241	2026-09-24	
 tools/dsh-session-rollback.mjs	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env node	494	2026-09-24	
 tools/exec-record.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	217	2026-09-30	
+tools/extraction-targets-188.txt	⑥ 边界即机器	⑥ 边界即机器	⭐⭐ 提取靶子的【冻结清单】—— 出处 = 2026-10-06 开发者令	192	2026-10-06	
 tools/failure-ratio.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	101	2026-09-17	
 tools/fixture-hygiene.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	201	2026-09-30	
 tools/gate-inventory.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	140	2026-10-02	
@@ -382,7 +383,6 @@ docs/AI_TEST_MATRIX.md	⑦ 事实/数据	⑦ 事实/数据	Alice 当前测试矩
 docs/CAPABILITY_LIST.md	⑦ 事实/数据	⑦ 事实/数据	Alice 能力清单（**生成物 —— 禁手改**）	278	2026-10-01	
 docs/DESIGN_INDEX.md	⑦ 事实/数据	⑦ 事实/数据	设计索引（**生成物，禁手改**）	154	2026-10-04	
 docs/JOB_KIND_VIEW.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	6	2026-09-30	
-docs/MACHINE_MAP.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	60	2026-09-14	
 docs/MEKANISM_FACTS.md	⑦ 事实/数据	⑦ 事实/数据	Mekanism 适配 · S0 类型事实表（阶段 3-B / D-202）	82	2026-10-03	
 docs/TASK_DISPATCH_TABLE.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	56	2026-10-01	
 docs/TASK_RETIREMENT_MAP.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	21	2026-10-02	
@@ -393,6 +393,7 @@ docs/authz/AUTHZ_REGISTRY.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	29
 docs/authz/CONTAINER_WRITE_SITES.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	23	2026-10-02	
 docs/authz/OVERVIEW.md	⑦ 事实/数据	⑦ 事实/数据	授权 / 审批框架总览（**自动生成**，勿手改）	88	2026-10-04	
 docs/authz/POLICY_MATRIX.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	25	2026-10-02	
+docs/data/MACHINE_MAP.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	60	(未跟踪)	
 docs/reference/MEK_GUI_SEMANTICS.md	⑦ 事实/数据	⑦ 事实/数据	Mekanism 机器 GUI → 接口语义表（v0.2）	158	2026-09-08	
 consult/README.md	⑪ 咨询通道	⑪ 咨询通道	咨询通道（`consult/`）	115	2026-10-06	
 consult/receipt/001-七类表缺维护栏.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `001` —— 七类表缺维护栏	352	2026-10-05	

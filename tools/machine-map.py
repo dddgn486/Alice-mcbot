@@ -4,7 +4,7 @@
 ## 检查的是哪一层
 
 `MachineMap`（`decision/MachineMap.java`）是"**机器类型 ↔ 机器方块/菜单**"的**唯一真源**，
-`docs/MACHINE_MAP.csv` 是它的**人读视图**（本脚本生成）。本脚本做两件事：
+`docs/data/MACHINE_MAP.csv` 是它的**人读视图**（本脚本生成）。本脚本做两件事：
 
 * **Tier A（总是跑，硬）**：Java 表 ↔ CSV 逐字段一致 + 结构断言
   （类型 id 唯一、`type_id` 形如 `ns:path`、有站点的行必须有方块 id、`EXECUTABLE` 行必须有
@@ -30,7 +30,7 @@ Tier B 是这套检查真正的强制力：上游升级加了新机器类型时�
 
 用法：
     python3 tools/machine-map.py                 # 打印表 + 跑 Tier A + Tier B（每个命名空间各一条结论）
-    python3 tools/machine-map.py --write         # 重新生成 docs/MACHINE_MAP.csv
+    python3 tools/machine-map.py --write         # 重新生成 docs/data/MACHINE_MAP.csv
     python3 tools/machine-map.py --check         # 断言 CSV 不陈旧 + 两个 Tier（CI/构建前用）
     python3 tools/machine-map.py --jar <path>    # 覆盖**第一个**声明的上游 jar（缺省按客户端 mods 目录 glob）
     python3 tools/machine-map.py --mods-dir <dir>  # 换客户端 mods 目录（默认写死在 DEFAULT_MODS_DIR）
@@ -52,7 +52,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 JAVA = ROOT / "src/main/java/com/dddgn/alice/decision/MachineMap.java"
-CSV = ROOT / "docs/MACHINE_MAP.csv"
+CSV = ROOT / "docs/data/MACHINE_MAP.csv"
 
 # 上游取证：这些类里的字符串常量就是注册名（javap 的 `// String xxx`）。
 #
@@ -663,9 +663,9 @@ def main() -> int:
         CSV.write_text(rendered, encoding="utf-8")
         print(f"已写入 {CSV.relative_to(ROOT)}")
     if args.check and not CSV.exists():
-        problems.append("docs/MACHINE_MAP.csv 不存在（跑 --write 生成）")
+        problems.append("docs/data/MACHINE_MAP.csv 不存在（跑 --write 生成）")
     elif args.check and CSV.read_text(encoding="utf-8") != rendered:
-        problems.append("docs/MACHINE_MAP.csv 与 Java 表不一致（陈旧；跑 --write 重新生成）")
+        problems.append("docs/data/MACHINE_MAP.csv 与 Java 表不一致（陈旧；跑 --write 重新生成）")
 
     for row in rows:
         site = "|".join(row["block_ids"]) or (

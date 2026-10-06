@@ -213,14 +213,14 @@
 
 ## §5 机器级：它**能运营什么机器**（`MachineMap`）
 
-出处：`docs/MACHINE_MAP.csv（由 tools/machine-map.py 生成）`（**新鲜度由 `tools/check-machine-map.sh` 门禁**：Java 表 ↔ CSV 逐字段一致，并用 `javap` 读上游 jar 的注册名做**双向覆盖**断言）。这里只给汇总与人读指针。
+出处：`docs/data/MACHINE_MAP.csv（由 tools/machine-map.py 生成）`（**新鲜度由 `tools/check-machine-map.sh` 门禁**：Java 表 ↔ CSV 逐字段一致，并用 `javap` 读上游 jar 的注册名做**双向覆盖**断言）。这里只给汇总与人读指针。
 
 | 命名空间 | 已登记类型数 |
 |---|---|
 | `mekanism` | 27 |
 | `thermal` | 32 |
 
-共 **59** 行；逐行明细 = `docs/MACHINE_MAP.csv`（生成物）。
+共 **59** 行；逐行明细 = `docs/data/MACHINE_MAP.csv`（生成物）。
 
 ## §6 开关面：玩家**能调什么**（`RiskSwitches.KNOWN`）
 

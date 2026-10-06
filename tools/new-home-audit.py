@@ -134,7 +134,7 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      ("tools/*",)),
     ("⑦ 事实/数据", "⛔ 不做判定、不产生待办；唯一失效模式 = 过期",
      ("docs/*_FACTS.md", "docs/*.csv", "docs/*.txt", "docs/CAPABILITY_LIST.md",
-      "docs/DESIGN_INDEX.md", "docs/MACHINE_MAP.csv", "docs/authz/OVERVIEW.md",
+      "docs/DESIGN_INDEX.md", "docs/data/MACHINE_MAP.csv", "docs/authz/OVERVIEW.md",
       "docs/reference/MEK_GUI_SEMANTICS.md", "docs/AI_TEST_MATRIX.md", "docs/AI_CHANGELOG.md",
       "docs/*.svg", "docs/*.html")),
     #: ⭐⭐ **⑨ 待删（没有家 ≠ 洞）** —— 2026-10-02 收敛时立的最后一类。

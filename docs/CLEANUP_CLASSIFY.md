@@ -672,7 +672,6 @@
 | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 20 | 0 | — |
 | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 22 | 0 | — |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 10 | 1 | — |
-| `docs/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 9 | 0 | — |
 | `docs/TASK_DISPATCH_TABLE.csv` | ⑦ 事实/数据 | 9 | 1 | — |
 | `docs/TASK_RETIREMENT_MAP.csv` | ⑦ 事实/数据 | 11 | 1 | — |
@@ -683,6 +682,7 @@
 | `docs/authz/CONTAINER_WRITE_SITES.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 14 | 2 | — |
 | `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — |
+| `docs/data/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — |
 | `.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt` | ⑧ 域外（⛔ 不进体系） | 0 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 61 | 0 | — |
