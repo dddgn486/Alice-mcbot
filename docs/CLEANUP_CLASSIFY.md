@@ -26,12 +26,12 @@
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 构想 | 56 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 132 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 133 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道 | 9 | **8** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **627** | **151** | 这个合计**没有行动含义**（见上） |
+| **合计** | **628** | **151** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -312,7 +312,7 @@
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
 | `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 28 | 5 | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 15 | 0 | — |
 | `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
@@ -322,7 +322,7 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 29 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 15 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 69 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
@@ -538,6 +538,7 @@
 | `tools/archive-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — |
+| `tools/build-new-system-inventory.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 19 | 0 | — |
 | `tools/capture-scene.py` | ⑥ 边界即机器 | 6 | 1 | — |
 | `tools/check-all.sh` | ⑥ 边界即机器 | 94 | 2 | — |
@@ -631,7 +632,7 @@
 | `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/goal-vocabulary.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/headless-battery.sh` | ⑥ 边界即机器 | 42 | 4 | — |
-| `tools/ingest-extraction.py` | ⑥ 边界即机器 | 6 | 0 | — |
+| `tools/ingest-extraction.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
@@ -642,7 +643,7 @@
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
-| `tools/new-home-audit.py` | ⑥ 边界即机器 | 15 | 0 | — |
+| `tools/new-home-audit.py` | ⑥ 边界即机器 | 16 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
@@ -917,5 +918,5 @@
 | `consult/request/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 627 -->
+<!-- CLEANUP_ROWS 628 -->
 

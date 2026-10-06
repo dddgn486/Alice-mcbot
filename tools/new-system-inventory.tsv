@@ -25,7 +25,7 @@ docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构�
 docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
 docs/ALIGNMENT_OPEN_QUESTIONS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	内核对齐待决问题（专项讨论）	275	2026-09-09	
 docs/BATTERY_CURATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	回归电池分档与维护规则（D-197）	361	2026-10-01	
-docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	921	2026-10-06	
+docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	922	2026-10-06	
 docs/CLIENT_AGENT_CHANNEL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	客户端测试数据通道：**本地 agent + 文件信箱**（2026-09-24 用户裁定方向）	193	2026-10-03	
 docs/CLIENT_AGENT_NEW_DEVICE_TEST.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	新设备测试手册：客户端管家 agent（逐字照做版）	243	2026-09-24	
 docs/CLOUD_MIGRATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	云端迁移方案（**修补版 v2**，2026-09-23）	938	2026-10-02	
@@ -48,7 +48,7 @@ docs/MINING_STAND_SELECTION_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构�
 docs/MOD_ADAPTER_PROTOCOL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	模组机器适配实验协议 v1（2026-09-13，阶段 3-B 起点）	116	2026-09-14	
 docs/MOD_COMPAT_CRAFT_STATION_PLAN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	模组兼容范例 · 第一步：**可切换的合成工作站**（设计 v2，2026-09-13）	227	2026-09-13	
 docs/MULTI_BOT_INTERFACE_RESERVATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	多 Bot 并行接口预留（非当前验收目标）	12	2026-09-08	
-docs/OPEN_ITEMS_LEDGER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	未收口项总账（2026-09-12 整理）	3096	2026-10-05	
+docs/OPEN_ITEMS_LEDGER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	未收口项总账（2026-09-12 整理）	3106	2026-10-05	
 docs/QUESTIONS_LEDGER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	开发者问题账（Q-###）	949	2026-10-05	
 docs/REGION_REPLANT_ASYNC_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	区域补种异步化 + 可配置拾取清单：**设计方案**	221	2026-09-30	
 docs/RISK_MODES_DISCUSSION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	风险模式讨论（H / G / S）	203	2026-10-03	
@@ -251,6 +251,7 @@ tools/analyze-trace.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env pyt
 tools/archive-index.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	199	2026-10-03	
 tools/authz-map.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	368	2026-10-01	
 tools/authz-map.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	4	2026-09-14	
+tools/build-new-system-inventory.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	224	2026-10-06	
 tools/capability-list.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	715	2026-10-01	
 tools/capture-scene.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	242	2026-09-10	
 tools/check-all.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	553	2026-10-05	
