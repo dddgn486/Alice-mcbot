@@ -19,13 +19,13 @@ docs/AI_DECISIONS.md	③ 决策/裁定	③ 决策/裁定	Alice 当前架构决�
 docs/DECISIONS_INDEX.md	③ 决策/裁定	③ 决策/裁定	决策索引（**生成物，禁手改**）	1162	2026-10-04	
 .alice-supervision/improvements/follow-task-vertical-tolerance.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	FollowTask 改进计划	83	2026-09-08	
 docs/ACCEPTANCE_GUIDE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · 验收指引	218	2026-10-06	
-docs/AI_PROJECT_STATE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 当前项目状态	432	2026-10-06	
+docs/AI_PROJECT_STATE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 当前项目状态	433	2026-10-06	
 docs/ALICE_PATHING_CORE_ARCHITECTURE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core Architecture	444	2026-10-03	
 docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core R1 Contract	528	2026-09-08	
 docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
 docs/ALIGNMENT_OPEN_QUESTIONS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	内核对齐待决问题（专项讨论）	275	2026-09-09	
 docs/BATTERY_CURATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	回归电池分档与维护规则（D-197）	361	2026-10-01	
-docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	清旧家 · 判据表（**生成物，禁手改**）	930	2026-10-06	
+docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	清旧家 · 判据表（**生成物，禁手改**）	932	2026-10-06	
 docs/CLIENT_AGENT_CHANNEL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	客户端测试数据通道：**本地 agent + 文件信箱**（2026-09-24 用户裁定方向）	193	2026-10-03	
 docs/CLIENT_AGENT_NEW_DEVICE_TEST.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	新设备测试手册：客户端管家 agent（逐字照做版）	243	2026-09-24	
 docs/CLOUD_MIGRATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	云端迁移方案（**修补版 v2**，2026-09-23）	938	2026-10-02	
@@ -37,7 +37,7 @@ docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提�
 docs/EXPECTED_REDS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
 docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	提取册（设计与经验）	1555	2026-10-06	
 docs/GLOSSARY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	术语速查（**讨论用解码表**）	239	2026-10-05	
-docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10622	2026-10-06	
+docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10671	2026-10-06	
 docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
 docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
 docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
@@ -269,7 +269,7 @@ tools/check-consult-pairs.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/e
 tools/check-decisions-index.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	17	2026-09-29	
 tools/check-design-index.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	39	2026-10-05	
 tools/check-doc-class-mark.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	232	2026-10-06	
-tools/check-doc-class-mark.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	20	2026-10-05	
+tools/check-doc-class-mark.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	20	2026-10-06	
 tools/check-doc-links.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	188	2026-09-30	
 tools/check-doc-registry.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	19	2026-10-03	
 tools/check-duplicate-class-names.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	418	2026-10-02	
@@ -325,6 +325,8 @@ tools/check-task-orchestration-split.py	⑥ 边界即机器	⑥ 边界即机器	
 tools/check-task-top-freeze.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	111	2026-09-30	
 tools/check-transfer-clock.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	4	2026-09-16	
 tools/check-underfoot-safety.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	281	2026-10-01	
+tools/check-upper-docs.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	232	2026-10-06	
+tools/check-upper-docs.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	20	2026-10-06	
 tools/check-win-script-encoding.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	114	2026-10-01	
 tools/cleanup-classify.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	729	2026-10-06	
 tools/cloud-restore-env.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	122	2026-10-02	
@@ -398,13 +400,13 @@ docs/data/MACHINE_MAP.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	60	202
 docs/reference/MEK_GUI_SEMANTICS.md	⑦ 事实/数据	⑦ 事实/数据	Mekanism 机器 GUI → 接口语义表（v0.2）	158	2026-09-08	
 consult/README.md	⑪ 咨询通道	⑪ 咨询通道	咨询通道（`consult/`）	115	2026-10-06	
 consult/receipt/001-七类表缺维护栏.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `001` —— 七类表缺维护栏	352	2026-10-05	
-consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮结构性摩擦	574	2026-10-05	
+consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮结构性摩擦	574	2026-10-06	
 consult/receipt/003-提取在这套流程里没有落脚点.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `003` —— **「提取」在这套流程里没有落脚点**	383	2026-10-05	
 consult/receipt/004-主线目标模糊与后续筛没有判据.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `004` —— **主线目标模糊 + 后续筛没有判据**	678	2026-10-06	
 consult/receipt/004.1-核心件瘦身裁定.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 004.1：核心件瘦身裁定	195	2026-10-06	
 consult/receipt/005-设计文档在这套体系里住哪.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `005` —— **设计文档在这套体系里住哪 ＋ 「构想」这个词**	550	2026-10-06	
 consult/request/001-七类表缺维护栏.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `001` —— **文档整顿草案与计划书：七类表缺的是「维护」那几栏**	176	2026-10-05	
-consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮撞到的结构性摩擦	282	2026-10-05	
+consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮撞到的结构性摩擦	282	2026-10-06	
 consult/request/003-提取在这套流程里没有落脚点.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `003` —— **「提取」在这套流程里没有落脚点**	165	2026-10-05	
 consult/request/004-主线目标模糊与后续筛没有判据.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `004` —— **主线的目标模糊 ＋ 第二遍及后续各遍筛没有判据**	258	2026-10-06	
 consult/request/005-设计文档在这套体系里住哪.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `005` —— **设计文档在这套体系里住哪 ＋ 「构想」这个词**	133	2026-10-06	

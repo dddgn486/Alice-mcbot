@@ -26,12 +26,12 @@
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 未裁提案 | 57 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
-| ⑥ 边界即机器 | 134 | **0** | **待用户判**（本表只报数） |
+| ⑥ 边界即机器 | 136 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道 | 12 | **11** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 0 | **0** | **待用户判**（本表只报数） |
 | ⑩ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **631** | **154** | 这个合计**没有行动含义**（见上） |
+| **合计** | **633** | **154** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑩ 域外**
 
@@ -608,6 +608,8 @@
 | `tools/check-task-top-freeze.py` | ⑥ 边界即机器 | 8 | 1 | — |
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/check-upper-docs.py` | ⑥ 边界即机器 | 5 | 0 | — |
+| `tools/check-upper-docs.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/cleanup-classify.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 4 | 0 | — |
@@ -648,7 +650,7 @@
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
 | `tools/recipe-readability.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
-| `tools/ref-anchors.py` | ⑥ 边界即机器 | 6 | 0 | — |
+| `tools/ref-anchors.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/render-scene-preview.py` | ⑥ 边界即机器 | 3 | 0 | — |
@@ -926,5 +928,5 @@
 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/005-设计文档在这套体系里住哪.md` | ⑪ 咨询通道 | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 631 -->
+<!-- CLEANUP_ROWS 633 -->
 
