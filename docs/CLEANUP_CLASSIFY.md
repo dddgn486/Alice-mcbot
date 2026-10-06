@@ -15,13 +15,13 @@
 
 ## 一 · 分桶读数（**必须按好家分桶读**）
 
-**为什么**：零引用**不是**错的信号 —— ⑧ 域外的归档件**本来就该零引用**。
+**为什么**：零引用**不是**错的信号 —— ⑩ 域外的归档件**本来就该零引用**。
 把总数（本表最后一行的合计）当成「可删清单」是**本表最容易被误读的地方**。
 
 | 好家 | 件数 | 零引用 | 零引用**合法**吗 |
 |---|---|---|---|
 | ① 常驻规范 | 2 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
-| ①-code 设计说明（`package-info.java`） | 9 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
+| ⑧ 设计（`package-info.java`） | 9 | **0** | **待用户判**（本表只报数） |
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
 | ④ 状态 ＋ 未裁提案 | 57 | **13** | **待用户判**（本表只报数） |
@@ -30,10 +30,10 @@
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道 | 12 | **11** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
-| ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
+| ⑩ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
 | **合计** | **633** | **154** | 这个合计**没有行动含义**（见上） |
 
-## 二 · 行动面：**零引用且不在 ⑧ 域外**
+## 二 · 行动面：**零引用且不在 ⑩ 域外**
 
 ⚠️⚠️ **本节这个信号会被「提及」污染 —— 实测过一次，如实记**：本表头一版列了 **2 件**
 （`tools/dsh-phone-qr.sh` · `tools/render-scene-preview.py`），而**下一个提交里**
@@ -221,10 +221,10 @@
 | 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 16 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 2 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 17 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 3 | `docs/SCHEDULE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 13 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 4 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 5 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 6 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 8 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 7 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 4 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑩ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 5 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑩ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 6 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑩ 域外（⛔ 不进体系） | **已实现** | 8 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 7 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑩ 域外（⛔ 不进体系） | **已实现** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 8 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 未裁提案 | **已拍板** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 9 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 10 | `docs/reviews/2026-09-14-survey07-可行动条目核实.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
@@ -296,15 +296,6 @@
 |---|---|---|---|---|
 | `AGENTS.md` | ① 常驻规范 | 98 | 5 | — |
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 30 | 0 | — |
-| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/compat/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/debug/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/staging/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/step/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
 | `README.md` | ② 入口 ＋ 地图 | 63 | 0 | — |
 | `docs/README.md` | ② 入口 ＋ 地图 | 64 | 0 | — |
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 125 | 7 | — |
@@ -324,7 +315,7 @@
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 6 | 0 | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 15 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 未裁提案 | 14 | 0 | — |
-| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | — |
+| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 17 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 未裁提案 | 30 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 未裁提案 | 15 | 1 | — |
 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | 已落地 |
@@ -560,7 +551,7 @@
 | `tools/check-consult-pairs.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-design-index.sh` | ⑥ 边界即机器 | 13 | 0 | — |
-| `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 5 | 0 | — |
+| `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — |
@@ -688,233 +679,242 @@
 | `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — |
 | `docs/data/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — |
-| `.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt` | ⑧ 域外（⛔ 不进体系） | 0 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/active-plan.md` | ⑧ 域外（⛔ 不进体系） | 14 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/bot-inventory-gui-investigation-report.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/2298dd3-p1-physics-observation-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/2ef35e5-bot-death-filter-manual-test.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V1-basic/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V2-multi-slot/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V3-selector/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 76 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/test-fail-root-cause.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A1-permission-command/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A2-normal-transfer/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A3-in-transit/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A4-capacity-rejection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A5-destination-conflict/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A6-hazard/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A7-restart/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A8-abort/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A9-chest-gui/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R10-restart-expiry/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R2-source-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R3-destination-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R4-invalid-endpoint/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R9-status-clear-retain/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 76 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest-result.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/8bb2d7b.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E1-item-permission/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E10-restart-expiry/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E2-source-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E3-destination-selection/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E4-invalid-endpoint/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E5-same-cross/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E6-default-submit/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E7-explicit-drift/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E8-command-consistency/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E9-status-clear-retain/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 76 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V1-basic/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V2-different-items/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V3-multi-slot/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 76 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/ab510fd-p1-client-sync-fix-retest.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/evidence/8bb2d7b/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-3.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-4.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-5.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-6.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-7.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-8.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G1-open/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G8-task-guard/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G9-idle-interact/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 76 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f33292c-mainhand-residue-retest.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C1-external-mutation/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C2-hazard-interrupt/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C3-restart-takeover/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C4-vanilla-gui/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/evidence-report.md` | ⑧ 域外（⛔ 不进体系） | 75 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/container-mod-compatibility.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/container-quick-move-explained.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-3082-e2e-verification-20260824.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-baseline-jsx-fix-result-20260824.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-baseline-verify-report-20260824.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-build-chain-freeze-report-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-delivery-stuck-fix-workpack-20260825.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-baseline-jsx-fix-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-jsx-fix-review-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-next-action-20260824.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-closure-20260824.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-deploy-3083-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-implementation-20260824.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-workflow-adjustment-spec-20260824.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-minimal-wake-request-input-20260825.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-p0-implementation-result-20260824.md` | ⑧ 域外（⛔ 不进体系） | 6 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-closed-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-workflow-five-questions-answer-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-workflow-plan-revision-notes-20260824.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/dsh-workflow-reliability-plan-20260824.md` | ⑧ 域外（⛔ 不进体系） | 12 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/memory-handoff-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/memory-handoff-message-20260824.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260824.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260825-transfer.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-final-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-review-rerun.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-276339f.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b-client-test.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-a1-1-transfer-draft-audit.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-ae32c4a.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-c1-next-mainline-route.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-d1def08.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-f9d89da.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-github-actions-ci.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-f1-f4-review.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-route.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-inventory-transfer-transaction-a0-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-original-chest-bot-transfer-a1-route-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-370ff343-e7-item-argument-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-3fcabab-rightclick-fix-review.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-49be37e-a1-1-review.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-5fa33ab-client-regression-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a1-1-final-acceptance.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-client-failure-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-transfer-selector-review.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-plan-review.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-test-tool-request.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-workflow-audit-e7.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-inventory-interaction-final-diagnosis.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-mainhand-residue-final-acceptance.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/reviews/dsh-build-chain-source-decision-20260824.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/ARCHITECTURE.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/DEVELOPMENT-GUIDE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/MEMO.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/PROJECT-CLEANUP-2025.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/PROJECT-STATUS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/QUICKSTART.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/TASK-BACKLOG.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/debugging-methodology-reflection.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/inventory-helper-design.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/inventory-system-investigation-summary.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/lumber-investigation-plan.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/lumber-movement-analysis-2025.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/lumber-obstruction-clearing-fix-2025.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/lumber-problem-discussion.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/minecraft-cursor-item-mechanism-research.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/mining-optimization-2025.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/movement-system-analysis.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/phase-3-complete-overview.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/phase-3.1-time-budget-complete.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/phase-3.2-movement-provider-complete.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/phase-3.3-unified-pathplanner-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/astar-movement-integration-plan.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/bot-manager-cleanup-2025.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/movement-primitives-phase1.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-evaluation-report.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-refactor-plan.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-interface-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills-manifest.yml` | ⑧ 域外（⛔ 不进体系） | 14 | 0 | — |
-| `.alice-supervision/skills/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/skills/alice-client-artifact-acceptance.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/alice-discussion-before-repair.skill.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/skills/alice-inventory-transaction-conservation.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/alice-path-planning-execution-contract.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/alice-scene-based-testing.skill.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `.alice-supervision/skills/alice-session-memory-and-direction.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/alice-task-lifecycle-and-recovery.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/alice-windows-client-collaboration.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/debugging-root-cause-analysis.skill.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `.alice-supervision/skills/failure-pattern-recognition.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/forge-blockpos-mutability.skill.md` | ⑧ 域外（⛔ 不进体系） | 7 | 0 | — |
-| `.alice-supervision/skills/forge-capability-adapter-boundary.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/forge-container-menu-protocol.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/forge-entity-physics-collision.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/forge-entity-sync-broadcast.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/forge-event-priority-cancel.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/forge-fakeplayer-lifecycle.skill.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `.alice-supervision/skills/large-refactor-survey-and-verify.skill.md` | ⑧ 域外（⛔ 不进体系） | 6 | 0 | — |
-| `.alice-supervision/skills/minecraft-client-server-sync.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills/minimal-implementation-planning.skill.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md` | ⑧ 域外（⛔ 不进体系） | 5 | 1 | — |
-| `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | 已实现 |
-| `docs/archive/legacy-2026-08/M0_ARCHITECTURE.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `docs/archive/legacy-2026-08/MINETASK_WORLD_EDIT_TEST_SCENES.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | 已实现 |
-| `docs/archive/legacy-2026-08/MOVEMENT_EXPERIMENT_6_RESULT_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/MOVEMENT_PHYSICS_EXPERIMENT_1.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-2026-08/MOVEMENT_SYSTEM_ARCHITECTURE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | 已实现 |
-| `docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — |
-| `docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `docs/archive/legacy-2026-08/TASK_OUTCOME_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-design/AI_PLAYER_NOTES.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-design/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 71 | 1 | — |
-| `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
-| `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
-| `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 12 | 0 | 已实现 |
-| `docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `docs/archive/legacy-workflow/supervision/CLIENT_TEST_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `docs/archive/legacy-workflow/supervision/RESEARCH_REPORT_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-workflow/supervision/RESEARCH_TASK_TEMPLATE.txt` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `docs/archive/legacy-workflow/supervision/REVIEW_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
-| `src/main/resources/assets/alice/textures/CREDITS.md` | ⑧ 域外（⛔ 不进体系） | 9 | 0 | — |
-| `steward-entry/entry.txt` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `tools/agent-presets/alice-forge-assistant/agent.cordis.yml` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
-| `tools/agent-presets/alice-forge-assistant/persona.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
-| `tools/agent-presets/alice-forge-assistant/preset.yml` | ⑧ 域外（⛔ 不进体系） | 7 | 0 | — |
-| `tools/client-agent/make-preset-package.py` | ⑧ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `tools/client-agent/presets/alice-client-master/agent.cordis.yml` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
-| `tools/client-agent/presets/alice-client-master/preset.yml` | ⑧ 域外（⛔ 不进体系） | 7 | 0 | — |
-| `tools/cloud-tunnel-README.txt` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/action/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/compat/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/debug/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/staging/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/step/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 6 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt` | ⑩ 域外（⛔ 不进体系） | 0 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/active-plan.md` | ⑩ 域外（⛔ 不进体系） | 14 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/bot-inventory-gui-investigation-report.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/2298dd3-p1-physics-observation-retest.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/2ef35e5-bot-death-filter-manual-test.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V1-basic/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V2-multi-slot/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V3-selector/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 76 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/test-fail-root-cause.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A1-permission-command/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A2-normal-transfer/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A3-in-transit/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A4-capacity-rejection/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A5-destination-conflict/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A6-hazard/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A7-restart/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A8-abort/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A9-chest-gui/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R10-restart-expiry/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R2-source-selection/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R3-destination-selection/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R4-invalid-endpoint/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R9-status-clear-retain/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 76 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest-result.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/8bb2d7b.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E1-item-permission/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E10-restart-expiry/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E2-source-selection/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E3-destination-selection/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E4-invalid-endpoint/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E5-same-cross/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E6-default-submit/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E7-explicit-drift/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E8-command-consistency/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E9-status-clear-retain/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 76 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V1-basic/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V2-different-items/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V3-multi-slot/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 76 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/ab510fd-p1-client-sync-fix-retest.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/evidence/8bb2d7b/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-3.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-4.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-5.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-6.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-7.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-8.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G1-open/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G8-task-guard/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G9-idle-interact/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 76 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f33292c-mainhand-residue-retest.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C1-external-mutation/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C2-hazard-interrupt/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C3-restart-takeover/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C4-vanilla-gui/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/evidence-report.md` | ⑩ 域外（⛔ 不进体系） | 75 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/container-mod-compatibility.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/container-quick-move-explained.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-3082-e2e-verification-20260824.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-baseline-jsx-fix-result-20260824.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-baseline-verify-report-20260824.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-build-chain-freeze-report-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-delivery-stuck-fix-workpack-20260825.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-baseline-jsx-fix-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-jsx-fix-review-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-next-action-20260824.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-closure-20260824.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-deploy-3083-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-implementation-20260824.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-workflow-adjustment-spec-20260824.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-minimal-wake-request-input-20260825.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-p0-implementation-result-20260824.md` | ⑩ 域外（⛔ 不进体系） | 6 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-closed-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-workflow-five-questions-answer-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-workflow-plan-revision-notes-20260824.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/dsh-workflow-reliability-plan-20260824.md` | ⑩ 域外（⛔ 不进体系） | 12 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/memory-handoff-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/memory-handoff-message-20260824.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260824.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260825-transfer.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-final-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-review-rerun.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-276339f.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b-client-test.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-a1-1-transfer-draft-audit.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-ae32c4a.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-c1-next-mainline-route.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-d1def08.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-f9d89da.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-github-actions-ci.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-f1-f4-review.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-route.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-inventory-transfer-transaction-a0-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260821-original-chest-bot-transfer-a1-route-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-370ff343-e7-item-argument-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-3fcabab-rightclick-fix-review.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-49be37e-a1-1-review.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-5fa33ab-client-regression-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a1-1-final-acceptance.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-client-failure-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-transfer-selector-review.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-plan-review.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-test-tool-request.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260822-workflow-audit-e7.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-inventory-interaction-final-diagnosis.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-mainhand-residue-final-acceptance.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/reviews/dsh-build-chain-source-decision-20260824.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/ARCHITECTURE.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/DEVELOPMENT-GUIDE.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/MEMO.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/PROJECT-CLEANUP-2025.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/PROJECT-STATUS.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/QUICKSTART.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/TASK-BACKLOG.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/debugging-methodology-reflection.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/inventory-helper-design.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/inventory-system-investigation-summary.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/lumber-investigation-plan.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/lumber-movement-analysis-2025.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/lumber-obstruction-clearing-fix-2025.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/lumber-problem-discussion.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/minecraft-cursor-item-mechanism-research.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/mining-optimization-2025.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/movement-system-analysis.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/phase-3-complete-overview.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/phase-3.1-time-budget-complete.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/phase-3.2-movement-provider-complete.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/phase-3.3-unified-pathplanner-complete.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/astar-movement-integration-plan.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/bot-manager-cleanup-2025.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/movement-primitives-phase1.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-evaluation-report.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-refactor-plan.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-complete.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-interface-complete.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills-manifest.yml` | ⑩ 域外（⛔ 不进体系） | 14 | 0 | — |
+| `.alice-supervision/skills/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/skills/alice-client-artifact-acceptance.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/alice-discussion-before-repair.skill.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/skills/alice-inventory-transaction-conservation.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/alice-path-planning-execution-contract.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/alice-scene-based-testing.skill.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `.alice-supervision/skills/alice-session-memory-and-direction.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/alice-task-lifecycle-and-recovery.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/alice-windows-client-collaboration.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/debugging-root-cause-analysis.skill.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `.alice-supervision/skills/failure-pattern-recognition.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/forge-blockpos-mutability.skill.md` | ⑩ 域外（⛔ 不进体系） | 7 | 0 | — |
+| `.alice-supervision/skills/forge-capability-adapter-boundary.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/forge-container-menu-protocol.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/forge-entity-physics-collision.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/forge-entity-sync-broadcast.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/forge-event-priority-cancel.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/forge-fakeplayer-lifecycle.skill.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `.alice-supervision/skills/large-refactor-survey-and-verify.skill.md` | ⑩ 域外（⛔ 不进体系） | 6 | 0 | — |
+| `.alice-supervision/skills/minecraft-client-server-sync.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `.alice-supervision/skills/minimal-implementation-planning.skill.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md` | ⑩ 域外（⛔ 不进体系） | 5 | 1 | — |
+| `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | 已实现 |
+| `docs/archive/legacy-2026-08/M0_ARCHITECTURE.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `docs/archive/legacy-2026-08/MINETASK_WORLD_EDIT_TEST_SCENES.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | 已实现 |
+| `docs/archive/legacy-2026-08/MOVEMENT_EXPERIMENT_6_RESULT_CONTRACT.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-2026-08/MOVEMENT_PHYSICS_EXPERIMENT_1.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-2026-08/MOVEMENT_SYSTEM_ARCHITECTURE.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑩ 域外（⛔ 不进体系） | 8 | 0 | 已实现 |
+| `docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md` | ⑩ 域外（⛔ 不进体系） | 13 | 0 | — |
+| `docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-2026-08/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `docs/archive/legacy-2026-08/TASK_OUTCOME_CONTRACT.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-design/AI_PLAYER_NOTES.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-design/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-testing/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑩ 域外（⛔ 不进体系） | 71 | 1 | — |
+| `docs/archive/legacy-workflow/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
+| `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑩ 域外（⛔ 不进体系） | 8 | 0 | — |
+| `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑩ 域外（⛔ 不进体系） | 12 | 0 | 已实现 |
+| `docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `docs/archive/legacy-workflow/supervision/CLIENT_TEST_TEMPLATE.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `docs/archive/legacy-workflow/supervision/RESEARCH_REPORT_TEMPLATE.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-workflow/supervision/RESEARCH_TASK_TEMPLATE.txt` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `docs/archive/legacy-workflow/supervision/REVIEW_TEMPLATE.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
+| `src/main/resources/assets/alice/textures/CREDITS.md` | ⑩ 域外（⛔ 不进体系） | 9 | 0 | — |
+| `steward-entry/entry.txt` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `tools/agent-presets/alice-forge-assistant/agent.cordis.yml` | ⑩ 域外（⛔ 不进体系） | 8 | 0 | — |
+| `tools/agent-presets/alice-forge-assistant/persona.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `tools/agent-presets/alice-forge-assistant/preset.yml` | ⑩ 域外（⛔ 不进体系） | 7 | 0 | — |
+| `tools/client-agent/make-preset-package.py` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
+| `tools/client-agent/presets/alice-client-master/agent.cordis.yml` | ⑩ 域外（⛔ 不进体系） | 8 | 0 | — |
+| `tools/client-agent/presets/alice-client-master/preset.yml` | ⑩ 域外（⛔ 不进体系） | 7 | 0 | — |
+| `tools/cloud-tunnel-README.txt` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `consult/README.md` | ⑪ 咨询通道 | 63 | 0 | — |
 | `consult/receipt/001-七类表缺维护栏.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | 0 | 0 | — |

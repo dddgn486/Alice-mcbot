@@ -4,22 +4,22 @@
 path	class	class_all	title	size_lines	last_modified	topics
 AGENTS.md	① 常驻规范	① 常驻规范	Alice Agent Instructions	176	2026-10-05	
 docs/AI_DEVELOPMENT_PLAYBOOK.md	① 常驻规范	① 常驻规范	Alice：AI 辅助 Forge 模组开发手册	708	2026-10-05	
-src/main/java/com/dddgn/alice/action/craft/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	合成域执行件（`action/craft/`）** —— 「动作 / 动作逻辑」里**合成**那一个域的执行件。	55	2026-10-03	
-src/main/java/com/dddgn/alice/action/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	执行面（`action/`）** —— ⭐「**只装执行件，以及这些执行件的调用器**」（用户 2026-10-01 逐字裁定）。	67	2026-10-03	
-src/main/java/com/dddgn/alice/compat/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	模组功能适配层（`compat/`）** —— 一个**具体模组**的一条**具体能力**，以**软依赖 ＋ 反射**实现。	46	2026-10-03	
-src/main/java/com/dddgn/alice/debug/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	调试面**（`D-492` 规矩 R2）：**发行后玩家也能用** ⇒ 它是**产品面**，不是开发期夹具。	79	2026-10-03	
-src/main/java/com/dddgn/alice/fixture/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	开发期测试夹具**（`D-492` 规矩 R2）：**只用于开发时的验证**，不是"调整调试"的工具。	64	2026-10-03	
-src/main/java/com/dddgn/alice/region/authz/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	⭐ **区域授权（`region/authz/`）** —— 回答「**这一格现在允不允许动**」。	76	2026-10-03	
-src/main/java/com/dddgn/alice/region/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	⭐ **区域（`region/`）** —— 回答四个问题：**区域是什么 · 谁声明的 · 谁能覆盖谁 · 什么时候消失**。	107	2026-10-03	
-src/main/java/com/dddgn/alice/staging/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	过渡容器（`staging/`）** —— ⚠️⚠️ **临时的，⛔ 不是一层，也不是"新专属包"**。	57	2026-10-03	
-src/main/java/com/dddgn/alice/step/package-info.java	①-code 设计说明（`package-info.java`）	①-code 设计说明（`package-info.java`）	原语层（`step/`）** —— 「逐 tick 推进到**单格结论**」的最小执行单元。	86	2026-10-03	
+src/main/java/com/dddgn/alice/action/craft/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	合成域执行件（`action/craft/`）** —— 「动作 / 动作逻辑」里**合成**那一个域的执行件。	55	2026-10-03	
+src/main/java/com/dddgn/alice/action/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	执行面（`action/`）** —— ⭐「**只装执行件，以及这些执行件的调用器**」（用户 2026-10-01 逐字裁定）。	67	2026-10-03	
+src/main/java/com/dddgn/alice/compat/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	模组功能适配层（`compat/`）** —— 一个**具体模组**的一条**具体能力**，以**软依赖 ＋ 反射**实现。	46	2026-10-03	
+src/main/java/com/dddgn/alice/debug/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	调试面**（`D-492` 规矩 R2）：**发行后玩家也能用** ⇒ 它是**产品面**，不是开发期夹具。	79	2026-10-03	
+src/main/java/com/dddgn/alice/fixture/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	开发期测试夹具**（`D-492` 规矩 R2）：**只用于开发时的验证**，不是"调整调试"的工具。	64	2026-10-03	
+src/main/java/com/dddgn/alice/region/authz/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	⭐ **区域授权（`region/authz/`）** —— 回答「**这一格现在允不允许动**」。	76	2026-10-03	
+src/main/java/com/dddgn/alice/region/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	⭐ **区域（`region/`）** —— 回答四个问题：**区域是什么 · 谁声明的 · 谁能覆盖谁 · 什么时候消失**。	107	2026-10-03	
+src/main/java/com/dddgn/alice/staging/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	过渡容器（`staging/`）** —— ⚠️⚠️ **临时的，⛔ 不是一层，也不是"新专属包"**。	57	2026-10-03	
+src/main/java/com/dddgn/alice/step/package-info.java	⑧ 设计（`package-info.java`）	⑧ 设计（`package-info.java`）	原语层（`step/`）** —— 「逐 tick 推进到**单格结论**」的最小执行单元。	86	2026-10-03	
 README.md	② 入口 ＋ 地图	② 入口 ＋ 地图	Alice	115	2026-10-02	
 docs/README.md	② 入口 ＋ 地图	② 入口 ＋ 地图	Alice 文档索引	86	2026-10-02	
 docs/AI_DECISIONS.md	③ 决策/裁定	③ 决策/裁定	Alice 当前架构决策	27960	2026-10-04	
 docs/DECISIONS_INDEX.md	③ 决策/裁定	③ 决策/裁定	决策索引（**生成物，禁手改**）	1162	2026-10-04	
 .alice-supervision/improvements/follow-task-vertical-tolerance.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	FollowTask 改进计划	83	2026-09-08	
-docs/ACCEPTANCE_GUIDE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · 验收指引	218	2026-10-05	
-docs/AI_PROJECT_STATE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 当前项目状态	428	2026-10-06	
+docs/ACCEPTANCE_GUIDE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · 验收指引	218	2026-10-06	
+docs/AI_PROJECT_STATE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 当前项目状态	429	2026-10-06	
 docs/ALICE_PATHING_CORE_ARCHITECTURE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core Architecture	444	2026-10-03	
 docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core R1 Contract	528	2026-09-08	
 docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
@@ -32,12 +32,12 @@ docs/CLOUD_MIGRATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	
 docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	死亡与复活机制 · 设计草案（待用户审定）	157	2026-09-17	
 docs/DECISION_LAYER_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	L4 决策层（`GoalDirector` 家族）设计 —— 三条通道 + 分步骨架	275	2026-10-03	
 docs/DECISION_LAYER_FINAL_FORM.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	决策层最终形态：**任务队列 + 持久终态 + 历史落盘**	272	2026-09-20	
-docs/DOC_REFACTOR_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · **草案**（依据；⭐ 目标文档体系 v2）	546	2026-10-05	
+docs/DOC_REFACTOR_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · **草案**（依据；⭐ 目标文档体系 v2）	556	2026-10-06	
 docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档整顿 · 施工计划书（**生成物，禁手改**）	404	2026-10-06	
 docs/EXPECTED_REDS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
 docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	提取册（设计与经验）	1555	2026-10-06	
 docs/GLOSSARY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	术语速查（**讨论用解码表**）	239	2026-10-05	
-docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10517	2026-10-06	
+docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10565	2026-10-06	
 docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
 docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
 docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
@@ -49,7 +49,7 @@ docs/MOD_ADAPTER_PROTOCOL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁�
 docs/MOD_COMPAT_CRAFT_STATION_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	模组兼容范例 · 第一步：**可切换的合成工作站**（设计 v2，2026-09-13）	227	2026-09-13	
 docs/MULTI_BOT_INTERFACE_RESERVATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	多 Bot 并行接口预留（非当前验收目标）	12	2026-09-08	
 docs/OPEN_ITEMS_LEDGER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	未收口项总账（2026-09-12 整理）	2749	2026-10-06	
-docs/QUESTIONS_LEDGER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	开发者问题账（Q-###）	949	2026-10-05	
+docs/QUESTIONS_LEDGER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	开发者问题账（Q-###）	957	2026-10-06	
 docs/REGION_REPLANT_ASYNC_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	区域补种异步化 + 可配置拾取清单：**设计方案**	221	2026-09-30	
 docs/RISK_MODES_DISCUSSION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	风险模式讨论（H / G / S）	203	2026-10-03	
 docs/RISK_SYSTEM_DESIGN_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 风险系统 · 实现草案	527	2026-10-03	
@@ -244,7 +244,7 @@ survey/54-计划书重审-对位目的与工序-2026-10-04.md	⑤ 报告 ＋ 证
 survey/55-批2开工前勘测-第一档靶子与判据体检-2026-10-04.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	批 2 开工前勘测：**第一档靶子复算 ＋ 判据体检 ＋ 前提体检** —— 勘测侧报告（2026-10-04）	369	2026-10-05	
 survey/56-草案对位-设计文档与两类维护形态-2026-10-04.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	草案 **对位材料**：**设计文档加入管理** ＋ ③④ 两类的维护形态 ＋ 门禁膨胀 —— 勘测侧报告（2026-10-04）	358	2026-10-05	
 survey/INTENT.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	项目意图总览（INTENT）	230	2026-09-27	
-survey/README.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	勘测报告登记表（**生成物，禁手改**）	168	2026-10-05	
+survey/README.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	勘测报告登记表（**生成物，禁手改**）	168	2026-10-06	
 tools/alice-cloud-remote.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	117	2026-10-01	
 tools/alice-cloudctl.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	214	2026-10-02	
 tools/analyze-lumber-scene.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	391	2026-09-10	
@@ -326,7 +326,7 @@ tools/check-task-top-freeze.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin
 tools/check-transfer-clock.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	4	2026-09-16	
 tools/check-underfoot-safety.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	281	2026-10-01	
 tools/check-win-script-encoding.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	114	2026-10-01	
-tools/cleanup-classify.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	729	2026-10-05	
+tools/cleanup-classify.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	729	2026-10-06	
 tools/cloud-restore-env.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	122	2026-10-02	
 tools/cloud-rollback.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	201	2026-10-01	
 tools/codespace-start-dsh.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	56	2026-09-24	
@@ -358,7 +358,7 @@ tools/make-agent-preset.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env
 tools/make-cloud-tunnel-bundle.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	59	2026-09-24	
 tools/mirror-windows-workspace.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	95	2026-09-30	
 tools/module-selftest.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	205	2026-10-01	
-tools/new-home-audit.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	422	2026-10-06	
+tools/new-home-audit.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	424	2026-10-06	
 tools/plan-doc-refactor.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	1335	2026-10-06	
 tools/policy-map.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	613	2026-10-02	
 tools/policy-map.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	4	2026-09-14	
@@ -374,7 +374,7 @@ tools/simulate-scene-plan.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/e
 tools/skills-index.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	285	2026-10-03	
 tools/station-mapping.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	64	2026-09-17	
 tools/step-names.py	⑥ 边界即机器	⑥ 边界即机器	SH-P1（2026-09-17）：**`single:<步名>` 的引用不得指向不存在的步**。	103	2026-09-30	
-tools/survey-index.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	265	2026-10-03	
+tools/survey-index.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	265	2026-10-06	
 tools/sync-windows-artifact.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	169	2026-09-26	
 tools/task-dispatch-table.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	338	2026-09-30	
 tools/task-retirement-map.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	598	2026-10-02	
@@ -410,228 +410,228 @@ consult/request/004-主线目标模糊与后续筛没有判据.md	⑪ 咨询通�
 consult/request/005-设计文档在这套体系里住哪.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `005` —— **设计文档在这套体系里住哪 ＋ 「构想」这个词**	128	2026-10-06	
 .tmp-fix2.py	⑨ 待删（一次性脚本）	⑨ 待删（一次性脚本）	(无标题)	108	2026-09-28	
 .tmp-fix9.py	⑨ 待删（一次性脚本）	⑨ 待删（一次性脚本）	§27 ⭐⭐ 2026-09-28 第六轮：**「已裁但未做」全量复核**（`D-476`~`D-489`）	101	2026-09-28	
-.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 实例管理备忘	68	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`.alice-supervision/archive/2024-08-2024-09/` —— 归档目录（**按日期世代**）	26	2026-10-03	
-.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Active Work Plan（草案，待用户批准）	96	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Active Work Plan（修复线草案，待用户批准）	105	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/active-plan.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Active Work Plan	143	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/bot-inventory-gui-investigation-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 深度调研报告	574	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/2298dd3-p1-physics-observation-retest.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	P1 物理观测与扰动恢复客户端复测说明	102	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/2ef35e5-bot-death-filter-manual-test.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot 死亡过滤修复手动测试指南	135	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot Inventory 同步修复客户端测试记录	57	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V1-basic/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	V1 基本功能测试报告	29	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V2-multi-slot/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	V2 多槽位同步测试报告	29	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V3-selector/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	V3 Selector 路径测试报告	32	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot Inventory 同步修复完整测试报告（精简版 V1-V3）	42	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/test-fail-root-cause.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory 同步修复测试 FAIL 根因记录	54	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端测试记录	52	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A1-permission-command/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A1 权限与显式命令测试报告	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A2-normal-transfer/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A2 正常单批转移测试报告	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A3-in-transit/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A3 在途库存可见性测试报告	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A4-capacity-rejection/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A4 容量不足且源不变测试报告	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A5-destination-conflict/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A5 目标端外部变更/冲突测试报告	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A6-hazard/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A6 生存危险中断测试报告	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A7-restart/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A7 重启与人工接管测试报告	40	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A8-abort/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A8 Abort 与在途物保护测试报告	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A9-chest-gui/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A9 原版箱子 GUI 隔离测试报告	37	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端完整测试报告	47	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	5fa33ab 转移选择器右键修复 Windows 回归测试	29	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R10-restart-expiry/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R10 重启失效测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R2-source-selection/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R2 Shift+右键选择源容器测试报告	32	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R3-destination-selection/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R3 普通右键选择目标容器测试报告	34	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R4-invalid-endpoint/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R4 非容器端点拒绝测试报告	31	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R9-status-clear-retain/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R9 状态、清理与失败保留测试报告	34	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	5fa33ab 右键修复 Windows 回归测试报告	30	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest-result.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	软路径测试工具客户端复测结果	72	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	软路径测试工具客户端复测说明	98	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/8bb2d7b.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Client Test Matrix	102	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	a7e02fd 转移端点选择器 Windows 客户端测试	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E1-item-permission/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E1 物品身份与权限测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E10-restart-expiry/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E10 重启失效测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E2-source-selection/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E2 Shift+右键选择源容器测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E3-destination-selection/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E3 右键选择目标容器测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E4-invalid-endpoint/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E4 非容器端点拒绝测试报告	32	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E5-same-cross/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E5 同端点与跨维度拒绝测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E6-default-submit/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E6 无参默认提交测试报告	35	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E7-explicit-drift/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E7 显式参数与世界漂移测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E8-command-consistency/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E8 与坐标命令一致性测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E9-status-clear-retain/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E9 状态、清理与失败保留测试报告	34	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	a7e02fd 转移端点选择器 Windows 完整测试报告	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot 手持物品渲染修复客户端测试记录	75	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V1-basic/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	V1 基本功能测试报告	30	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V2-different-items/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	V2 不同物品类型渲染测试报告	33	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V3-multi-slot/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	V3 多槽位一致性测试报告	32	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot 手持物品渲染修复完整测试报告（精简版 V1-V3）	42	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/ab510fd-p1-client-sync-fix-retest.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	P1 客户端同步修复最终复测说明	81	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/evidence/8bb2d7b/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice C1 扫描器客户端测试报告	69	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-3.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 3 轮）	34	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-4.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 4 轮）	40	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-5.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 5 轮）	32	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-6.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 6 轮）	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-7.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 7 轮 - 方向 B 全新实现）	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-8.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 8 轮 - view index 修复）	40	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 复测说明	49	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 客户端测试说明	84	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G1-open/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	G1 入口与授权测试报告	24	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G8-task-guard/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	G8 任务保护测试报告（核心）	35	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G9-idle-interact/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	G9 空闲交互测试报告	31	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 完整测试报告（精简版 G1-G10）	50	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f33292c-mainhand-residue-retest.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot 主手残留修复复测说明	41	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端测试记录（精简版 C1-C4）	52	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C1-external-mutation/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	C1 目标端外部变更/冲突测试报告	31	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C2-hazard-interrupt/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	C2 生存危险中断测试报告	31	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C3-restart-takeover/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	C3 重启与人工接管测试报告	32	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C4-vanilla-gui/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	C4 原版箱子 GUI 隔离测试报告	29	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/evidence-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端完整测试报告（精简版 C1-C4）	42	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/container-mod-compatibility.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	容器 GUI 与整理模组的兼容性	486	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/container-quick-move-explained.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Shift+点击快速移动的完整逻辑详解	572	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-3082-e2e-verification-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	3082 GUI 端到端点验手册（4 个新工具）	75	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-baseline-jsx-fix-result-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 基线 JSX 类型修复 — 结果报告	110	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-baseline-verify-report-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 可靠性改造 — 基线验证报告（npm 0.1.1 ↔ 源码 commit）	75	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-build-chain-freeze-report-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 可靠性改造 — 构建链路冻结报告（开发源选择选项 1）	95	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-delivery-stuck-fix-workpack-20260825.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	工作包：create_task 投递失败回退（修复 submitted 卡死缺陷）	89	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-baseline-jsx-fix-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员决策：采纳基线验证报告选项 1（最小类型修复）→ 解冻构建链路	78	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-jsx-fix-review-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员反馈（第 2 轮）：修正不完整，两处残留需继续修	61	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-next-action-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	给 DSH 工作流维护员：下一步执行说明	111	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-closure-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员反馈：P0 二审带条件通过 — 三点闭合执行要求	75	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-deploy-3083-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员授权：DSH P0 受控部署 3083	44	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-implementation-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员授权：DSH 工作流可靠性改造 P0 实施（用户已批准）	86	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-workflow-adjustment-spec-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 工作流维护员调整清单	419	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-minimal-wake-request-input-20260825.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	工作包：request_input 通知 dispatcher（最小监督员唤醒机制）	58	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-p0-implementation-result-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 工作流可靠性改造 P0 — 实施结果报告	205	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员二审裁决：DSH 工作流可靠性 P0（带条件通过）	83	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-closed-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员二审闭合：DSH 工作流可靠性 P0	27	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-workflow-five-questions-answer-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 维护员对改造规格第 13 节五问的答复	62	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-workflow-plan-revision-notes-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 可靠性改造 plan 修订说明（提交监督员二审）	132	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/dsh-workflow-reliability-plan-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Active Work Plan — DSH 工作流可靠性改造（P0 修订版）	142	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/memory-handoff-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	监督员会话「最后的记忆」交接留档	65	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/memory-handoff-message-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	给监督员的消息（可直接转发）	20	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目当前进度保存（2026-08-24）	151	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260825-transfer.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 工作组全量迁移交接进度快照（2026-08-25，最优先级）	123	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-final-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	5fa33ab Windows 客户端回归最终审核	24	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-review-rerun.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	5fa33ab Windows 客户端回归复审	41	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-276339f.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	42	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b-client-test.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Client-Test Review	45	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	74	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-a1-1-transfer-draft-audit.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A1.1 Transfer Draft Audit	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-ae32c4a.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	68	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-c1-next-mainline-route.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Route Review — Post-C1 Mainline	39	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-d1def08.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	26	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-f9d89da.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	56	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-github-actions-ci.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor CI Observation	29	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-f1-f4-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review — F1-F4 C1 Maintenance	38	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-route.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Route Review	69	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-inventory-transfer-transaction-a0-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review — Inventory Transfer Transaction A0	43	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260821-original-chest-bot-transfer-a1-route-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Route Review — Original Chest Bot Transfer A1.1	44	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-370ff343-e7-item-argument-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	E7 item 参数解析修复二审（370ff343）	53	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-3fcabab-rightclick-fix-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	41	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-49be37e-a1-1-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A1.1 原版单箱 -> Bot -> 单箱监督二审	37	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-5fa33ab-client-regression-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	5fa33ab Windows 客户端回归审核	44	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a1-1-final-acceptance.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	A1.1 原版箱子转移最终验收报告	88	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-client-failure-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	a7e02fd 转移端点选择器客户端失败审核	36	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-transfer-selector-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	40	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-plan-review.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	实体测试物品选择容器 —— 规划采纳审核	42	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-test-tool-request.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	实体测试物品选择容器 —— 用户申请受理记录	27	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260822-workflow-audit-e7.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 工作流程审计：E7 窄修复耗时分析	91	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-inventory-interaction-final-diagnosis.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot Inventory 交互功能：最后一次故障调查结论	92	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-mainhand-residue-final-acceptance.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Bot 主手残留修复最终验收	37	2026-09-08	
-.alice-supervision/archive/2024-08-2024-09/reviews/dsh-build-chain-source-decision-20260824.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	DSH 构建链路二审：开发源与 TypeScript 门禁决策	56	2026-09-08	
-.alice-supervision/archive/legacy-2026-08/ARCHITECTURE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Movement 系统技术架构	365	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/DEVELOPMENT-GUIDE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 开发指南	556	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/MEMO.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目工作备忘录	408	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/PROJECT-CLEANUP-2025.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目清理总结 (2025)	110	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/PROJECT-STATUS.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目完整状态分析	676	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/QUICKSTART.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	快速恢复指南	70	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`.alice-supervision/archive/legacy-2026-08/` —— 归档目录（**按日期世代**）	26	2026-10-03	
-.alice-supervision/archive/legacy-2026-08/TASK-BACKLOG.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目任务清单	249	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/debugging-methodology-reflection.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	调试方法论反思与总结	250	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/inventory-helper-design.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 背包管理系统设计方案	454	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/inventory-system-investigation-summary.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 背包系统问题总结与调研建议	315	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/lumber-investigation-plan.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	伐木系统问题调查方案	223	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/lumber-movement-analysis-2025.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	伐木系统移动问题分析与解决方案	301	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/lumber-obstruction-clearing-fix-2025.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	自动伐木卡死问题修复报告	332	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/lumber-problem-discussion.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	伐木系统问题整理与讨论	160	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/minecraft-cursor-item-mechanism-research.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Minecraft 容器"鼠标上的物品"机制深度调研	398	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/mining-optimization-2025.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	挖掘系统优化实施报告	305	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/movement-system-analysis.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 移动系统分析报告	433	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/phase-3-complete-overview.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 3 完成总览：架构改进	371	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/phase-3.1-time-budget-complete.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 3.1 完成：时间预算代替空间边界	336	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/phase-3.2-movement-provider-complete.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 3.2 完成：Movement Provider 接口化	405	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/phase-3.3-unified-pathplanner-complete.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 3.3 完成：统一 HARD/SOFT 路径规划器	381	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/astar-movement-integration-plan.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	AStarPathfinder Movement 集成计划	211	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/bot-manager-cleanup-2025.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	BotManager 重构总结（2025年）	201	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/movement-primitives-phase1.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 1 Movement 原语系统重构总结	253	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-evaluation-report.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 寻路系统评估报告	303	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-refactor-plan.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 寻路系统重构计划	284	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-complete.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 2A 完成总结	388	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-interface-complete.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 2A 完成总结	220	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 2A 工作总结	354	2026-09-10	
-.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Phase 2B 完成总结	414	2026-09-10	
-.alice-supervision/skills-manifest.yml	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目 skills 注册表（`.alice-supervision/skills-manifest.yml`）	233	2026-10-03	
-.alice-supervision/skills/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目 Skills 索引（**生成物，禁手改**）	78	2026-10-03	
-.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 作为 Baritone 兼容内核	68	2026-09-16	
-.alice-supervision/skills/alice-client-artifact-acceptance.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Client Artifact Acceptance	60	2026-09-17	
-.alice-supervision/skills/alice-discussion-before-repair.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Discussion Before Repair	62	2026-09-08	
-.alice-supervision/skills/alice-inventory-transaction-conservation.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Inventory Transaction Conservation	31	2026-09-08	
-.alice-supervision/skills/alice-path-planning-execution-contract.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Path Planning and Execution Contract	36	2026-09-08	
-.alice-supervision/skills/alice-scene-based-testing.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Scene-Based Testing	281	2026-09-16	
-.alice-supervision/skills/alice-session-memory-and-direction.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Session Memory and Direction	63	2026-09-09	
-.alice-supervision/skills/alice-task-lifecycle-and-recovery.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Task Lifecycle and Recovery	33	2026-09-08	
-.alice-supervision/skills/alice-windows-client-collaboration.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Windows Client Collaboration	153	2026-09-17	
-.alice-supervision/skills/debugging-root-cause-analysis.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Debugging Root Cause Analysis	212	2026-09-16	
-.alice-supervision/skills/failure-pattern-recognition.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Failure Pattern Recognition	417	2026-09-08	
-.alice-supervision/skills/forge-blockpos-mutability.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Forge BlockPos 可变性陷阱	313	2026-10-03	
-.alice-supervision/skills/forge-capability-adapter-boundary.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Forge Capability and Adapter Boundary	28	2026-09-08	
-.alice-supervision/skills/forge-container-menu-protocol.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Forge Container Menu Protocol	550	2026-09-08	
-.alice-supervision/skills/forge-entity-physics-collision.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Forge Entity Physics & Collision	572	2026-09-08	
-.alice-supervision/skills/forge-entity-sync-broadcast.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Forge Entity Sync & Broadcast	450	2026-09-08	
-.alice-supervision/skills/forge-event-priority-cancel.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Forge Event Priority & Cancel	592	2026-09-08	
-.alice-supervision/skills/forge-fakeplayer-lifecycle.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Forge FakePlayer Lifecycle	347	2026-09-15	
-.alice-supervision/skills/large-refactor-survey-and-verify.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	大范围重构：勘测与验证	201	2026-10-04	
-.alice-supervision/skills/minecraft-client-server-sync.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Minecraft Client-Server Sync	448	2026-09-08	
-.alice-supervision/skills/minimal-implementation-planning.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Minimal Implementation Planning	152	2026-09-09	
-docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑧ 域外（⛔ 不进体系）	AI Player 设计文档（架构总纲 v0.3）	317	2026-09-10	
-docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	BotController 快速测试指南	267	2026-09-10	
-docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	执行层框架 v1（任务框架）	130	2026-09-10	
-docs/archive/legacy-2026-08/HANDOVER_20260907.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 会话交接包 - 2026-09-07	415	2026-09-10	
-docs/archive/legacy-2026-08/M0_ARCHITECTURE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	M0 架构决策与审查点	63	2026-09-10	
-docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	MineTask 第一阶段内部契约审查	478	2026-09-10	
-docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑧ 域外（⛔ 不进体系）	MineTask 接入 Movement：最小重建设计	111	2026-09-10	
-docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	MineTask 恢复契约	97	2026-09-10	
-docs/archive/legacy-2026-08/MINETASK_WORLD_EDIT_TEST_SCENES.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	MineTask WorldEdit 测试场景计划	208	2026-09-10	
-docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	挖掘安全与目标规划（后续设计约束）	102	2026-09-10	
-docs/archive/legacy-2026-08/MOVEMENT_EXPERIMENT_6_RESULT_CONTRACT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Movement 实验 6：结果契约	93	2026-09-10	
-docs/archive/legacy-2026-08/MOVEMENT_PHYSICS_EXPERIMENT_1.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Movement 物理实验 1：BotController 单段输入驱动	203	2026-09-10	
-docs/archive/legacy-2026-08/MOVEMENT_SYSTEM_ARCHITECTURE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目移动系统架构与职责边界	397	2026-09-10	
-docs/archive/legacy-2026-08/PATHING_REFACTOR.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	寻路与采集重构方案	153	2026-09-10	
-docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 产品架构与整合包适配路线	304	2026-09-10	
-docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R2-C Movement × Baritone 对照审计报告	208	2026-09-10	
-docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	R2-C Movement 实施报告	218	2026-09-10	
-docs/archive/legacy-2026-08/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-2026-08/` —— 归档目录（**按内容类型**）	26	2026-10-03	
-docs/archive/legacy-2026-08/TASK_OUTCOME_CONTRACT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	事实型任务结果契约	83	2026-09-10	
-docs/archive/legacy-design/AI_PLAYER_NOTES.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	AI Player 设计笔记	321	2026-09-08	
-docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	BotController 诊断探针指南	354	2026-09-08	
-docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	isEffectiveAi() 安全性分析	420	2026-09-08	
-docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Minecraft 原版玩家运行机制解析	573	2026-09-08	
-docs/archive/legacy-design/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-design/` —— 归档目录（**按内容类型**）	26	2026-10-03	
-docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑧ 域外（⛔ 不进体系）	Bot 手动控制系统设计方案	106	2026-09-08	
-docs/archive/legacy-testing/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-testing/` —— 归档目录（**按内容类型**）	26	2026-10-03	
-docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Windows 端同步清单	272	2026-09-08	
-docs/archive/legacy-workflow/HANDOVER.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目交接说明（给新会话的快速上手）	440	2026-10-04	
-docs/archive/legacy-workflow/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-workflow/` —— 归档目录（**按内容类型**）	26	2026-10-06	
-docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目二次审核协议	188	2026-09-08	
-docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 下一任监督员接管说明	114	2026-09-08	
-docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Active Work Plan	78	2026-09-08	
-docs/archive/legacy-workflow/supervision/CLIENT_TEST_TEMPLATE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 客户端测试记录模板	143	2026-09-08	
-docs/archive/legacy-workflow/supervision/RESEARCH_REPORT_TEMPLATE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Deep Research Report	45	2026-09-08	
-docs/archive/legacy-workflow/supervision/RESEARCH_TASK_TEMPLATE.txt	⑧ 域外（⛔ 不进体系）	⑦ 事实/数据 ／ ⑧ 域外（⛔ 不进体系）	(无标题)	45	2026-09-08	
-docs/archive/legacy-workflow/supervision/REVIEW_TEMPLATE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Supervisor Review	54	2026-09-08	
-src/main/resources/assets/alice/textures/CREDITS.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	贴图来源与署名	32	2026-09-11	
-steward-entry/entry.txt	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	云端入口（每次启动自动重写 —— 别手改这个文件）	11	2026-10-06	
-tools/agent-presets/alice-forge-assistant/agent.cordis.yml	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	The `standard` agent preset: the full coding agent, mounted once per process.	284	2026-10-02	
-tools/agent-presets/alice-forge-assistant/persona.md	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	开场三问（别跳）	30	2026-10-02	
-tools/agent-presets/alice-forge-assistant/preset.yml	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	(无标题)	3	2026-10-02	
-tools/client-agent/make-preset-package.py	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	!/usr/bin/env python3	71	2026-09-24	
-tools/client-agent/presets/alice-client-master/agent.cordis.yml	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	The `standard` agent preset: the full coding agent, mounted once per process.	354	2026-10-02	
-tools/client-agent/presets/alice-client-master/preset.yml	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	(无标题)	3	2026-09-24	
-tools/cloud-tunnel-README.txt	⑧ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑧ 域外（⛔ 不进体系）	(无标题)	59	2026-09-24	
+.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 实例管理备忘	68	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	`.alice-supervision/archive/2024-08-2024-09/` —— 归档目录（**按日期世代**）	26	2026-10-03	
+.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Active Work Plan（草案，待用户批准）	96	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Active Work Plan（修复线草案，待用户批准）	105	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/active-plan.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Active Work Plan	143	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/bot-inventory-gui-investigation-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 深度调研报告	574	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/2298dd3-p1-physics-observation-retest.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	P1 物理观测与扰动恢复客户端复测说明	102	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/2ef35e5-bot-death-filter-manual-test.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot 死亡过滤修复手动测试指南	135	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot Inventory 同步修复客户端测试记录	57	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V1-basic/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	V1 基本功能测试报告	29	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V2-multi-slot/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	V2 多槽位同步测试报告	29	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/V3-selector/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	V3 Selector 路径测试报告	32	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot Inventory 同步修复完整测试报告（精简版 V1-V3）	42	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/36f4014-bot-inventory-sync/test-fail-root-cause.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory 同步修复测试 FAIL 根因记录	54	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端测试记录	52	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A1-permission-command/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A1 权限与显式命令测试报告	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A2-normal-transfer/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A2 正常单批转移测试报告	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A3-in-transit/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A3 在途库存可见性测试报告	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A4-capacity-rejection/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A4 容量不足且源不变测试报告	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A5-destination-conflict/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A5 目标端外部变更/冲突测试报告	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A6-hazard/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A6 生存危险中断测试报告	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A7-restart/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A7 重启与人工接管测试报告	40	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A8-abort/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A8 Abort 与在途物保护测试报告	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/A9-chest-gui/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A9 原版箱子 GUI 隔离测试报告	37	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/49be37e-a1-1/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端完整测试报告	47	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	5fa33ab 转移选择器右键修复 Windows 回归测试	29	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R10-restart-expiry/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R10 重启失效测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R2-source-selection/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R2 Shift+右键选择源容器测试报告	32	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R3-destination-selection/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R3 普通右键选择目标容器测试报告	34	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R4-invalid-endpoint/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R4 非容器端点拒绝测试报告	31	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/R9-status-clear-retain/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R9 状态、清理与失败保留测试报告	34	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/5fa33ab-transfer-selector/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	5fa33ab 右键修复 Windows 回归测试报告	30	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest-result.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	软路径测试工具客户端复测结果	72	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/65f4863-soft-path-test-tool-retest.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	软路径测试工具客户端复测说明	98	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/8bb2d7b.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Client Test Matrix	102	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	a7e02fd 转移端点选择器 Windows 客户端测试	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E1-item-permission/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E1 物品身份与权限测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E10-restart-expiry/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E10 重启失效测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E2-source-selection/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E2 Shift+右键选择源容器测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E3-destination-selection/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E3 右键选择目标容器测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E4-invalid-endpoint/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E4 非容器端点拒绝测试报告	32	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E5-same-cross/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E5 同端点与跨维度拒绝测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E6-default-submit/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E6 无参默认提交测试报告	35	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E7-explicit-drift/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E7 显式参数与世界漂移测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E8-command-consistency/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E8 与坐标命令一致性测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/E9-status-clear-retain/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E9 状态、清理与失败保留测试报告	34	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a7e02fd-transfer-selector/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	a7e02fd 转移端点选择器 Windows 完整测试报告	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot 手持物品渲染修复客户端测试记录	75	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V1-basic/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	V1 基本功能测试报告	30	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V2-different-items/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	V2 不同物品类型渲染测试报告	33	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/V3-multi-slot/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	V3 多槽位一致性测试报告	32	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/a8b84b4-bot-equipment-rendering/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot 手持物品渲染修复完整测试报告（精简版 V1-V3）	42	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/ab510fd-p1-client-sync-fix-retest.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	P1 客户端同步修复最终复测说明	81	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/evidence/8bb2d7b/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice C1 扫描器客户端测试报告	69	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-3.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 3 轮）	34	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-4.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 4 轮）	40	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-5.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 5 轮）	32	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-6.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 6 轮）	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-7.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 7 轮 - 方向 B 全新实现）	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest-8.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory GUI 复测说明（第 8 轮 - view index 修复）	40	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui-retest.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 复测说明	49	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 客户端测试说明	84	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G1-open/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	G1 入口与授权测试报告	24	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G8-task-guard/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	G8 任务保护测试报告（核心）	35	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/G9-idle-interact/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	G9 空闲交互测试报告	31	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f0ef6fc-bot-inventory-gui/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Bot Inventory GUI 完整测试报告（精简版 G1-G10）	50	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f33292c-mainhand-residue-retest.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot 主手残留修复复测说明	41	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端测试记录（精简版 C1-C4）	52	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C1-external-mutation/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	C1 目标端外部变更/冲突测试报告	31	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C2-hazard-interrupt/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	C2 生存危险中断测试报告	31	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C3-restart-takeover/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	C3 重启与人工接管测试报告	32	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/C4-vanilla-gui/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	C4 原版箱子 GUI 隔离测试报告	29	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/client-tests/f655be2-a1-1-client/evidence/evidence-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice A1.1 Windows 客户端完整测试报告（精简版 C1-C4）	42	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/container-mod-compatibility.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	容器 GUI 与整理模组的兼容性	486	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/container-quick-move-explained.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Shift+点击快速移动的完整逻辑详解	572	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-3082-e2e-verification-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	3082 GUI 端到端点验手册（4 个新工具）	75	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-baseline-jsx-fix-result-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 基线 JSX 类型修复 — 结果报告	110	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-baseline-verify-report-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 可靠性改造 — 基线验证报告（npm 0.1.1 ↔ 源码 commit）	75	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-build-chain-freeze-report-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 可靠性改造 — 构建链路冻结报告（开发源选择选项 1）	95	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-delivery-stuck-fix-workpack-20260825.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	工作包：create_task 投递失败回退（修复 submitted 卡死缺陷）	89	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-baseline-jsx-fix-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员决策：采纳基线验证报告选项 1（最小类型修复）→ 解冻构建链路	78	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-jsx-fix-review-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员反馈（第 2 轮）：修正不完整，两处残留需继续修	61	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-next-action-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	给 DSH 工作流维护员：下一步执行说明	111	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-closure-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员反馈：P0 二审带条件通过 — 三点闭合执行要求	75	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-deploy-3083-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员授权：DSH P0 受控部署 3083	44	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-p0-implementation-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员授权：DSH 工作流可靠性改造 P0 实施（用户已批准）	86	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-maintainer-workflow-adjustment-spec-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 工作流维护员调整清单	419	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-minimal-wake-request-input-20260825.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	工作包：request_input 通知 dispatcher（最小监督员唤醒机制）	58	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-p0-implementation-result-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 工作流可靠性改造 P0 — 实施结果报告	205	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员二审裁决：DSH 工作流可靠性 P0（带条件通过）	83	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-p0-second-review-closed-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员二审闭合：DSH 工作流可靠性 P0	27	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-workflow-five-questions-answer-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 维护员对改造规格第 13 节五问的答复	62	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-workflow-plan-revision-notes-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 可靠性改造 plan 修订说明（提交监督员二审）	132	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/dsh-workflow-reliability-plan-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Active Work Plan — DSH 工作流可靠性改造（P0 修订版）	142	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/memory-handoff-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	监督员会话「最后的记忆」交接留档	65	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/memory-handoff-message-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	给监督员的消息（可直接转发）	20	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目当前进度保存（2026-08-24）	151	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/progress-snapshot-20260825-transfer.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 工作组全量迁移交接进度快照（2026-08-25，最优先级）	123	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-final-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	5fa33ab Windows 客户端回归最终审核	24	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20220822-5fa33ab-client-regression-review-rerun.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	5fa33ab Windows 客户端回归复审	41	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-276339f.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	42	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b-client-test.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Client-Test Review	45	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	74	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-a1-1-transfer-draft-audit.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A1.1 Transfer Draft Audit	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-ae32c4a.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	68	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-c1-next-mainline-route.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Route Review — Post-C1 Mainline	39	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-d1def08.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	26	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-f9d89da.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	56	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-github-actions-ci.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor CI Observation	29	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-f1-f4-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review — F1-F4 C1 Maintenance	38	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-interface-c1-maintenance-route.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Route Review	69	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-inventory-transfer-transaction-a0-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review — Inventory Transfer Transaction A0	43	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260821-original-chest-bot-transfer-a1-route-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Route Review — Original Chest Bot Transfer A1.1	44	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-370ff343-e7-item-argument-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	E7 item 参数解析修复二审（370ff343）	53	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-3fcabab-rightclick-fix-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	41	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-49be37e-a1-1-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A1.1 原版单箱 -> Bot -> 单箱监督二审	37	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-5fa33ab-client-regression-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	5fa33ab Windows 客户端回归审核	44	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a1-1-final-acceptance.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	A1.1 原版箱子转移最终验收报告	88	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-client-failure-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	a7e02fd 转移端点选择器客户端失败审核	36	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-a7e02fd-transfer-selector-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	40	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-plan-review.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	实体测试物品选择容器 —— 规划采纳审核	42	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-entity-selector-test-tool-request.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	实体测试物品选择容器 —— 用户申请受理记录	27	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260822-workflow-audit-e7.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 工作流程审计：E7 窄修复耗时分析	91	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-inventory-interaction-final-diagnosis.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot Inventory 交互功能：最后一次故障调查结论	92	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/20260824-bot-mainhand-residue-final-acceptance.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Bot 主手残留修复最终验收	37	2026-09-08	
+.alice-supervision/archive/2024-08-2024-09/reviews/dsh-build-chain-source-decision-20260824.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	DSH 构建链路二审：开发源与 TypeScript 门禁决策	56	2026-09-08	
+.alice-supervision/archive/legacy-2026-08/ARCHITECTURE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Movement 系统技术架构	365	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/DEVELOPMENT-GUIDE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 开发指南	556	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/MEMO.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目工作备忘录	408	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/PROJECT-CLEANUP-2025.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目清理总结 (2025)	110	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/PROJECT-STATUS.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目完整状态分析	676	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/QUICKSTART.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	快速恢复指南	70	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	`.alice-supervision/archive/legacy-2026-08/` —— 归档目录（**按日期世代**）	26	2026-10-03	
+.alice-supervision/archive/legacy-2026-08/TASK-BACKLOG.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目任务清单	249	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/debugging-methodology-reflection.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	调试方法论反思与总结	250	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/inventory-helper-design.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 背包管理系统设计方案	454	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/inventory-system-investigation-summary.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 背包系统问题总结与调研建议	315	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/lumber-investigation-plan.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	伐木系统问题调查方案	223	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/lumber-movement-analysis-2025.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	伐木系统移动问题分析与解决方案	301	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/lumber-obstruction-clearing-fix-2025.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	自动伐木卡死问题修复报告	332	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/lumber-problem-discussion.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	伐木系统问题整理与讨论	160	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/minecraft-cursor-item-mechanism-research.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Minecraft 容器"鼠标上的物品"机制深度调研	398	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/mining-optimization-2025.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	挖掘系统优化实施报告	305	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/movement-system-analysis.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 移动系统分析报告	433	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/phase-3-complete-overview.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 3 完成总览：架构改进	371	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/phase-3.1-time-budget-complete.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 3.1 完成：时间预算代替空间边界	336	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/phase-3.2-movement-provider-complete.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 3.2 完成：Movement Provider 接口化	405	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/phase-3.3-unified-pathplanner-complete.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 3.3 完成：统一 HARD/SOFT 路径规划器	381	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/astar-movement-integration-plan.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	AStarPathfinder Movement 集成计划	211	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/bot-manager-cleanup-2025.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	BotManager 重构总结（2025年）	201	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/movement-primitives-phase1.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 1 Movement 原语系统重构总结	253	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-evaluation-report.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 寻路系统评估报告	303	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/pathfinding-refactor-plan.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 寻路系统重构计划	284	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-complete.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 2A 完成总结	388	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-interface-complete.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 2A 完成总结	220	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 2A 工作总结	354	2026-09-10	
+.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Phase 2B 完成总结	414	2026-09-10	
+.alice-supervision/skills-manifest.yml	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目 skills 注册表（`.alice-supervision/skills-manifest.yml`）	233	2026-10-03	
+.alice-supervision/skills/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目 Skills 索引（**生成物，禁手改**）	78	2026-10-03	
+.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 作为 Baritone 兼容内核	68	2026-09-16	
+.alice-supervision/skills/alice-client-artifact-acceptance.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Client Artifact Acceptance	60	2026-09-17	
+.alice-supervision/skills/alice-discussion-before-repair.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Discussion Before Repair	62	2026-09-08	
+.alice-supervision/skills/alice-inventory-transaction-conservation.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Inventory Transaction Conservation	31	2026-09-08	
+.alice-supervision/skills/alice-path-planning-execution-contract.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Path Planning and Execution Contract	36	2026-09-08	
+.alice-supervision/skills/alice-scene-based-testing.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Scene-Based Testing	281	2026-09-16	
+.alice-supervision/skills/alice-session-memory-and-direction.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Session Memory and Direction	63	2026-09-09	
+.alice-supervision/skills/alice-task-lifecycle-and-recovery.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Task Lifecycle and Recovery	33	2026-09-08	
+.alice-supervision/skills/alice-windows-client-collaboration.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Windows Client Collaboration	153	2026-09-17	
+.alice-supervision/skills/debugging-root-cause-analysis.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Debugging Root Cause Analysis	212	2026-09-16	
+.alice-supervision/skills/failure-pattern-recognition.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Failure Pattern Recognition	417	2026-09-08	
+.alice-supervision/skills/forge-blockpos-mutability.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Forge BlockPos 可变性陷阱	313	2026-10-03	
+.alice-supervision/skills/forge-capability-adapter-boundary.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Forge Capability and Adapter Boundary	28	2026-09-08	
+.alice-supervision/skills/forge-container-menu-protocol.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Forge Container Menu Protocol	550	2026-09-08	
+.alice-supervision/skills/forge-entity-physics-collision.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Forge Entity Physics & Collision	572	2026-09-08	
+.alice-supervision/skills/forge-entity-sync-broadcast.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Forge Entity Sync & Broadcast	450	2026-09-08	
+.alice-supervision/skills/forge-event-priority-cancel.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Forge Event Priority & Cancel	592	2026-09-08	
+.alice-supervision/skills/forge-fakeplayer-lifecycle.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Forge FakePlayer Lifecycle	347	2026-09-15	
+.alice-supervision/skills/large-refactor-survey-and-verify.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	大范围重构：勘测与验证	201	2026-10-06	
+.alice-supervision/skills/minecraft-client-server-sync.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Skill: Minecraft Client-Server Sync	448	2026-09-08	
+.alice-supervision/skills/minimal-implementation-planning.skill.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Minimal Implementation Planning	152	2026-09-09	
+docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md	⑩ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑩ 域外（⛔ 不进体系）	AI Player 设计文档（架构总纲 v0.3）	317	2026-09-10	
+docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	BotController 快速测试指南	267	2026-09-10	
+docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	执行层框架 v1（任务框架）	130	2026-09-10	
+docs/archive/legacy-2026-08/HANDOVER_20260907.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 会话交接包 - 2026-09-07	415	2026-09-10	
+docs/archive/legacy-2026-08/M0_ARCHITECTURE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	M0 架构决策与审查点	63	2026-09-10	
+docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	MineTask 第一阶段内部契约审查	478	2026-09-10	
+docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md	⑩ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑩ 域外（⛔ 不进体系）	MineTask 接入 Movement：最小重建设计	111	2026-09-10	
+docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	MineTask 恢复契约	97	2026-09-10	
+docs/archive/legacy-2026-08/MINETASK_WORLD_EDIT_TEST_SCENES.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	MineTask WorldEdit 测试场景计划	208	2026-09-10	
+docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	挖掘安全与目标规划（后续设计约束）	102	2026-09-10	
+docs/archive/legacy-2026-08/MOVEMENT_EXPERIMENT_6_RESULT_CONTRACT.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Movement 实验 6：结果契约	93	2026-09-10	
+docs/archive/legacy-2026-08/MOVEMENT_PHYSICS_EXPERIMENT_1.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Movement 物理实验 1：BotController 单段输入驱动	203	2026-09-10	
+docs/archive/legacy-2026-08/MOVEMENT_SYSTEM_ARCHITECTURE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目移动系统架构与职责边界	397	2026-09-10	
+docs/archive/legacy-2026-08/PATHING_REFACTOR.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	寻路与采集重构方案	153	2026-09-10	
+docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 产品架构与整合包适配路线	304	2026-09-10	
+docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R2-C Movement × Baritone 对照审计报告	208	2026-09-10	
+docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	R2-C Movement 实施报告	218	2026-09-10	
+docs/archive/legacy-2026-08/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	`docs/archive/legacy-2026-08/` —— 归档目录（**按内容类型**）	26	2026-10-03	
+docs/archive/legacy-2026-08/TASK_OUTCOME_CONTRACT.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	事实型任务结果契约	83	2026-09-10	
+docs/archive/legacy-design/AI_PLAYER_NOTES.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	AI Player 设计笔记	321	2026-09-08	
+docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	BotController 诊断探针指南	354	2026-09-08	
+docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	isEffectiveAi() 安全性分析	420	2026-09-08	
+docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Minecraft 原版玩家运行机制解析	573	2026-09-08	
+docs/archive/legacy-design/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	`docs/archive/legacy-design/` —— 归档目录（**按内容类型**）	26	2026-10-03	
+docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md	⑩ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑩ 域外（⛔ 不进体系）	Bot 手动控制系统设计方案	106	2026-09-08	
+docs/archive/legacy-testing/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	`docs/archive/legacy-testing/` —— 归档目录（**按内容类型**）	26	2026-10-03	
+docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Windows 端同步清单	272	2026-09-08	
+docs/archive/legacy-workflow/HANDOVER.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目交接说明（给新会话的快速上手）	440	2026-10-04	
+docs/archive/legacy-workflow/README.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	`docs/archive/legacy-workflow/` —— 归档目录（**按内容类型**）	26	2026-10-06	
+docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 项目二次审核协议	188	2026-09-08	
+docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 下一任监督员接管说明	114	2026-09-08	
+docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Active Work Plan	78	2026-09-08	
+docs/archive/legacy-workflow/supervision/CLIENT_TEST_TEMPLATE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice 客户端测试记录模板	143	2026-09-08	
+docs/archive/legacy-workflow/supervision/RESEARCH_REPORT_TEMPLATE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Deep Research Report	45	2026-09-08	
+docs/archive/legacy-workflow/supervision/RESEARCH_TASK_TEMPLATE.txt	⑩ 域外（⛔ 不进体系）	⑦ 事实/数据 ／ ⑩ 域外（⛔ 不进体系）	(无标题)	45	2026-09-08	
+docs/archive/legacy-workflow/supervision/REVIEW_TEMPLATE.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	Alice Supervisor Review	54	2026-09-08	
+src/main/resources/assets/alice/textures/CREDITS.md	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	贴图来源与署名	32	2026-09-11	
+steward-entry/entry.txt	⑩ 域外（⛔ 不进体系）	⑩ 域外（⛔ 不进体系）	云端入口（每次启动自动重写 —— 别手改这个文件）	11	2026-10-06	
+tools/agent-presets/alice-forge-assistant/agent.cordis.yml	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	The `standard` agent preset: the full coding agent, mounted once per process.	284	2026-10-02	
+tools/agent-presets/alice-forge-assistant/persona.md	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	开场三问（别跳）	30	2026-10-02	
+tools/agent-presets/alice-forge-assistant/preset.yml	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	(无标题)	3	2026-10-02	
+tools/client-agent/make-preset-package.py	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	!/usr/bin/env python3	71	2026-09-24	
+tools/client-agent/presets/alice-client-master/agent.cordis.yml	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	The `standard` agent preset: the full coding agent, mounted once per process.	354	2026-10-02	
+tools/client-agent/presets/alice-client-master/preset.yml	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	(无标题)	3	2026-09-24	
+tools/cloud-tunnel-README.txt	⑩ 域外（⛔ 不进体系）	⑥ 边界即机器 ／ ⑩ 域外（⛔ 不进体系）	(无标题)	59	2026-09-24	
