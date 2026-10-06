@@ -669,7 +669,7 @@
 | `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 11 | 0 | — |
 | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 30 | 1 | — |
-| `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 20 | 0 | — |
+| `docs/ALICE_CAPABILITIES.md` | ⑦ 事实/数据 | 10 | 0 | — |
 | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 22 | 0 | — |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 9 | 0 | — |

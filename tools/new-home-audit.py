@@ -133,7 +133,7 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      #    （`check-all.sh`）· 一次性工具。⛔ 它们不是散文，是**能跑的东西**。
      ("tools/*",)),
     ("⑦ 事实/数据", "⛔ 不做判定、不产生待办；唯一失效模式 = 过期",
-     ("docs/*_FACTS.md", "docs/*.csv", "docs/*.txt", "docs/CAPABILITY_LIST.md",
+     ("docs/*_FACTS.md", "docs/*.csv", "docs/*.txt", "docs/ALICE_CAPABILITIES.md",
       "docs/DESIGN_INDEX.md", "docs/data/MACHINE_MAP.csv", "docs/authz/OVERVIEW.md",
       "docs/reference/MEK_GUI_SEMANTICS.md", "docs/AI_TEST_MATRIX.md", "docs/AI_CHANGELOG.md",
       "docs/*.svg", "docs/*.html")),

@@ -100,7 +100,7 @@ NON_DESIGN_PATTERNS: list[tuple[str, str]] = [
     ("GLOSSARY.md", "术语表"),
     ("BARITONE_*.md", "Baritone 对照 ／ 锚点数据"),
     ("TESTING_GUIDE.md", "操作指南"),
-    ("CAPABILITY_LIST.md", "生成物（能力清单）"),
+    ("ALICE_CAPABILITIES.md", "生成物（能力清单）"),
     ("RISK_*.md", "风险系统件族（含 1 份 `RISK_SYSTEM_DESIGN_DRAFT.md` ⇒ ⚠️ 它**像**设计件但是**草案**，见下注）"),
     ("ALIGNMENT_OPEN_QUESTIONS.md", "未裁清单"),
     ("BARITONE_CONTRAST_TESTING.md", "对照测试说明"),

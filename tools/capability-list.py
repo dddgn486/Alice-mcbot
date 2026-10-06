@@ -20,7 +20,7 @@
 ## 用法
 
     python3 tools/capability-list.py            # 打印到 stdout（不改盘）
-    python3 tools/capability-list.py --write    # 重新生成 docs/CAPABILITY_LIST.md
+    python3 tools/capability-list.py --write    # 重新生成 docs/ALICE_CAPABILITIES.md
     python3 tools/capability-list.py --check    # 门禁：不陈旧 + 全部跨出处断言（挂在 tools/check-all.sh）
 
 退出码：`0` = PASS；`1` = FAIL（含"解析崩塌"——**解析不到就响亮失败**，不许少一行悄悄过）。
@@ -35,7 +35,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DOC = ROOT / "docs" / "CAPABILITY_LIST.md"
+DOC = ROOT / "docs" / "ALICE_CAPABILITIES.md"
 CSV = ROOT / "docs" / "data" / "MACHINE_MAP.csv"
 JAVA = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
 
@@ -449,7 +449,7 @@ def assert_all(model: dict) -> list[str]:
                 bad.append(f"{i}: {line.strip()[:70]}")
         for b in bad:
             fail(f"[A9] docs/BATTERY_CURATION.md 的手写小节又自称清单/计数了（{b}）"
-                 f" ⇒ 逐条清单与项数只许在 `docs/CAPABILITY_LIST.md`（生成物）")
+                 f" ⇒ 逐条清单与项数只许在 `docs/ALICE_CAPABILITIES.md`（生成物）")
         lines.append(f"A9 手写文档不自称清单：docs/BATTERY_CURATION.md 的小节标题无计数（0 处）")
     return lines
 
@@ -477,6 +477,7 @@ def render(model: dict) -> str:
     A = L.append
     A("# Alice 能力清单（**生成物 —— 禁手改**）")
     A("")
+    A("> **类标**：⑦ 事实/数据　｜　**沿革**：2026-10-06 自 `docs/CAPABILITY_LIST.md` **改名**（出处 = 咨询回执 `004.1` 待办 C）　｜　**裁定**：回执 `004.1`")
     A("> `B3` / `Q-22`（`survey/29 §3.8⑥`：把「它知道的自己」做成**从代码生成的表**，"
       "而不是记忆 —— 「它以为的自己」和「真实的自己」结构上不可能分叉）。")
     A(f"> 生成器 = `tools/capability-list.py`；门禁 = `tools/check-capability-list.sh`（已挂 `tools/check-all.sh`）。")
@@ -660,7 +661,7 @@ def render(model: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Alice 能力清单（生成物）")
     g = ap.add_mutually_exclusive_group()
-    g.add_argument("--write", action="store_true", help="重新生成 docs/CAPABILITY_LIST.md")
+    g.add_argument("--write", action="store_true", help="重新生成 docs/ALICE_CAPABILITIES.md")
     g.add_argument("--check", action="store_true", help="门禁：不陈旧 + 跨出处断言")
     args = ap.parse_args()
 
