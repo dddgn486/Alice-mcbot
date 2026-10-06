@@ -624,7 +624,7 @@
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/dsh-session-log.mjs` | ⑥ 边界即机器 | 17 | 0 | — |
-| `tools/dsh-session-rollback.mjs` | ⑥ 边界即机器 | 6 | 0 | — |
+| `tools/dsh-session-rollback.mjs` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/exec-record.py` | ⑥ 边界即机器 | 7 | 1 | — |
 | `tools/extraction-targets-188.txt` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/failure-ratio.py` | ⑥ 边界即机器 | 3 | 0 | — |
