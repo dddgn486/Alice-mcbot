@@ -649,7 +649,7 @@
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
-| `tools/recipe-readability.py` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/recipe-readability.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/ref-anchors.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
