@@ -1,0 +1,32 @@
+# ⛔⛔ **已过期**（2026-10-06 开发者当场裁定：「旧的那份当场标记过期，放进历史文档」）
+# ⭐ **现行唯一一份 = `tools/new-system-core-inventory.tsv`**（核心件 **14 件** —— 出处 = 咨询回执 `004.1`）
+# ⛔ 本件是**旧的 20 件候选清单**：它**从未确立**（开发者 2026-10-06 逐字：核心文档「尚未确立」），
+#    且它的选件**不作数**（见回执 `004` 的 `M8`：原「附录 A」5 件不存在 ⇒ 全部作废）。
+# ⚠️ 保留它 = **留痕**（记录「曾经有过这样一份候选」），⛔ 不是可用的清单。
+# 新文档体系核心 20 件候选清单（待开发者标注 topics）
+# 格式：class	path	title	topics（待标注）
+# 
+# ⭐ 筛选依据：每类选 2-4 件代表性最强的（索引/规范/核心设计/关键流程）
+# ⭐ topics 格式：3-5 个关键词，逗号分隔（如：设计管理,索引机制,七类体系）
+
+class	path	title	topics
+① 常驻规范	AGENTS.md	AI 代理规范	
+① 常驻规范	docs/AI_DEVELOPMENT_PLAYBOOK.md	AI 开发手册	
+② 入口+地图	README.md	项目入口	
+② 入口+地图	docs/README.md	文档地图	
+③ 决策/裁定	docs/AI_DECISIONS.md	AI 决策记录	
+③ 决策/裁定	docs/DECISIONS_INDEX.md	决策索引	
+④ 状态+构想	docs/HANDOVER.md	文档整改草案	
+④ 状态+构想	docs/OPEN_ITEMS_LEDGER.md	开放事项台账	
+④ 状态+构想	docs/AI_PROJECT_STATE.md	AI 项目状态	
+④ 状态+构想	docs/DOC_REFACTOR_PLAN.md	文档整改计划	
+④ 状态+构想	docs/EXTRACTED_KNOWLEDGE.md	提取册	
+④ 状态+构想	docs/CLEANUP_CLASSIFY.md	清理分类表	
+⑤ 报告+证据	docs/R4_BARITONE_ALIGNMENT_AUDIT.md	Baritone 对齐审计	
+⑤ 报告+证据	docs/TRANSFER_MODULE_AUDIT.md	传输模块审计	
+⑤ 报告+证据	docs/STAGE2_MODS_READABILITY.md	阶段 2 模组可读性报告	
+⑦ 事实/数据	docs/DESIGN_INDEX.md	设计索引	
+⑦ 事实/数据	docs/MACHINE_MAP.csv	机器映射表	
+⑦ 事实/数据	docs/AI_CHANGELOG.md	AI 变更日志	
+⑦ 事实/数据	docs/CAPABILITY_LIST.md	能力清单	
+⑪ 咨询通道	consult/README.md	咨询通道说明	

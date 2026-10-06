@@ -216,7 +216,7 @@
 
 | # | 件 | 好家 | 自称 | 全仓提到它 | `src/` 里 | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | **已落地** | 14 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | **已落地** | 15 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 2 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | **已落地** | 17 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 3 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 4 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
@@ -324,7 +324,7 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 29 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 15 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 14 | 0 | 已落地 |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 15 | 0 | 已落地 |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 70 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
@@ -567,7 +567,7 @@
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-expected-reds.py` | ⑥ 边界即机器 | 10 | 0 | — |
-| `tools/check-extraction-status.py` | ⑥ 边界即机器 | 8 | 0 | — |
+| `tools/check-extraction-status.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-extraction-status.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
