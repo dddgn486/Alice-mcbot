@@ -95,23 +95,69 @@ def _ces():
     return mod
 
 
-def target_set() -> list[str]:
-    """⭐ 靶子集（现算）—— 口径**必须是** `plan-doc-refactor.py` 的 `LIVE` 表那三条命令：
+#: ⭐⭐ **本次改革的「落点件」白名单**（出处 = 咨询回执 `004` 的 `M7` ＋ 开发者令）：
+#:    这些件**新建／改名自本次改革**，⛔ **不是存量旧件** ⇒ 从靶子里排除
+#:    （⛔ 从册子里再提取＝循环；⚠️ 开发者逐字：「这两个文档没理由当成靶子，应该直接排除」）。
+DEST_WHITELIST = (
+    "docs/EXTRACTED_KNOWLEDGE.md",      # 提取册自己
+    "docs/LESSONS_LEARNED.md",          # 经验类落点（将来可能建）
+    "docs/CRITERIA_LIBRARY.md",         # 判据类落点（将来可能建）
+    "docs/SCHEDULE.md",                 # 回执 004.1 待办 A：从台账拆出的排期表
+    "docs/ALICE_CAPABILITIES.md",       # 回执 004.1 待办 C：能力清单瘦身后的新名
+)
 
-      · `docs/` 根 `.md`  → `git ls-files 'docs/*.md'`（根，⛔ 不含子目录）
-      · `docs/reviews/`   → `ls docs/reviews/*.md`（⭐ **顶层**，含本目录 `README.md`）
-                            ⚠️ ⛔ **不含 `docs/reviews/archive/`** —— 那是 2026-10-02 搬进去的**非报告件**；
-                            ⚠️ 用 `**/*.md` 递归会多算 1 件 ⇒ 靶子变 189 ⇒ **门禁判据③ 会红**。
-      · `survey/`         → **全部 `.md`**（⭐ 开发者裁「用 188（全部 `.md`）」）
-      · **− 1**            → ⛔ 减去本册自己（`docs/EXTRACTED_KNOWLEDGE.md`）：
-                            它是本次改革**新建的落点**，⛔ 不是存量旧件 ⇒ 从册子里再提取＝**循环**。
+#: ⭐⭐⭐ **靶子的冻结清单**（2026-10-06 开发者令：「**靶子 = 提取开始时那 188 件**，
+#:    ⛔ **不随改名／搬迁变动**」）⇒ ⭐ 口径从**扫磁盘**改成**读这份 manifest**。
+TARGETS_FILE = ROOT / "tools" / "extraction-targets-188.txt"
+
+
+def target_set() -> list[str]:
+    """⭐⭐ **靶子集 = 冻结 manifest**（⛔ **不再扫磁盘**）。
+
+    ⚠️ **为什么改**（2026-10-06 开发者令）：回执 `004.1` 的待办 A/C/D 会**新建／改名／搬走**
+    `docs/` 根的件 ⇒ 若口径仍是"扫磁盘"，**每动一件靶子数就变** ⇒ ⛔ `ingest-extraction`
+    判据④ 当场响亮失败，⛔ 而且册子里已落的那 188 条会**逐条悬空**。
+    ⇒ ⭐ **靶子 = 提取开始时的那 188 件**，⛔ **不随改名／搬迁变动**；
+    ⭐ 改名／搬迁 ⇒ **用 `docs/` 与册子两侧的指针去追**（⛔ 不动这份清单）。
+
+    ⭐ **单一出处**：清单由 `--write-targets` 从磁盘**一次性**生成（生成时排除 `DEST_WHITELIST`）；
+    ⚠️ 之后**只有用户裁定**能改它。
+    """
+    if not TARGETS_FILE.exists():
+        raise SystemExit(f"{RESULT} FAIL: 缺靶子清单 {TARGETS_FILE.relative_to(ROOT)} "
+                         f"⇒ 跑 `python3 tools/ingest-extraction.py --write-targets`")
+    out = [l.strip() for l in TARGETS_FILE.read_text(encoding="utf-8").split("\n")
+           if l.strip() and not l.startswith("#")]
+    return out
+
+
+def live_targets() -> list[str]:
+    """⚠️ **现算**（扫磁盘）—— ⛔ **只用于对账报告**，⛔ 不再作为写盘判据。
+
+    口径 = `plan-doc-refactor.py` 的 `LIVE` 表那三条命令：
+      · `docs/` 根 `.md`（⛔ 不含子目录）｜ `docs/reviews/` **顶层**（⭐ 含本目录 `README.md`，
+        ⛔ 不含 `docs/reviews/archive/`）｜ `survey/` **全部** `.md`
+      · ⛔ 再减去 `DEST_WHITELIST`（本次改革的落点件）
     """
     docs = sorted((ROOT / "docs").glob("*.md"))
     rev = sorted((ROOT / "docs" / "reviews").glob("*.md"))        # ⛔ 顶层，不是 **/
     sur = sorted((ROOT / "survey").glob("*.md"))
-    me = LEDGER.resolve()
-    paths = [p for p in docs + rev + sur if p.resolve() != me]
-    return [p.relative_to(ROOT).as_posix() for p in paths]
+    wl = {w for w in DEST_WHITELIST}
+    paths = [q for q in docs + rev + sur if q.relative_to(ROOT).as_posix() not in wl]
+    return [q.relative_to(ROOT).as_posix() for q in paths]
+
+
+def write_targets() -> int:
+    """⭐ 一次性生成冻结清单（⛔ 只该在口径刚立时跑；跑完由用户裁定才许再跑）。"""
+    live = live_targets()
+    TARGETS_FILE.write_text(
+        "# ⭐⭐ 提取靶子的【冻结清单】—— 出处 = 2026-10-06 开发者令\n"
+        "#    「靶子 = 提取开始时那 188 件，⛔ 不随改名／搬迁变动」\n"
+        "# ⛔ 本清单**不是**从磁盘现算的活读数 ⇒ 改名／搬迁**不**改它（⭐ 用指针去追）\n"
+        "# ⭐ 生成 = `python3 tools/ingest-extraction.py --write-targets`（⚠️ 之后只有用户裁定能改）\n"
+        + "\n".join(live) + "\n", encoding="utf-8")
+    print(f"{RESULT} 已写靶子清单 {TARGETS_FILE.relative_to(ROOT)}：**{len(live)}** 件")
+    return 0
 
 
 # ---------------------------------------------------------------- 校验 / 渲染
@@ -304,10 +350,14 @@ def main() -> int:
     ap.add_argument("--ledger", default=str(LEDGER), help="落点件（默认提取册）")
     ap.add_argument("--write", action="store_true", help="真的落盘（⛔ 默认只量不写）")
     ap.add_argument("--selftest", action="store_true", help="注入自证")
+    ap.add_argument("--write-targets", action="store_true",
+                    help="⭐ 一次性生成**靶子冻结清单**（⛔ 之后只有用户裁定能改）")
     a = ap.parse_args()
 
     if a.selftest:
         return selftest()
+    if a.write_targets:
+        return write_targets()
     if not a.pass_no or not a.input:
         ap.error("需要 --pass N 与 --input PATH|‑")
 
@@ -321,10 +371,20 @@ def main() -> int:
     already = len(re.findall(r"^####\s+`([^`]+)`\s*$", text, re.M))
 
     print(f"体积自报：回吐体 **{stats.get('raw', len(raw))}** 字节 / 上限 {MAX_BYTES} 字节")
-    print(f"靶子对账：现算 **{len(targets)}** 件 vs `TARGET1` **{_t1}**"
+    print(f"靶子清单：**{len(targets)}** 件（⭐ **冻结** · ⛔ 不随改名／搬迁变动） vs `TARGET1` **{_t1}**"
           + ("　✅ 一致" if len(targets) == _t1 else "　⛔ **对不上**"))
     if len(targets) != _t1:
-        errs.append(f"⛔ 现算靶子 {len(targets)} ≠ `TARGET1` {_t1} ⇒ 口径漂了，⛔ 先查口径再写")
+        errs.append(f"⛔ 靶子清单 {len(targets)} ≠ `TARGET1` {_t1} ⇒ 清单被动过，⛔ 先查口径再写")
+    live = set(live_targets())
+    frozen = set(targets)
+    only_live, only_frozen = sorted(live - frozen), sorted(frozen - live)
+    if only_live or only_frozen:
+        print(f"⚠️ **现算 vs 冻结的差集**（⭐ **只报告，⛔ 不红** —— 改名／搬迁是正当的）："
+              f"只现算 {len(only_live)} 件 · 只冻结 {len(only_frozen)} 件")
+        for x in only_live[:5]:
+            print(f"    ＋ 只现算：{x}")
+        for x in only_frozen[:5]:
+            print(f"    − 只冻结：{x}")
     if block:
         print(f"本批读数：**{stats['n']}** 条 · 渲染体 **{stats['bytes']}** 字节 "
               f"· 均值 **{stats['bytes'] // max(stats['n'], 1)}** 字节/条 · "
@@ -533,6 +593,32 @@ def selftest() -> int:
     else:
         fail += 1
         print("  [⛔臂失效] O 超靶子没被拦住")
+
+    # P ⭐⭐ **本刀的主臂**：靶子 = **冻结清单**（⛔ 不扫磁盘）⇒ 清单必须恰好 188 件
+    frozen = target_set()
+    if len(frozen) == _ces().TARGET1:
+        ok += 1
+        print(f"  [ok] P 靶子清单（冻结）{len(frozen)} 件 == TARGET1")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] P 靶子清单 {len(frozen)} ≠ TARGET1 {_ces().TARGET1}")
+    # Q ⭐ **白名单生效**：本次改革的落点件 ⛔ 不许出现在「现算」里
+    live = live_targets()
+    leaked = [w for w in DEST_WHITELIST if w in live]
+    if not leaked:
+        ok += 1
+        print(f"  [ok] Q 白名单 {len(DEST_WHITELIST)} 条 ⇒ 现算里一条都没漏（现算 {len(live)} 件）")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] Q 白名单泄漏：{leaked}")
+    # R ⭐ **冻结清单里也不许有**白名单件（⭐ 两道都要）
+    in_frozen = [w for w in DEST_WHITELIST if w in frozen]
+    if not in_frozen:
+        ok += 1
+        print("  [ok] R 白名单件 ⛔ 不在冻结清单里")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] R 冻结清单里有白名单件：{in_frozen}")
 
     print(f"INGEST_EXTRACTION_SELFTEST {'PASS' if fail == 0 else 'FAIL'}: 臂 {ok}/{ok + fail}")
     return 0 if fail == 0 else 1

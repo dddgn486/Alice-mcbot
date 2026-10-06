@@ -471,7 +471,8 @@ WAVES: list[tuple[str, str, list[tuple]]] = [
          "⇒ ⭐ **每一遍都要产出统计报告**（判有／判无 ＋ 原因分布 ＋ 本遍判据）；<br>"
          "&nbsp;&nbsp;· ⭐ **进度读数 = 册子 `§〇.1`**（⛔ **不新建独立文件** —— 回执 `004` 原方案的 "
          "`docs/EXTRACTION_PROGRESS.md` 会**打破冻结靶子 188**，已按 `M1` 改）"
-         "⇒ ⚠️ **表里只写状态词与日期，⛔ 不写数字**（数字的唯一出处 = 门禁打印）；",
+         "⇒ ⚠️ **表里只写状态词与日期，⛔ 不写数字**（数字的唯一出处 = 门禁打印）；<br>"
+         "&nbsp;&nbsp;· ⭐⭐ **靶子 = 冻结清单**（`tools/extraction-targets-188.txt` · **188 行**）—— 2026-10-06 开发者令「靶子 = 提取开始时那 188 件，⛔ **不随改名／搬迁变动**」⇒ 口径**从「扫磁盘」改成「读清单」**（⚠️ 否则每搬一件靶子数就变 ⇒ 落地器响亮失败）；<br>&nbsp;&nbsp;· ⭐⭐ **本次改革落点件的白名单**（`DEST_WHITELIST` **5 条**：本册 · `LESSONS_LEARNED.md` · `CRITERIA_LIBRARY.md` · `SCHEDULE.md` · `ALICE_CAPABILITIES.md`）—— ⛔ 它们**不是存量旧件**；<br>&nbsp;&nbsp;· ⚠️ **改名／搬迁用指针追**，⛔ 不动冻结清单；落地器**每次打印「现算 vs 冻结」的差集**，⭐ **只报告、⛔ 不红**；",
          "`docs/EXTRACTED_KNOWLEDGE.md` · `docs/AI_DECISIONS.md` · `tools/check-extraction-status.sh` · "
          "`tools/ingest-extraction.py` · `O168`", WIP),
     ]),

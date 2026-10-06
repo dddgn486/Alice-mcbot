@@ -19,13 +19,13 @@ docs/AI_DECISIONS.md	③ 决策/裁定	③ 决策/裁定	Alice 当前架构决�
 docs/DECISIONS_INDEX.md	③ 决策/裁定	③ 决策/裁定	决策索引（**生成物，禁手改**）	1162	2026-10-04	
 .alice-supervision/improvements/follow-task-vertical-tolerance.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	FollowTask 改进计划	83	2026-09-08	
 docs/ACCEPTANCE_GUIDE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档改革 · 验收指引	218	2026-10-05	
-docs/AI_PROJECT_STATE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice 当前项目状态	416	2026-10-05	
+docs/AI_PROJECT_STATE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice 当前项目状态	424	2026-10-06	
 docs/ALICE_PATHING_CORE_ARCHITECTURE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core Architecture	444	2026-10-03	
 docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core R1 Contract	528	2026-09-08	
 docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
 docs/ALIGNMENT_OPEN_QUESTIONS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	内核对齐待决问题（专项讨论）	275	2026-09-09	
 docs/BATTERY_CURATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	回归电池分档与维护规则（D-197）	361	2026-10-01	
-docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	923	2026-10-06	
+docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	925	2026-10-06	
 docs/CLIENT_AGENT_CHANNEL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	客户端测试数据通道：**本地 agent + 文件信箱**（2026-09-24 用户裁定方向）	193	2026-10-03	
 docs/CLIENT_AGENT_NEW_DEVICE_TEST.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	新设备测试手册：客户端管家 agent（逐字照做版）	243	2026-09-24	
 docs/CLOUD_MIGRATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	云端迁移方案（**修补版 v2**，2026-09-23）	938	2026-10-02	
@@ -35,9 +35,9 @@ docs/DECISION_LAYER_FINAL_FORM.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	�
 docs/DOC_REFACTOR_DRAFT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档改革 · **草案**（依据；⭐ 目标文档体系 v2）	546	2026-10-05	
 docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档整顿 · 施工计划书（**生成物，禁手改**）	404	2026-10-06	
 docs/EXPECTED_REDS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
-docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	提取册（设计与经验）	1536	2026-10-06	
+docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	提取册（设计与经验）	1553	2026-10-06	
 docs/GLOSSARY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	术语速查（**讨论用解码表**）	239	2026-10-05	
-docs/HANDOVER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10089	2026-10-06	
+docs/HANDOVER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10241	2026-10-06	
 docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
 docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
 docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
@@ -263,7 +263,7 @@ tools/check-baritone-anchor.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin
 tools/check-capability-list.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	17	2026-09-29	
 tools/check-cleanup-classify.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	28	2026-10-05	
 tools/check-collect-callsite-shape.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	298	2026-09-28	
-tools/check-consult-pairs.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	211	2026-10-05	
+tools/check-consult-pairs.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	284	2026-10-06	
 tools/check-consult-pairs.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	18	2026-10-05	
 tools/check-decisions-index.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	17	2026-09-29	
 tools/check-design-index.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	39	2026-10-05	
@@ -345,7 +345,7 @@ tools/gate-inventory.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env py
 tools/gen-xray-pack.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	185	2026-09-20	
 tools/goal-vocabulary.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	144	2026-09-29	
 tools/headless-battery.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	467	2026-10-02	
-tools/ingest-extraction.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	542	2026-10-06	
+tools/ingest-extraction.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	628	2026-10-06	
 tools/jar-content-hash.py	⑥ 边界即机器	⑥ 边界即机器	工件**内容摘要**：给"Gradle 打出来的 jar 不可字节复现"这个事实用的。	78	2026-09-17	
 tools/jar-content-hash.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	5	2026-09-17	
 tools/job-kind-view.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	172	2026-09-30	
@@ -357,7 +357,7 @@ tools/make-cloud-tunnel-bundle.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/
 tools/mirror-windows-workspace.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	95	2026-09-30	
 tools/module-selftest.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	205	2026-10-01	
 tools/new-home-audit.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	417	2026-10-05	
-tools/plan-doc-refactor.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	1334	2026-10-06	
+tools/plan-doc-refactor.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	1335	2026-10-06	
 tools/policy-map.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	613	2026-10-02	
 tools/policy-map.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	4	2026-09-14	
 tools/recipe-graph.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	401	2026-09-12	
@@ -394,11 +394,12 @@ docs/authz/CONTAINER_WRITE_SITES.csv	⑦ 事实/数据	⑦ 事实/数据	(无标
 docs/authz/OVERVIEW.md	⑦ 事实/数据	⑦ 事实/数据	授权 / 审批框架总览（**自动生成**，勿手改）	88	2026-10-04	
 docs/authz/POLICY_MATRIX.csv	⑦ 事实/数据	⑦ 事实/数据	(无标题)	25	2026-10-02	
 docs/reference/MEK_GUI_SEMANTICS.md	⑦ 事实/数据	⑦ 事实/数据	Mekanism 机器 GUI → 接口语义表（v0.2）	158	2026-09-08	
-consult/README.md	⑪ 咨询通道	⑪ 咨询通道	咨询通道（`consult/`）	110	2026-10-05	
+consult/README.md	⑪ 咨询通道	⑪ 咨询通道	咨询通道（`consult/`）	115	2026-10-06	
 consult/receipt/001-七类表缺维护栏.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `001` —— 七类表缺维护栏	352	2026-10-05	
 consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮结构性摩擦	569	2026-10-05	
 consult/receipt/003-提取在这套流程里没有落脚点.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `003` —— **「提取」在这套流程里没有落脚点**	383	2026-10-05	
 consult/receipt/004-主线目标模糊与后续筛没有判据.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `004` —— **主线目标模糊 + 后续筛没有判据**	678	2026-10-06	
+consult/receipt/004.1-核心件瘦身裁定.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 004.1：核心件瘦身裁定	195	2026-10-06	
 consult/request/001-七类表缺维护栏.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `001` —— **文档整顿草案与计划书：七类表缺的是「维护」那几栏**	176	2026-10-05	
 consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮撞到的结构性摩擦	277	2026-10-05	
 consult/request/003-提取在这套流程里没有落脚点.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `003` —— **「提取」在这套流程里没有落脚点**	165	2026-10-05	
@@ -613,7 +614,7 @@ docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md	⑧ 域外（⛔ 不进体系�
 docs/archive/legacy-testing/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-testing/` —— 归档目录（**按内容类型**）	26	2026-10-03	
 docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Windows 端同步清单	272	2026-09-08	
 docs/archive/legacy-workflow/HANDOVER.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目交接说明（给新会话的快速上手）	440	2026-10-04	
-docs/archive/legacy-workflow/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-workflow/` —— 归档目录（**按内容类型**）	26	2026-10-03	
+docs/archive/legacy-workflow/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-workflow/` —— 归档目录（**按内容类型**）	26	2026-10-06	
 docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目二次审核协议	188	2026-09-08	
 docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 下一任监督员接管说明	114	2026-09-08	
 docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice Active Work Plan	78	2026-09-08	
