@@ -26,6 +26,7 @@
 | 8 | 第 1 遍：本批写完后**累计 ≤ `TARGET1`**；第 2 遍及以后：**件必须来自上一遍** | ⛔ 不许把这批写成让门禁变红的形状（判据③／判据②a） |
 | 9 | 只许追加到**指定遍节**尾部，且遍标题**恰好一个**、插入点**由断言保证** | ⭐ 上面第 2 个事故的正解 |
 | 10 | `read_ok` 必填且必须是 `true`（⭐ **读失败 ≠ 无价值**） | 2026-10-06 批 2 事故：17 件读失败被回吐成「判：无」 |
+| 11 | ⭐ **本遍形状必须纯**：写完后这一遍**只许一种单位**（件级／节级） | 门禁判据② 对"混两种形状"是**红**的 ⇒ ⛔ 不许"写进去再红"（⭐ 与判据⑧ 同一件事；⚠️ 本条是**走真实命令行跑第 2 遍时**发现缺口后补的） |
 
 ## ⭐⭐ 两套形状（2026-10-06 立 · 出处 = 开发者裁「**一节一条**」）
 
@@ -185,6 +186,34 @@ def write_targets() -> int:
 
 
 # ---------------------------------------------------------------- 校验 / 渲染
+
+
+#: ⭐ 单位的两个字面量（⭐ 与门禁 `UNIT_FILE`／`UNIT_SECTION` **同一个词**）。
+UNIT_FILE = "件"
+UNIT_SECTION = "节"
+
+
+def pass_unit(items: list[tuple[str, str | None]]) -> str | None:
+    """→ 一批 `(件, 节)` 的**单位**：`件`／`节`／`混合`／`None`（空）。
+
+    ⭐ 门禁判据②**要求一遍只许一种形状**（混了 ⇒ 它**判不动** ⇒ 红）⇒ 落地器**先自己判**，
+    ⛔ 不许把"写完之后门禁会红"的批次放进册子（⭐ 那正是判据⑧ 存在的理由）。
+    """
+    units = {UNIT_SECTION if s else UNIT_FILE for _, s in items}
+    if not units:
+        return None
+    return units.pop() if len(units) == 1 else "混合"
+
+
+def block_unit(block: str) -> str | None:
+    """→ **渲染块**的单位（⭐ 供 `main()` 的读数行用 —— ⛔ 不许拿"册子里已有的条目"冒充本批）。"""
+    r = _ces().ITEM_TITLE_RE
+    got: list[tuple[str, str | None]] = []
+    for l in block.splitlines():
+        m = r.match(l)
+        if m:
+            got.append((m.group(1), m.group(2)))
+    return pass_unit(got)
 
 
 def _as_list(v, what: str, errs: list[str], where: str) -> list[str]:
@@ -459,6 +488,16 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
 
     rendered = "".join(block)
     stats["bytes"] = len(rendered.encode("utf-8"))
+    #: ⭐ 判据 ⑪：**本遍形状必须纯**（写完之后**这一遍**只许有一种单位）。
+    #:   ⚠️ 起因（2026-10-06 走**真实命令行**跑第 2 遍时当场撞出来的）：门禁判据②
+    #:   对"一遍里混了两种形状"是**红**的 ⇒ 落地器若不先判，就会**写进去再红**
+    #:   （⭐ 那正是判据⑧「⛔ 不许把这批写成让门禁变红的形状」的同一件事）。
+    units = {UNIT_SECTION if s else UNIT_FILE for _, s in already}
+    units |= {UNIT_SECTION if s else UNIT_FILE for _, s in seen}
+    if len(units) > 1:
+        errs.append(f"⛔ 本批写完后**第 {pass_no} 遍会混两种形状**"
+                    f"（已在册＝{'／'.join(sorted(units))} 里不止一种）⇒ 会让门禁**判据②判不动 ⇒ 红**"
+                    f"（⭐ 一遍只许一种：件级 `` #### `<件>` `` 或节级 `` #### `<件>` › <节标题> ``）")
     if pass_no == 1:                                           # 判据 ⑧（⭐ 只对第 1 遍）
         total = p1_here + stats["n"]
         _t1 = ces.TARGET1
@@ -543,13 +582,19 @@ def main() -> int:
     #:    按全册数会把整批判成「已在册」⇒ 一条都落不进去）。
     here = pass_items(text, a.pass_no)
     already = len(here)
-    unit = "节" if any(s for _, s in here) else "件"
+    #: ⚠️⭐ **两件事要分开报**（2026-10-06 走真实命令行时当场撞出来的读数错）：
+    #:   `unit_ledger` = **册子里已有的**这一遍是什么单位（⚠️ 空遍 ⇒ `None`，⛔ 不是「件」）；
+    #:   `unit_batch`  = **本批渲染出来的**是什么单位 ⇒ ⭐ 读数行要说的是**本批**，
+    #:   ⛔ 拿"册子里已有的"冒充本批会把空遍报成「件」（⭐ 那就是一句假读数）。
+    unit_ledger = pass_unit(here)
+    unit_batch = block_unit(block)
     prev_here = {p for p, _ in pass_items(text, a.pass_no - 1)} if a.pass_no >= 2 else set()
 
     print(f"体积自报：回吐体 **{stats.get('raw', len(raw))}** 字节 / 上限 {MAX_BYTES} 字节")
     print(f"靶子清单：**{len(targets)}** 件（⭐ **冻结** · ⛔ 不随改名／搬迁变动） vs `TARGET1` **{_t1}**"
           + ("　✅ 一致" if len(targets) == _t1 else "　⛔ **对不上**"))
-    print(f"落点：第 **{a.pass_no}** 遍 · 该遍单位 = **{unit}** · 已在册 **{already}** 条"
+    print(f"落点：第 **{a.pass_no}** 遍 · 已在册 **{already}** 条（单位 {unit_ledger or '空'}）"
+          f" · 本批单位 = **{unit_batch or '空'}**"
           + (f" · 上一遍件集 **{len(prev_here)}** 件" if a.pass_no >= 2 else ""))
     if len(targets) != _t1:
         errs.append(f"⛔ 靶子清单 {len(targets)} ≠ `TARGET1` {_t1} ⇒ 清单被动过，⛔ 先查口径再写")
@@ -571,7 +616,9 @@ def main() -> int:
                  f"⭐ 它们也是本遍的产出）" if a.pass_no >= 2 else ""))
         print(f"本遍读数：已在册 {already} ＋ 本批 {stats['n']} = **{already + stats['n']}** 条"
               + (f" / `TARGET1` {_t1}（⭐ 判据⑧ 只对第 1 遍）" if a.pass_no == 1
-                 else f"（⭐ 本遍单位 = {unit} ⇒ ⛔ 与第 1 遍的**件**不是同一个量）"))
+                 else f"（⭐ 本批单位 = {unit_batch or '空'}"
+                      + ("：一条 = 一节 ⇒ ⛔ 与第 1 遍的**件**不是同一个量）" if unit_batch == UNIT_SECTION
+                         else "）")))
     if errs:
         print(f"{RESULT} FAIL")
         for e in errs:
@@ -842,7 +889,7 @@ def selftest() -> int:
         "- **节**：§ x\n- **类型**：判据\n- **摘要**：y。\n"
         "- **为什么留**：z。\n- **疑似裁定**：（无）\n\n", 1)
     want("S′ 第 2 遍 · 同一节重复 ⇒ 红（判据⑦ 本遍内）",
-         [_rec2(title="一 · 假的一节")], red=True, pass_no=2, ledger=L_p2)
+         [_rec2(sections=[_sec("一 · 假的一节")])], red=True, pass_no=2, ledger=L_p2)
     #: X ⭐ 第 2 遍的件**必须来自第 1 遍**（⭐ 漏斗不许添新件 = 判据⑧′）
     want("T 第 2 遍 · 件不在第 1 遍里 ⇒ 红（判据⑧′）",
          [_rec2(path="docs/AI_DEVELOPMENT_PLAYBOOK.md")], red=True, pass_no=2)
@@ -902,7 +949,22 @@ def selftest() -> int:
         print("  [ok] AD 节级超长摘要 → 全文保留 ＋ 新标记")
     else:
         fail += 1
-        print(f"  [⛔臂失效] H′ 节级超长摘要被截断或没标记：errs={errs[:1]}")
+        print(f"  [⛔臂失效] AD 节级超长摘要被截断或没标记：errs={errs[:1]}")
+    #: AE ⭐ **判据⑪：本遍形状必须纯** —— 第 2 遍里**已有一条件级**条目，本批写**节级**
+    #:   ⇒ 红（⭐ 否则"写进去再让门禁红"＝判据⑧ 要防的同一件事）。
+    #:   ⚠️ 本条是**走真实命令行跑第 2 遍时**发现的缺口（⛔ 不是读代码想出来的）。
+    L_mixed = _mk_ledger().replace(
+        "### 第 2 遍 · 细筛（节级）\n\n> 空\n\n",
+        "### 第 2 遍 · 细筛（节级）\n\n#### `docs/ACCEPTANCE_GUIDE.md`\n"
+        "- **判**：**有**价值内容（混合）\n- **在哪几节**：一\n- **类型**：判据\n"
+        "- **疑似裁定**：（无）\n- **摘要**：件级残留。\n\n", 1)
+    want("AE 第 2 遍里已有件级 ⇒ 本批写节级 ⇒ 红（判据⑪ 形状不纯）",
+         [_rec2()], red=True, pass_no=2, ledger=L_mixed)
+    #: AF ⭐ 配对反臂：**同一遍里全是节级** ⇒ ⛔ 不报形状不纯（⭐ 别把"纯"错杀成"不纯"）
+    #:   ⚠️ 节标题**必须换一个**：`_sec()` 的默认标题会撞上 `L_p2` 里那条 ⇒ 红的原因
+    #:   会变成判据⑦（⭐ 那这条臂就**验错了东西**）。
+    want("AF 第 2 遍全是节级 ⇒ ⛔ 不报形状不纯",
+         [_rec2(sections=[_sec("另一个节")])], red=False, pass_no=2, ledger=L_p2)
 
     print(f"INGEST_EXTRACTION_SELFTEST {'PASS' if fail == 0 else 'FAIL'}: 臂 {ok}/{ok + fail}")
     return 0 if fail == 0 else 1
