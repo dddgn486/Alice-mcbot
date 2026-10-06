@@ -503,6 +503,10 @@ run_expected_reds
 run_gate             "check-project-state-freshness" bash tools/check-project-state-freshness.sh
 # ⭐ **2026-10-05 新增：类标形态**（回执 `002` 的 `Q3` ＋ 开发者批「批 #2」）。⭐ 仍挂尾部（同上理由）。
 run_gate             "check-doc-class-mark" bash tools/check-doc-class-mark.sh
+# ⭐ **2026-10-06 新增：`docs/upper-design/` 那一层**（开发者当日裁「每份件的创建与修改都必须我审核」）。
+#   ⭐ 为什么必须有：那条规则若不挂门禁，就只是**散文** —— 而本仓的纪律是「**门禁 > 散文**」。
+#   ⚠️ 目录**今天故意为空**（规则先立、门开着）⇒ 空目录是**合法状态**，⛔ 不报红（臂 A 守这条）。
+run_gate             "check-upper-docs" bash tools/check-upper-docs.sh
 # 门禁（2026-10-05 立 · **同日按开发者重裁改写**）：**「提取」漏斗的形状与数量**。⭐ 仍挂尾部（同上理由）。
   # ⭐ 为什么有它：`W7′-8`（内容口径 · 提取）是**唯一一个"做完了没有"不由件数决定**的工序 ——
   #    `W7′-4` 数「56 件里判了几件」，而提取的进度是「**188 件里筛出多少 / 每一遍剩多少 /

@@ -29,9 +29,9 @@
 | ⑥ 边界即机器 | 134 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道 | 12 | **11** | **待用户判**（本表只报数） |
-| ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
+| ⑨ 待删（一次性脚本） | 0 | **0** | **待用户判**（本表只报数） |
 | ⑩ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **633** | **154** | 这个合计**没有行动含义**（见上） |
+| **合计** | **631** | **154** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑩ 域外**
 
@@ -298,7 +298,7 @@
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 30 | 0 | — |
 | `README.md` | ② 入口 ＋ 地图 | 63 | 0 | — |
 | `docs/README.md` | ② 入口 ＋ 地图 | 64 | 0 | — |
-| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 125 | 7 | — |
+| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 124 | 7 | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 34 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 未裁提案 | 2 | 0 | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 未裁提案 | 12 | 0 | — |
@@ -315,7 +315,7 @@
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 6 | 0 | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 15 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 未裁提案 | 14 | 0 | — |
-| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 17 | 0 | — |
+| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 未裁提案 | 30 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 未裁提案 | 15 | 1 | — |
 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | 已落地 |
@@ -590,7 +590,7 @@
 | `tools/check-proposal-status.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-proposal-status.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-protection-install-point.py` | ⑥ 边界即机器 | 9 | 2 | — |
-| `tools/check-provision-containment.sh` | ⑥ 边界即机器 | 18 | 3 | — |
+| `tools/check-provision-containment.sh` | ⑥ 边界即机器 | 17 | 3 | — |
 | `tools/check-quote-lint.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-quote-lint.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-redline-gates.sh` | ⑥ 边界即机器 | 8 | 0 | — |
@@ -679,17 +679,15 @@
 | `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — |
 | `docs/data/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — |
-| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/action/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/compat/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/debug/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/staging/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `src/main/java/com/dddgn/alice/step/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
-| `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
-| `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 6 | 0 | — |
+| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/action/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/compat/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/debug/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/staging/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/step/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
 | `.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt` | ⑩ 域外（⛔ 不进体系） | 0 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
@@ -928,5 +926,5 @@
 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/005-设计文档在这套体系里住哪.md` | ⑪ 咨询通道 | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 633 -->
+<!-- CLEANUP_ROWS 631 -->
 

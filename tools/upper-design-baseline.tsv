@@ -1,0 +1,3 @@
+# `docs/upper-design/` 登记表 —— ⛔ 每件的【创建与修改】都必须开发者逐份审核
+# 生成：python3 tools/check-upper-docs.py --write（⭐ 那一步 = 批准；⛔ 不是“重新生成一下”）
+# 列：相对路径 <TAB> sha256(前 16) <TAB> 类号

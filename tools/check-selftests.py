@@ -48,7 +48,7 @@ TOOLS = (
     "archive-index", "check-authz-code-refs", "check-consult-pairs", "check-doc-class-mark", "check-e4-offrepo", "design-index",
     "check-effective-trace", "check-expected-reds", "check-extraction-status", "check-facts-tiers", "check-glossary",
     "check-project-state-freshness", "check-proposal-status", "check-quote-lint",
-    "check-scene-connectivity", "cleanup-classify",
+    "check-scene-connectivity", "check-upper-docs", "cleanup-classify",
     "failure-ratio", "ingest-extraction", "new-home-audit", "plan-doc-refactor", "recipe-graph", "redline-gates",
     "ref-anchors", "skills-index",
 )
