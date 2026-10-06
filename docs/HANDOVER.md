@@ -10353,7 +10353,7 @@ tools/       269 个被跟踪件 · 反向可达 82 · ⭐ 不可达 36
 回执 §5.3.1 逐字「**36 条跨包设计**的简洁列表」· §9.1「…（36 条）」· §十一 待办 `G`「在根 package-info 中**填写 36 条跨包设计**」。
 ⛔ 而 `grep -rn "跨包设计"` = **`consult/` 之外 0 处**。
 
-⭐ 我核到了 `36` 的**真实出处**：`survey/52-批2开工前勘测-靶子复算与判据体检-2026-10-04.md:81` 那张类分布表 ——
+⭐ 我核到了 `36` 的**真实出处**：`survey/52-批2开工前勘测-靶子复算与判据体检-2026-10-04.md` 的 **§2.2** 那张类分布表 ——
 「**④ 状态 ＋ 构想 ｜ 36**」 ⇒ 那是 **`docs/` 根里属于 ④ 类的件数**，⛔ **与"跨包设计"毫无关系**。
 ⚠️ `5%` 我**复算不出来源**（最接近的是 `36 / 723 = 4.98%`，而 `723` 是**决策编号数**）⇒ ⛔ 我不假装知道它怎么来的。
 
@@ -10375,7 +10375,7 @@ tools/       269 个被跟踪件 · 反向可达 82 · ⭐ 不可达 36
 1. ⛔⛔ **这不是"替换"，是"一词两义"** —— `survey/08`「**用户最初构想**里的那半句…」· `survey/14 §5.1 用户构想` ·
    `survey/25`「原始构想均出自作者」· `survey/47`「不是文档里的**构想**」 ⇒ ⭐ **这些是普通词义**，
    机械替换会把它们改成「用户最初**未裁提案**」⇒ ⛔ **毁掉原意**。⭐ 而本仓最贵的那族错正是**一词一义** ⇒ ⛔ **必须先分义再换**。
-2. ⛔ **有一条验收判据把词写在 shell 里**：`docs/ACCEPTANCE_GUIDE.md:135`（`D4`）逐字是
+2. ⛔ **有一条验收判据把词写在 shell 里**：`docs/ACCEPTANCE_GUIDE.md` 的 **`D4`** 验收项那一行逐字是
    `for f in docs/*DESIGN*.md docs/*ARCHITECTURE*.md; do head -3 "$f" | grep -l '构想\|边界' >/dev/null || echo "缺: $f"; done`
    ⇒ ⭐ **改词不同刀改这条命令 ⇒ 该验收项静默退化成"永远找不到"**（`grep` 不报错、输出为空 ⇒ 被判成"输出为空 = 通过"）。
    ⭐ 回执的 5 处载体里**没有它**。
@@ -10386,7 +10386,7 @@ tools/       269 个被跟踪件 · 反向可达 82 · ⭐ 不可达 36
 | **生成器（改它 ＋ 重生成）** | `tools/plan-doc-refactor.py`(3) · `tools/new-home-audit.py`(`DEST` 的键 = `④ 状态 ＋ 构想`) · `tools/cleanup-classify.py`(2) · `tools/design-index.py`(2) · `tools/survey-index.py`(1) · `tools/new-system-core-inventory.tsv`(4 行 `class` 列) | ⛔ 改 `DEST` 的键 = **改已有门禁的判据** ⇒ 授权档 🔴 |
 | **生成物（重跑，⛔ 不手改）** | `docs/DOC_REFACTOR_PLAN.md` · `survey/README.md` · `tools/new-system-inventory.tsv` | 🟢 跑生成器 |
 | ⛔ **不许改（历史／勘测侧）** | `docs/HANDOVER.md`(8) · `docs/AI_DECISIONS.md`(1) · `survey/*.md`(7 份) · `docs/archive/legacy-workflow/new-system-inventory-core20.tsv` · `docs/plans/*` · `docs/reviews/*` | ⛔ **不动**（`HANDOVER` = 只追加的历史留痕 · `survey/` = 勘测侧「只增不改」） |
-| ⚠️ **要先判义的** | `tools/check-proposal-status.py`(2) · `tools/check-proposal-status.sh`(1) · `tools/check-all.sh`(1) ＝ 引 `§E` 原话「把未完成的**构想**按边界格式落档」；`docs/QUESTIONS_LEDGER.md:46`「**裁定=边界，设计=构想**」 | ⛔ 机械替换会**改掉引文** |
+| ⚠️ **要先判义的** | `tools/check-proposal-status.py`(2) · `tools/check-proposal-status.sh`(1) · `tools/check-all.sh`(1) ＝ 引 `§E` 原话「把未完成的**构想**按边界格式落档」；`docs/QUESTIONS_LEDGER.md` 的 **`Q-005`** 那一行「**裁定=边界，设计=构想**」 | ⛔ 机械替换会**改掉引文** |
 
 ⇒ ⛔ **回执那句"一处不漏"今天做不到**：它给的是 **5 个载体**，真相是 **31 个文件**，
 且其中**至少 10 处不该改、2 处改了会坏门禁**。
@@ -10419,7 +10419,7 @@ tools/       269 个被跟踪件 · 反向可达 82 · ⭐ 不可达 36
 |---|---|---|
 | 1 | **7 条裁定的编号** | ⭐ 裁定 ≠ 台账事项 ⇒ **别占 `O-` 号**（照 `001`–`004.1` 惯例用本回执自己的标签族）；⛔ 若确要进台账，则空号只剩 `O169`–`O172`（4 个） |
 | 2 | **待办 `G` 的靶子** | ⭐ 「36 条跨包设计」不存在 ⇒ `G` **当场作废或改写**（⛔ 不许拿假数字开工） |
-| 3 | **「构想」删词的边界** | ⭐ 分义替换（**197** 处类名形改 · **46** 处非类名形**逐处判义**）＋ ⛔ 历史件（`HANDOVER`／`AI_DECISIONS`／`survey/`）**不动** ＋ ⭐ `ACCEPTANCE_GUIDE.md:135` 的 `grep '构想\|边界'` **同刀改** |
+| 3 | **「构想」删词的边界** | ⭐ 分义替换（**197** 处类名形改 · **46** 处非类名形**逐处判义**）＋ ⛔ 历史件（`HANDOVER`／`AI_DECISIONS`／`survey/`）**不动** ＋ ⭐ `ACCEPTANCE_GUIDE.md` 的 **`D4`** 里那条 `grep '构想\|边界'` **同刀改** |
 
 ⛔ **这三句到手之前**：`A`（拆 `SCHEDULE.md` —— ⚠️ 边界已由回执 §七 答出，见 §D4）与 `C` 瘦身**可以动**（⛔ 与这三条无耦合）；
 ⭐ 但 **`O166`…`O172` 那 7 条的落地一律不碰**（⛔ 编号没定就写进仓 = 种一族「同号两义」）。
@@ -10436,3 +10436,21 @@ tools/       269 个被跟踪件 · 反向可达 82 · ⭐ 不可达 36
 |---|---|---|
 | 18 | ⭐ **本断点 §B 的复算 ＋ §C 那"3 条硬冲突"的判断** | ⛔ 我一人算、我一人下 —— ⭐ **作者 ≠ 审阅者** |
 | 19 | ⚠️ 「回执 `005` 破了 `001`–`004.1` 的编号惯例」这一句 | ⭐ 我按 `grep O1xx` 的命中推的 |
+
+### §I ⛔⚠️ 写完本断点之后：**我自己把 3 道门禁弄红了**（本仓同因第 N 次，⛔ 如实记）
+
+⭐ 写本断点时我引了 `文件:行号`（`docs/ACCEPTANCE_GUIDE.md:135` · `docs/QUESTIONS_LEDGER.md:46` ·
+`survey/52-…md:81`）⇒ **`check-ref-anchors` 当场红**（⛔ 它的纪律是**行号引用只许变短**）：
+
+```
+[FAIL] ⛔ **新增了行号引用**：`docs/HANDOVER.md` → `docs/ACCEPTANCE_GUIDE.md` 0 → 1 处 ⇒ **改用锚点**
+       （`D-###`／`断点NN`／`O###`／`§小节`／工序 id／门禁 id）
+```
+
+⭐ **修法 = 把 5 处行号引用改成锚点**（`§2.2` · `D4` · `Q-005`）⇒ ⛔ **不是** `ref-anchors.py --write`
+（那等于**把新增量写进基线**，把「只许变短」变成「随便涨」—— ⭐ 那就是**伪造成功**）。
+
+⚠️ 另外两道是**老同族**（写件自己加了引用 ⇒ 生成物陈旧）：`check-plan-doc-refactor`
+（活读数 **1308 → 1310**，因为本断点给 `AI_PROJECT_STATE.md` 加了 2 行）· `check-cleanup-classify`
+（件 **631 → 632**，新回执入表）⇒ ⭐ 跑 regenerate 循环：`plan-doc-refactor --write` ×2 ·
+`cleanup-classify --write` ×3 ⇒ ⭐ **再跑一次全量：`CHECK_ALL_RESULT PASS_WITH_WARNINGS: pass=61 warning=2 failed=0`**。
