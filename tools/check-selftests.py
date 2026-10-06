@@ -49,7 +49,7 @@ TOOLS = (
     "check-effective-trace", "check-expected-reds", "check-extraction-status", "check-facts-tiers", "check-glossary",
     "check-project-state-freshness", "check-proposal-status", "check-quote-lint",
     "check-scene-connectivity", "cleanup-classify",
-    "failure-ratio", "new-home-audit", "plan-doc-refactor", "recipe-graph", "redline-gates",
+    "failure-ratio", "ingest-extraction", "new-home-audit", "plan-doc-refactor", "recipe-graph", "redline-gates",
     "ref-anchors", "skills-index",
 )
 
