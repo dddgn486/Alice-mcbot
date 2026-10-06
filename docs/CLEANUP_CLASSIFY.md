@@ -539,7 +539,7 @@
 | `tools/archive-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/build-new-system-inventory.py` | ⑥ 边界即机器 | 3 | 0 | — |
+| `tools/build-new-system-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 19 | 0 | — |
 | `tools/capture-scene.py` | ⑥ 边界即机器 | 6 | 1 | — |
 | `tools/check-all.sh` | ⑥ 边界即机器 | 94 | 2 | — |
