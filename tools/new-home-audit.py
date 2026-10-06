@@ -67,7 +67,7 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      # ⚠️ 2026-10-04 用户裁「**门禁没有权利否决草案**」⇒ 两个 `*PROPOSAL*` **已搬到 ④**
      #    （草案 `§D′-1` ④ **身份栏**逐字把它们列在「提案未裁」里）—— 见 `§D′-8` 第 7 条。
      ("docs/AI_DECISIONS.md", "docs/DECISIONS_INDEX.md")),
-    ("④ 状态 ＋ 构想", "做到哪了／下一步／卡在哪 ＋ ⭐ 提案未裁 ＋ 施工域（plans）",
+    ("④ 状态 ＋ 未裁提案", "做到哪了／下一步／卡在哪 ＋ ⭐ 提案未裁 ＋ 施工域（plans）",
      # ⭐ **「提案未裁」这一半的两个具体位置**（2026-10-04 从 ③ 与 ⑧ 搬来 —— 撞上的是
      #    草案 `§D′-1` ④ 的**身份栏**，按「门禁没有权利否决草案」跟着草案走）。
      ("docs/HANDOVER.md", "docs/OPEN_ITEMS_LEDGER.md", "docs/AI_PROJECT_STATE.md",
@@ -87,7 +87,7 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
       "docs/INTERACTION_LAYERS_COMPARISON.md",
       # ⚠️ **显式点名这一件**：`INTERACTION_LAYERS_COMPARISON.md` 头部逐字
       #    「本文是回答与留档（**只讨论，未实现**）」＋ §4「结论与建议（**待用户裁定**）」
-      #    ⇒ 它是**设计讨论**，属 ④ 的"构想"那一半。⭐ 本审计曾把它判成"④/⑦ 同类重叠"，
+      #    ⇒ 它是**设计讨论**，属 ④ 的"未裁提案"那一半。⭐ 本审计曾把它判成"④/⑦ 同类重叠"，
       #    这一行就是那条判据的落地。
       "docs/INTERACTION_LAYERS_COMPARISON.md",
       "docs/ALICE_PATHING_CORE_*.md", "docs/JOB_LAYER_DESIGN.md",

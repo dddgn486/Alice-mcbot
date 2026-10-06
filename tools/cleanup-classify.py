@@ -611,13 +611,13 @@ def selftest() -> int:
     arms: list[tuple[str, str, bool]] = []
 
     # 臂 A：归位必须与 `new-home-audit.py` 同源（直接用它的 `DEST`，不是抄一份）
-    a_ok = hasattr(nha, "DEST") and home_of("docs/HANDOVER.md") == "④ 状态 ＋ 构想"
+    a_ok = hasattr(nha, "DEST") and home_of("docs/HANDOVER.md") == "④ 状态 ＋ 未裁提案"
     arms.append(("A 归位与 new-home-audit 同源且判得对", "分叉", a_ok))
 
     # 臂 B：行动面必须排除 ⑧ 域外 —— 混在一起就是那张最容易被误读的表
     #        （把 93 件合法归档件算进「可删清单」）
     fake = [{"rel": "a.md", "home": OUTSIDE + " 域外（不进体系）", "refs": 0, "stale": False, "why": ""},
-            {"rel": "b.md", "home": "④ 状态 ＋ 构想", "refs": 0, "stale": False, "why": ""}]
+            {"rel": "b.md", "home": "④ 状态 ＋ 未裁提案", "refs": 0, "stale": False, "why": ""}]
     act = [r for r in fake if r["refs"] == 0 and not r["home"].startswith(OUTSIDE)]
     arms.append(("B 行动面排除 ⑧ 域外", "误算", len(act) == 1 and act[0]["rel"] == "b.md"))
 

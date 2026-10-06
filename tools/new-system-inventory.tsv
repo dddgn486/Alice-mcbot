@@ -17,63 +17,63 @@ README.md	② 入口 ＋ 地图	② 入口 ＋ 地图	Alice	115	2026-10-02
 docs/README.md	② 入口 ＋ 地图	② 入口 ＋ 地图	Alice 文档索引	86	2026-10-02	
 docs/AI_DECISIONS.md	③ 决策/裁定	③ 决策/裁定	Alice 当前架构决策	27960	2026-10-04	
 docs/DECISIONS_INDEX.md	③ 决策/裁定	③ 决策/裁定	决策索引（**生成物，禁手改**）	1162	2026-10-04	
-.alice-supervision/improvements/follow-task-vertical-tolerance.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	FollowTask 改进计划	83	2026-09-08	
-docs/ACCEPTANCE_GUIDE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档改革 · 验收指引	218	2026-10-05	
-docs/AI_PROJECT_STATE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice 当前项目状态	426	2026-10-06	
-docs/ALICE_PATHING_CORE_ARCHITECTURE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core Architecture	444	2026-10-03	
-docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core R1 Contract	528	2026-09-08	
-docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
-docs/ALIGNMENT_OPEN_QUESTIONS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	内核对齐待决问题（专项讨论）	275	2026-09-09	
-docs/BATTERY_CURATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	回归电池分档与维护规则（D-197）	361	2026-10-01	
-docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	清旧家 · 判据表（**生成物，禁手改**）	932	2026-10-06	
-docs/CLIENT_AGENT_CHANNEL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	客户端测试数据通道：**本地 agent + 文件信箱**（2026-09-24 用户裁定方向）	193	2026-10-03	
-docs/CLIENT_AGENT_NEW_DEVICE_TEST.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	新设备测试手册：客户端管家 agent（逐字照做版）	243	2026-09-24	
-docs/CLOUD_MIGRATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	云端迁移方案（**修补版 v2**，2026-09-23）	938	2026-10-02	
-docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	死亡与复活机制 · 设计草案（待用户审定）	157	2026-09-17	
-docs/DECISION_LAYER_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	L4 决策层（`GoalDirector` 家族）设计 —— 三条通道 + 分步骨架	275	2026-10-03	
-docs/DECISION_LAYER_FINAL_FORM.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	决策层最终形态：**任务队列 + 持久终态 + 历史落盘**	272	2026-09-20	
-docs/DOC_REFACTOR_DRAFT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档改革 · **草案**（依据；⭐ 目标文档体系 v2）	546	2026-10-05	
-docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	文档整顿 · 施工计划书（**生成物，禁手改**）	404	2026-10-06	
-docs/EXPECTED_REDS.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
-docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	提取册（设计与经验）	1555	2026-10-06	
-docs/GLOSSARY.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	术语速查（**讨论用解码表**）	239	2026-10-05	
-docs/HANDOVER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10517	2026-10-06	
-docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
-docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
-docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
-docs/MINE_MIGRATION_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Mine 迁移设计（评审稿 · **历史**）	180	2026-09-28	
-docs/MINE_SURVEY_PROTOCOL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	挖掘实测协议（`/alice mine here`）—— 真机地形 A 路线	77	2026-10-03	
-docs/MINE_TASK_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	挖矿任务设计（**阶段 0 设计文档**）	272	2026-10-04	
-docs/MINING_STAND_SELECTION_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	挖掘站位选优 + Baritone 融合：新框架设计（**定稿 v5**）	225	2026-10-03	
-docs/MOD_ADAPTER_PROTOCOL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	模组机器适配实验协议 v1（2026-09-13，阶段 3-B 起点）	116	2026-10-06	
-docs/MOD_COMPAT_CRAFT_STATION_PLAN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	模组兼容范例 · 第一步：**可切换的合成工作站**（设计 v2，2026-09-13）	227	2026-09-13	
-docs/MULTI_BOT_INTERFACE_RESERVATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	多 Bot 并行接口预留（非当前验收目标）	12	2026-09-08	
-docs/OPEN_ITEMS_LEDGER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	未收口项总账（2026-09-12 整理）	2749	2026-10-06	
-docs/QUESTIONS_LEDGER.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	开发者问题账（Q-###）	949	2026-10-05	
-docs/REGION_REPLANT_ASYNC_DESIGN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	区域补种异步化 + 可配置拾取清单：**设计方案**	221	2026-09-30	
-docs/RISK_MODES_DISCUSSION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	风险模式讨论（H / G / S）	203	2026-10-03	
-docs/RISK_SYSTEM_DESIGN_DRAFT.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Alice 风险系统 · 实现草案	527	2026-10-03	
-docs/SCHEDULE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	工作排期表	377	(未跟踪)	
-docs/STAGE3A_CRAFT_PLAN.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	阶段 3-A · 原版合成/熔炼接进任务层 —— 最小实施计划（2026-09-13）	87	2026-09-13	
-docs/TESTING_GUIDE.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	客户端轮次的**准入尺子**（2026-09-19 用户裁定）	978	2026-10-01	
-docs/WORLD_WRITE_AUTHORIZATION.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	世界写入授权登记表（D-082）	125	2026-10-01	
-docs/authz/POLICY_MATRIX_PROPOSAL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	R1 集中策略表 —— 设计提案（**已拍板并接线**，2026-09-14）	114	2026-10-04	
-docs/authz/PROPOSAL_B_survival_write_authorization.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	提案 B（改版 v2）：**路径规划器可以在什么条件下写世界** —— 合并「挖矿通道挖掘」与「维生自救」的同一次拍板	60	2026-09-16	
-docs/plans/2026-09-21-水中逃生计划.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	水中逃生：计划（草稿 v0.1，2026-09-21）	264	2026-09-21	
-docs/plans/2026-09-21-鱼骨挖矿计划.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	鱼骨挖矿（模板式开挖）：施工方案与任务逻辑流程（v0.1，2026-09-21）	355	2026-09-26	
-docs/plans/2026-09-22-回收方案.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	回收方案（现状 / 缺口 / 冗余 / 以后怎么回收）	198	2026-09-24	
-docs/plans/2026-09-24-P5a-两格高走廊设计.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	P5-a 设计定档：给挖掘 approach 加「2 格高走廊／口袋」能力	218	2026-09-24	
-docs/plans/2026-09-25-通道施工器草案.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	通道施工器（通用「修路 / 开挖」途径）草案 v0.1（2026-09-25）	300	2026-09-25	
-docs/plans/2026-09-27-Job框架定型.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	Job 框架定型（`J-★` 第 6 段 **step 1**，2026-09-27）	208	2026-09-27	
-docs/plans/2026-09-28-站位选优形态-设计讨论.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	站位选优形态 · 设计讨论记录（2026-09-28）	3174	2026-09-29	
-docs/plans/2026-09-29-4a-开工前侦察.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	`4a` 开工前侦察（**只读**）—— 「job 契约与机制补齐」今天到底缺什么	116	2026-10-03	
-docs/plans/2026-09-29-O41-完整框架终点-草案.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	`O41` 「完整的框架」项目级终点 —— **草案 v3**（展开版 ＋ 「框架完整」我的理解；**§1 待与你讨论**）	391	2026-10-03	
-docs/plans/2026-09-29-①选-解体-开工前侦察.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	`①「选」` 按 **`甲 · 解体`** 落地的开工前侦察（2026-09-29 · **只读**，`src/` 零改动）	177	2026-10-03	
-docs/plans/2026-09-29-第一刀-施工设计.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	改革① 主体 · 第一刀 —— 施工设计（2026-09-29，`D-520` 落地单）	139	2026-10-03	
-docs/plans/2026-09-29-维生三词展开与回收条件②③.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	维生三词展开 ＋ `O55` ②③（口径与客户端轮排期）—— **讨论件 v1**	242	2026-10-03	
-docs/plans/2026-09-29-维生系统-设计单.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	`O41` §5「维生系统重设计」—— **设计单 v1**（草案；四条契约**待你逐条裁**）	257	2026-10-03	
-docs/plans/README.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	`docs/plans/` 登记表（**生成物，禁手改**）	63	2026-10-03	
-docs/reference/ROAD_MATHEMATICAL_MODEL.md	④ 状态 ＋ 构想	④ 状态 ＋ 构想	道路数学模型（Road Mathematical Model）	231	2026-10-01	
+.alice-supervision/improvements/follow-task-vertical-tolerance.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	FollowTask 改进计划	83	2026-09-08	
+docs/ACCEPTANCE_GUIDE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · 验收指引	218	2026-10-05	
+docs/AI_PROJECT_STATE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 当前项目状态	428	2026-10-06	
+docs/ALICE_PATHING_CORE_ARCHITECTURE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core Architecture	444	2026-10-03	
+docs/ALICE_PATHING_CORE_R1_CONTRACT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core R1 Contract	528	2026-09-08	
+docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice Pathing Core R2：Movement 类型与能力声明	391	2026-10-01	
+docs/ALIGNMENT_OPEN_QUESTIONS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	内核对齐待决问题（专项讨论）	275	2026-09-09	
+docs/BATTERY_CURATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	回归电池分档与维护规则（D-197）	361	2026-10-01	
+docs/CLEANUP_CLASSIFY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	清旧家 · 判据表（**生成物，禁手改**）	932	2026-10-06	
+docs/CLIENT_AGENT_CHANNEL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	客户端测试数据通道：**本地 agent + 文件信箱**（2026-09-24 用户裁定方向）	193	2026-10-03	
+docs/CLIENT_AGENT_NEW_DEVICE_TEST.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	新设备测试手册：客户端管家 agent（逐字照做版）	243	2026-09-24	
+docs/CLOUD_MIGRATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	云端迁移方案（**修补版 v2**，2026-09-23）	938	2026-10-02	
+docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	死亡与复活机制 · 设计草案（待用户审定）	157	2026-09-17	
+docs/DECISION_LAYER_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	L4 决策层（`GoalDirector` 家族）设计 —— 三条通道 + 分步骨架	275	2026-10-03	
+docs/DECISION_LAYER_FINAL_FORM.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	决策层最终形态：**任务队列 + 持久终态 + 历史落盘**	272	2026-09-20	
+docs/DOC_REFACTOR_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · **草案**（依据；⭐ 目标文档体系 v2）	546	2026-10-05	
+docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档整顿 · 施工计划书（**生成物，禁手改**）	404	2026-10-06	
+docs/EXPECTED_REDS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
+docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	提取册（设计与经验）	1555	2026-10-06	
+docs/GLOSSARY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	术语速查（**讨论用解码表**）	239	2026-10-05	
+docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10517	2026-10-06	
+docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
+docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
+docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
+docs/MINE_MIGRATION_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Mine 迁移设计（评审稿 · **历史**）	180	2026-09-28	
+docs/MINE_SURVEY_PROTOCOL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	挖掘实测协议（`/alice mine here`）—— 真机地形 A 路线	77	2026-10-03	
+docs/MINE_TASK_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	挖矿任务设计（**阶段 0 设计文档**）	272	2026-10-04	
+docs/MINING_STAND_SELECTION_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	挖掘站位选优 + Baritone 融合：新框架设计（**定稿 v5**）	225	2026-10-03	
+docs/MOD_ADAPTER_PROTOCOL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	模组机器适配实验协议 v1（2026-09-13，阶段 3-B 起点）	116	2026-10-06	
+docs/MOD_COMPAT_CRAFT_STATION_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	模组兼容范例 · 第一步：**可切换的合成工作站**（设计 v2，2026-09-13）	227	2026-09-13	
+docs/MULTI_BOT_INTERFACE_RESERVATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	多 Bot 并行接口预留（非当前验收目标）	12	2026-09-08	
+docs/OPEN_ITEMS_LEDGER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	未收口项总账（2026-09-12 整理）	2749	2026-10-06	
+docs/QUESTIONS_LEDGER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	开发者问题账（Q-###）	949	2026-10-05	
+docs/REGION_REPLANT_ASYNC_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	区域补种异步化 + 可配置拾取清单：**设计方案**	221	2026-09-30	
+docs/RISK_MODES_DISCUSSION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	风险模式讨论（H / G / S）	203	2026-10-03	
+docs/RISK_SYSTEM_DESIGN_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Alice 风险系统 · 实现草案	527	2026-10-03	
+docs/SCHEDULE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	工作排期表	377	2026-10-06	
+docs/STAGE3A_CRAFT_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	阶段 3-A · 原版合成/熔炼接进任务层 —— 最小实施计划（2026-09-13）	87	2026-09-13	
+docs/TESTING_GUIDE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	客户端轮次的**准入尺子**（2026-09-19 用户裁定）	978	2026-10-01	
+docs/WORLD_WRITE_AUTHORIZATION.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	世界写入授权登记表（D-082）	125	2026-10-01	
+docs/authz/POLICY_MATRIX_PROPOSAL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	R1 集中策略表 —— 设计提案（**已拍板并接线**，2026-09-14）	114	2026-10-04	
+docs/authz/PROPOSAL_B_survival_write_authorization.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	提案 B（改版 v2）：**路径规划器可以在什么条件下写世界** —— 合并「挖矿通道挖掘」与「维生自救」的同一次拍板	60	2026-09-16	
+docs/plans/2026-09-21-水中逃生计划.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	水中逃生：计划（草稿 v0.1，2026-09-21）	264	2026-09-21	
+docs/plans/2026-09-21-鱼骨挖矿计划.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	鱼骨挖矿（模板式开挖）：施工方案与任务逻辑流程（v0.1，2026-09-21）	355	2026-09-26	
+docs/plans/2026-09-22-回收方案.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	回收方案（现状 / 缺口 / 冗余 / 以后怎么回收）	198	2026-09-24	
+docs/plans/2026-09-24-P5a-两格高走廊设计.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	P5-a 设计定档：给挖掘 approach 加「2 格高走廊／口袋」能力	218	2026-09-24	
+docs/plans/2026-09-25-通道施工器草案.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	通道施工器（通用「修路 / 开挖」途径）草案 v0.1（2026-09-25）	300	2026-09-25	
+docs/plans/2026-09-27-Job框架定型.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	Job 框架定型（`J-★` 第 6 段 **step 1**，2026-09-27）	208	2026-09-27	
+docs/plans/2026-09-28-站位选优形态-设计讨论.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	站位选优形态 · 设计讨论记录（2026-09-28）	3174	2026-09-29	
+docs/plans/2026-09-29-4a-开工前侦察.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	`4a` 开工前侦察（**只读**）—— 「job 契约与机制补齐」今天到底缺什么	116	2026-10-03	
+docs/plans/2026-09-29-O41-完整框架终点-草案.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	`O41` 「完整的框架」项目级终点 —— **草案 v3**（展开版 ＋ 「框架完整」我的理解；**§1 待与你讨论**）	391	2026-10-03	
+docs/plans/2026-09-29-①选-解体-开工前侦察.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	`①「选」` 按 **`甲 · 解体`** 落地的开工前侦察（2026-09-29 · **只读**，`src/` 零改动）	177	2026-10-03	
+docs/plans/2026-09-29-第一刀-施工设计.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	改革① 主体 · 第一刀 —— 施工设计（2026-09-29，`D-520` 落地单）	139	2026-10-03	
+docs/plans/2026-09-29-维生三词展开与回收条件②③.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	维生三词展开 ＋ `O55` ②③（口径与客户端轮排期）—— **讨论件 v1**	242	2026-10-03	
+docs/plans/2026-09-29-维生系统-设计单.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	`O41` §5「维生系统重设计」—— **设计单 v1**（草案；四条契约**待你逐条裁**）	257	2026-10-03	
+docs/plans/README.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	`docs/plans/` 登记表（**生成物，禁手改**）	63	2026-10-03	
+docs/reference/ROAD_MATHEMATICAL_MODEL.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	道路数学模型（Road Mathematical Model）	231	2026-10-01	
 .alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	客户端轮次证据报告 —— 2026-09-15（D-220 + T3）	98	2026-10-04	
 .alice-supervision/client-tests/legacy-ascend-20260908/evidence/evidence-report.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	legacy 上升兼容（D-030）客户端验收证据	28	2026-09-08	
 .alice-supervision/client-tests/minetask-scene-a-20260905/evidence/evidence-report.md	⑤ 报告 ＋ 证据	⑤ 报告 ＋ 证据	MineTask 场景 A 客户端验收证据	37	2026-09-08	
@@ -402,7 +402,7 @@ consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨
 consult/receipt/003-提取在这套流程里没有落脚点.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `003` —— **「提取」在这套流程里没有落脚点**	383	2026-10-05	
 consult/receipt/004-主线目标模糊与后续筛没有判据.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `004` —— **主线目标模糊 + 后续筛没有判据**	678	2026-10-06	
 consult/receipt/004.1-核心件瘦身裁定.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 004.1：核心件瘦身裁定	195	2026-10-06	
-consult/receipt/005-设计文档在这套体系里住哪.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `005` —— **设计文档在这套体系里住哪 ＋ 「构想」这个词**	543	2026-10-06	
+consult/receipt/005-设计文档在这套体系里住哪.md	⑪ 咨询通道	⑪ 咨询通道	咨询回执 `005` —— **设计文档在这套体系里住哪 ＋ 「构想」这个词**	545	2026-10-06	
 consult/request/001-七类表缺维护栏.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `001` —— **文档整顿草案与计划书：七类表缺的是「维护」那几栏**	176	2026-10-05	
 consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `002` —— 批 2 开工前的硬阻塞 ＋ 本轮撞到的结构性摩擦	277	2026-10-05	
 consult/request/003-提取在这套流程里没有落脚点.md	⑪ 咨询通道	⑪ 咨询通道	咨询申请 `003` —— **「提取」在这套流程里没有落脚点**	165	2026-10-05	
@@ -590,13 +590,13 @@ consult/request/005-设计文档在这套体系里住哪.md	⑪ 咨询通道	⑪
 .alice-supervision/skills/large-refactor-survey-and-verify.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	大范围重构：勘测与验证	201	2026-10-04	
 .alice-supervision/skills/minecraft-client-server-sync.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Skill: Minecraft Client-Server Sync	448	2026-09-08	
 .alice-supervision/skills/minimal-implementation-planning.skill.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Minimal Implementation Planning	152	2026-09-09	
-docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 构想 ／ ⑧ 域外（⛔ 不进体系）	AI Player 设计文档（架构总纲 v0.3）	317	2026-09-10	
+docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑧ 域外（⛔ 不进体系）	AI Player 设计文档（架构总纲 v0.3）	317	2026-09-10	
 docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	BotController 快速测试指南	267	2026-09-10	
 docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	执行层框架 v1（任务框架）	130	2026-09-10	
 docs/archive/legacy-2026-08/HANDOVER_20260907.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 会话交接包 - 2026-09-07	415	2026-09-10	
 docs/archive/legacy-2026-08/M0_ARCHITECTURE.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	M0 架构决策与审查点	63	2026-09-10	
 docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	MineTask 第一阶段内部契约审查	478	2026-09-10	
-docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 构想 ／ ⑧ 域外（⛔ 不进体系）	MineTask 接入 Movement：最小重建设计	111	2026-09-10	
+docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑧ 域外（⛔ 不进体系）	MineTask 接入 Movement：最小重建设计	111	2026-09-10	
 docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	MineTask 恢复契约	97	2026-09-10	
 docs/archive/legacy-2026-08/MINETASK_WORLD_EDIT_TEST_SCENES.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	MineTask WorldEdit 测试场景计划	208	2026-09-10	
 docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	挖掘安全与目标规划（后续设计约束）	102	2026-09-10	
@@ -614,7 +614,7 @@ docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md	⑧ 域外（⛔ 不进体
 docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	isEffectiveAi() 安全性分析	420	2026-09-08	
 docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Minecraft 原版玩家运行机制解析	573	2026-09-08	
 docs/archive/legacy-design/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-design/` —— 归档目录（**按内容类型**）	26	2026-10-03	
-docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 构想 ／ ⑧ 域外（⛔ 不进体系）	Bot 手动控制系统设计方案	106	2026-09-08	
+docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md	⑧ 域外（⛔ 不进体系）	④ 状态 ＋ 未裁提案 ／ ⑧ 域外（⛔ 不进体系）	Bot 手动控制系统设计方案	106	2026-09-08	
 docs/archive/legacy-testing/README.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	`docs/archive/legacy-testing/` —— 归档目录（**按内容类型**）	26	2026-10-03	
 docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Windows 端同步清单	272	2026-09-08	
 docs/archive/legacy-workflow/HANDOVER.md	⑧ 域外（⛔ 不进体系）	⑧ 域外（⛔ 不进体系）	Alice 项目交接说明（给新会话的快速上手）	440	2026-10-04	

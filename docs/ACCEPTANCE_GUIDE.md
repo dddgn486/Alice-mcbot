@@ -132,7 +132,7 @@ done
 | D1 | 索引是**生成物** | `head -3 docs/DESIGN_INDEX.md` | 写明"由脚本生成、禁手改" |
 | D2 | 索引与包**一致** | `bash tools/check-all.sh 2>&1 \| grep design-index` | **PASS** |
 | D3 | ⭐ **"扫不到就报绿"被挡住** | 看 D2 那门禁的**人口下限**读数 | 有下限数，且不为 0 |
-| D4 | 10 份设计件**都有状态声明** | `for f in docs/*DESIGN*.md docs/*ARCHITECTURE*.md; do head -3 "$f" \| grep -l '构想\|边界' >/dev/null \|\| echo "缺: $f"; done` | 输出为空 |
+| D4 | 10 份设计件**都有状态声明** | `for f in docs/*DESIGN*.md docs/*ARCHITECTURE*.md; do head -3 "$f" \| grep -l '未裁提案\|边界' >/dev/null \|\| echo "缺: $f"; done` | 输出为空 |
 
 ### 类 E｜报告
 

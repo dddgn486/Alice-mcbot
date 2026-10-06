@@ -111,7 +111,7 @@ def render(reports: list[dict], adopt: Counter, others: list[Path]) -> str:
     L.append("")
     L.append("**本目录不是实现授权。**每一份都是**建议 / 勘测 / 参考方案**，主工作流"
              "**可以采纳、可以部分采纳、也可以不采纳**。")
-    L.append("⇒ 本目录属 **⑤ 类（报告 / 构想）**：⭐ **可以引，⛔ 不可当依据**"
+    L.append("⇒ 本目录属 **⑤ 类（报告）**：⭐ **可以引，⛔ 不可当依据**"
              "（草案 §P-5 `E4`：报告被当规则引用 ⇒ 红）。")
     L.append("")
     L.append("## 怎么用（三步）")

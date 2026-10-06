@@ -24,7 +24,7 @@
 | ①-code 设计说明（`package-info.java`） | 9 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
-| ④ 状态 ＋ 构想 | 57 | **13** | **待用户判**（本表只报数） |
+| ④ 状态 ＋ 未裁提案 | 57 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
 | ⑥ 边界即机器 | 134 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
@@ -47,19 +47,19 @@
 
 | # | 件 | 好家 | 提到它的文件数 | 候选理由（机械） | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `docs/plans/2026-09-21-水中逃生计划.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 2 | `docs/plans/2026-09-21-鱼骨挖矿计划.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 3 | `docs/plans/2026-09-22-回收方案.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 4 | `docs/plans/2026-09-24-P5a-两格高走廊设计.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 5 | `docs/plans/2026-09-25-通道施工器草案.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 6 | `docs/plans/2026-09-27-Job框架定型.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 7 | `docs/plans/2026-09-28-站位选优形态-设计讨论.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 8 | `docs/plans/2026-09-29-4a-开工前侦察.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 9 | `docs/plans/2026-09-29-O41-完整框架终点-草案.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 10 | `docs/plans/2026-09-29-①选-解体-开工前侦察.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 11 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 12 | `docs/plans/2026-09-29-维生三词展开与回收条件②③.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 13 | `docs/plans/2026-09-29-维生系统-设计单.md` | ④ 状态 ＋ 构想 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 1 | `docs/plans/2026-09-21-水中逃生计划.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 2 | `docs/plans/2026-09-21-鱼骨挖矿计划.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 3 | `docs/plans/2026-09-22-回收方案.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 4 | `docs/plans/2026-09-24-P5a-两格高走廊设计.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 5 | `docs/plans/2026-09-25-通道施工器草案.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 6 | `docs/plans/2026-09-27-Job框架定型.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 7 | `docs/plans/2026-09-28-站位选优形态-设计讨论.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 8 | `docs/plans/2026-09-29-4a-开工前侦察.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 9 | `docs/plans/2026-09-29-O41-完整框架终点-草案.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 10 | `docs/plans/2026-09-29-①选-解体-开工前侦察.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 11 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 12 | `docs/plans/2026-09-29-维生三词展开与回收条件②③.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 13 | `docs/plans/2026-09-29-维生系统-设计单.md` | ④ 状态 ＋ 未裁提案 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 14 | `docs/reviews/2026-09-14-3B-S3-机器映射勘察.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 15 | `docs/reviews/2026-09-14-B4能力登记与起步位置确定性.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 16 | `docs/reviews/2026-09-14-S4电源根因勘察.md` | ⑤ 报告 ＋ 证据 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
@@ -218,15 +218,15 @@
 
 | # | 件 | 好家 | 自称 | 全仓提到它 | `src/` 里 | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | **已落地** | 16 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 2 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | **已落地** | 17 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 3 | `docs/SCHEDULE.md` | ④ 状态 ＋ 构想 | **已落地** | 13 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 16 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 2 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 17 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 3 | `docs/SCHEDULE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 13 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 4 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 5 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 6 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 8 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 7 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 8 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | **已拍板** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 9 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 8 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 未裁提案 | **已拍板** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 9 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 10 | `docs/reviews/2026-09-14-survey07-可行动条目核实.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 11 | `docs/reviews/2026-09-14-无头回归通道T2-首轮实测.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 12 | `docs/reviews/2026-09-17-勘测分诊与任务队列.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
@@ -309,63 +309,63 @@
 | `docs/README.md` | ② 入口 ＋ 地图 | 64 | 0 | — |
 | `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 125 | 7 | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 34 | 0 | — |
-| `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
-| `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
-| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 46 | 0 | — |
-| `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 15 | 0 | — |
-| `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
-| `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
-| `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
-| `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 构想 | 28 | 5 | — |
-| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 构想 | 15 | 0 | — |
-| `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
-| `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
-| `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
-| `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
-| `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 15 | 2 | — |
-| `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
-| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 16 | 0 | — |
-| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 30 | 0 | — |
-| `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 15 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 16 | 0 | 已落地 |
-| `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 21 | 0 | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 71 | 1 | — |
-| `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
-| `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 27 | 11 | — |
-| `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
-| `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 构想 | 15 | 1 | 已落地 |
-| `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
-| `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 17 | 0 | 已落地 |
-| `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 3 | — |
-| `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 18 | 1 | — |
-| `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 9 | 1 | — |
-| `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
-| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 66 | 4 | 已落地 |
-| `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
-| `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 7 | 2 | — |
-| `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
-| `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
-| `docs/SCHEDULE.md` | ④ 状态 ＋ 构想 | 13 | 0 | 已落地 |
-| `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
-| `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 19 | 2 | — |
-| `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
-| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | 12 | 0 | 已拍板 |
-| `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
-| `docs/plans/2026-09-21-水中逃生计划.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-21-鱼骨挖矿计划.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-22-回收方案.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-24-P5a-两格高走廊设计.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-25-通道施工器草案.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-27-Job框架定型.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-28-站位选优形态-设计讨论.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-29-4a-开工前侦察.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-29-O41-完整框架终点-草案.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-29-①选-解体-开工前侦察.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | 0 | 0 | 已落地 |
-| `docs/plans/2026-09-29-维生三词展开与回收条件②③.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/2026-09-29-维生系统-设计单.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/README.md` | ④ 状态 ＋ 构想 | 64 | 0 | — |
-| `docs/reference/ROAD_MATHEMATICAL_MODEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
+| `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 未裁提案 | 2 | 0 | — |
+| `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 未裁提案 | 12 | 0 | — |
+| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 未裁提案 | 46 | 0 | — |
+| `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 未裁提案 | 15 | 0 | — |
+| `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 未裁提案 | 13 | 0 | — |
+| `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 未裁提案 | 10 | 0 | — |
+| `docs/ALIGNMENT_OPEN_QUESTIONS.md` | ④ 状态 ＋ 未裁提案 | 11 | 0 | — |
+| `docs/BATTERY_CURATION.md` | ④ 状态 ＋ 未裁提案 | 28 | 5 | — |
+| `docs/CLEANUP_CLASSIFY.md` | ④ 状态 ＋ 未裁提案 | 15 | 0 | — |
+| `docs/CLIENT_AGENT_CHANNEL.md` | ④ 状态 ＋ 未裁提案 | 7 | 0 | — |
+| `docs/CLIENT_AGENT_NEW_DEVICE_TEST.md` | ④ 状态 ＋ 未裁提案 | 8 | 0 | — |
+| `docs/CLOUD_MIGRATION.md` | ④ 状态 ＋ 未裁提案 | 14 | 0 | — |
+| `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 6 | 0 | — |
+| `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 15 | 2 | — |
+| `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 未裁提案 | 14 | 0 | — |
+| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | — |
+| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 未裁提案 | 30 | 0 | — |
+| `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 未裁提案 | 15 | 1 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | 已落地 |
+| `docs/GLOSSARY.md` | ④ 状态 ＋ 未裁提案 | 21 | 0 | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 未裁提案 | 71 | 1 | — |
+| `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 未裁提案 | 11 | 2 | — |
+| `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 27 | 11 | — |
+| `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 未裁提案 | 11 | 0 | — |
+| `docs/MINE_MIGRATION_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 15 | 1 | 已落地 |
+| `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 未裁提案 | 7 | 0 | — |
+| `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 17 | 0 | 已落地 |
+| `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 14 | 3 | — |
+| `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 未裁提案 | 18 | 1 | — |
+| `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 未裁提案 | 9 | 1 | — |
+| `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 未裁提案 | 12 | 0 | — |
+| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 未裁提案 | 66 | 4 | 已落地 |
+| `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 未裁提案 | 11 | 0 | — |
+| `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 7 | 2 | — |
+| `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 未裁提案 | 11 | 0 | — |
+| `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 20 | 0 | — |
+| `docs/SCHEDULE.md` | ④ 状态 ＋ 未裁提案 | 13 | 0 | 已落地 |
+| `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 未裁提案 | 8 | 0 | — |
+| `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 未裁提案 | 19 | 2 | — |
+| `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 未裁提案 | 14 | 1 | — |
+| `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 未裁提案 | 12 | 0 | 已拍板 |
+| `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ④ 状态 ＋ 未裁提案 | 5 | 0 | — |
+| `docs/plans/2026-09-21-水中逃生计划.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-21-鱼骨挖矿计划.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-22-回收方案.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-24-P5a-两格高走廊设计.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-25-通道施工器草案.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-27-Job框架定型.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-28-站位选优形态-设计讨论.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-29-4a-开工前侦察.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-29-O41-完整框架终点-草案.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-29-①选-解体-开工前侦察.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | 已落地 |
+| `docs/plans/2026-09-29-维生三词展开与回收条件②③.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/2026-09-29-维生系统-设计单.md` | ④ 状态 ＋ 未裁提案 | 0 | 0 | — |
+| `docs/plans/README.md` | ④ 状态 ＋ 未裁提案 | 64 | 0 | — |
+| `docs/reference/ROAD_MATHEMATICAL_MODEL.md` | ④ 状态 ＋ 未裁提案 | 5 | 0 | — |
 | `.alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 76 | 0 | — |
 | `.alice-supervision/client-tests/legacy-ascend-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 76 | 0 | — |
 | `.alice-supervision/client-tests/minetask-scene-a-20260905/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 76 | 0 | — |

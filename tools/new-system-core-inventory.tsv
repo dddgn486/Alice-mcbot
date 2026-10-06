@@ -21,10 +21,10 @@ class	path	title	topics
 ② 入口+地图	docs/README.md	文档地图	文档导航,结构说明,索引入口
 ③ 决策/裁定	docs/AI_DECISIONS.md	AI 决策记录	决策记录,裁定历史,效力管理
 ③ 决策/裁定	docs/DECISIONS_INDEX.md	决策索引	决策索引,分类管理,查找入口
-④ 状态+构想	docs/HANDOVER.md	交接断点日志	断点记录,历史留痕,会话边界
-④ 状态+构想	docs/AI_PROJECT_STATE.md	AI 项目状态	项目状态,进度跟踪,现在在哪
-④ 状态+构想	docs/OPEN_ITEMS_LEDGER.md	开放事项台账	台账管理,一件一号,在办记录
-④ 状态+构想	docs/SCHEDULE.md	工作排期表	排期管理,工序安排,时间规划
+④ 状态+未裁提案	docs/HANDOVER.md	交接断点日志	断点记录,历史留痕,会话边界
+④ 状态+未裁提案	docs/AI_PROJECT_STATE.md	AI 项目状态	项目状态,进度跟踪,现在在哪
+④ 状态+未裁提案	docs/OPEN_ITEMS_LEDGER.md	开放事项台账	台账管理,一件一号,在办记录
+④ 状态+未裁提案	docs/SCHEDULE.md	工作排期表	排期管理,工序安排,时间规划
 ⑦ 事实/数据	docs/DESIGN_INDEX.md	设计索引	设计索引,文档管理,分类查找
 ⑦ 事实/数据	docs/AI_CHANGELOG.md	AI 变更日志	变更日志,版本历史,AI演进
 ⑦ 事实/数据	docs/ALICE_CAPABILITIES.md	Alice 功能模块清单	功能模块清单,代码镜像,已实现功能,GoalAction,JobKind,移动原语
