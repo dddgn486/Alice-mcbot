@@ -1,0 +1,51 @@
+# 新文档体系核心内容清单（最终版，2026-10-06）
+# 基于开发者裁定：
+#   - Q1(a): HANDOVER 只记录"断点"，"现在在哪"转移到 AI_PROJECT_STATE.md
+#   - Q2(a): 台账留在 OPEN_ITEMS_LEDGER，排期表独立到 SCHEDULE.md
+#   - 裁定 3: 专项审计报告不是核心件（移到 docs/reviews/）
+#   - 裁定 4: MACHINE_MAP.csv 不是核心件（移到 docs/data/ 或 docs/modules/machines/）
+#   - 裁定 5: CAPABILITY_LIST.md 瘦身后保留（只保留 §1-3，改名 ALICE_CAPABILITIES.md）
+#
+# 格式：class	path	title	topics
+# 筛选依据：
+#   - 排除临时产物（DOC_REFACTOR_DRAFT/PLAN, EXTRACTED_KNOWLEDGE, CLEANUP_CLASSIFY）
+#   - 排除专项报告（TRANSFER_MODULE_AUDIT, R4_BARITONE_ALIGNMENT_AUDIT, STAGE2_MODS_READABILITY）
+#   - 排除子系统数据（MACHINE_MAP.csv）
+#   - 只保留长期维护的核心件
+#   - 基于 DEST 表的实际存在文件
+
+class	path	title	topics
+① 常驻规范	AGENTS.md	AI 代理规范	AI代理规范,权限管理,工作流程,角色定义
+① 常驻规范	docs/AI_DEVELOPMENT_PLAYBOOK.md	AI 开发手册	开发规范,最佳实践,编码约定
+② 入口+地图	README.md	项目入口	项目概览,快速开始,架构总览
+② 入口+地图	docs/README.md	文档地图	文档导航,结构说明,索引入口
+③ 决策/裁定	docs/AI_DECISIONS.md	AI 决策记录	决策记录,裁定历史,效力管理
+③ 决策/裁定	docs/DECISIONS_INDEX.md	决策索引	决策索引,分类管理,查找入口
+④ 状态+构想	docs/HANDOVER.md	交接断点日志	断点记录,历史留痕,会话边界
+④ 状态+构想	docs/AI_PROJECT_STATE.md	AI 项目状态	项目状态,进度跟踪,现在在哪
+④ 状态+构想	docs/OPEN_ITEMS_LEDGER.md	开放事项台账	台账管理,一件一号,在办记录
+④ 状态+构想	docs/SCHEDULE.md	工作排期表	排期管理,工序安排,时间规划
+⑦ 事实/数据	docs/DESIGN_INDEX.md	设计索引	设计索引,文档管理,分类查找
+⑦ 事实/数据	docs/AI_CHANGELOG.md	AI 变更日志	变更日志,版本历史,AI演进
+⑦ 事实/数据	docs/ALICE_CAPABILITIES.md	Alice 功能模块清单	功能模块清单,代码镜像,已实现功能,GoalAction,JobKind,移动原语
+⑪ 咨询通道	consult/README.md	咨询通道说明	咨询流程,通道规则,决策产出
+
+# ========================================
+# 总计 14 件 = ① 2件 + ② 2件 + ③ 2件 + ④ 4件 + ⑦ 3件 + ⑪ 1件
+# ========================================
+#
+# 【重要说明】
+# 1. docs/SCHEDULE.md 当前不存在，需要从 OPEN_ITEMS_LEDGER.md 中拆分
+# 2. docs/ALICE_CAPABILITIES.md 当前名为 CAPABILITY_LIST.md，需要改名 + 瘦身（只保留 §1-3）
+# 3. HANDOVER.md 需要明确职责：只记录"断点"，不记录"现在在哪"
+# 4. 以下文件已排除（临时产物）：
+#    - docs/DOC_REFACTOR_DRAFT.md（本次整改草案）
+#    - docs/DOC_REFACTOR_PLAN.md（本次整改计划书）
+#    - docs/EXTRACTED_KNOWLEDGE.md（提取册）
+#    - docs/CLEANUP_CLASSIFY.md（清理分类表）
+# 5. 以下文件已排除（专项报告 → docs/reviews/）：
+#    - docs/TRANSFER_MODULE_AUDIT.md（传输模块审计）
+#    - docs/R4_BARITONE_ALIGNMENT_AUDIT.md（Baritone 对齐审计）
+#    - docs/STAGE2_MODS_READABILITY.md（阶段 2 模组可读性报告）
+# 6. 以下文件已排除（子系统数据 → docs/data/ 或 docs/modules/machines/）：
+#    - docs/MACHINE_MAP.csv（机器映射表）
