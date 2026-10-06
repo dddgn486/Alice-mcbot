@@ -106,7 +106,7 @@
 | `docs/` 根设计件份数 | **14** | 14 ✅ | `docs/DESIGN_INDEX.md` |
 | `docs/` 根 `.md` 份数 | **58** | 58 ✅ | `git ls-files -z 'docs/*.md' | tr '\0' '\n' | grep -cE '^docs/[^/]+\.md$' | tr -d ' '` |
 | `survey/` 报告份数 | **55** | 55 ✅ | `survey/README.md` |
-| 常驻件当前总行数 | **1310** | 1310 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
+| 常驻件当前总行数 | **1312** | 1312 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
 | 门禁项数（`check-all` 计数行） | **61** | 61 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
 ### 冻结值（只有用户裁定能改）

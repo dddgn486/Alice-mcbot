@@ -650,7 +650,7 @@
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
-| `tools/new-home-audit.py` | ⑥ 边界即机器 | 16 | 0 | — |
+| `tools/new-home-audit.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
