@@ -679,7 +679,7 @@
 | `docs/authz/AUTHZ_REGISTRY.csv` | ⑦ 事实/数据 | 16 | 2 | — |
 | `docs/authz/CONTAINER_WRITE_SITES.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 15 | 2 | — |
-| `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — |
+| `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 25 | 3 | — |
 | `docs/data/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — |
 | `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
