@@ -22625,6 +22625,1609 @@
 - **为什么留**：登记未决补件与其前置条件，同时立「不改历史结论」纪律
 - **疑似裁定**：D-076 世界修改必须显式授权 ／ D-080 每件事各归其位、只写一遍 ／ D-081 建拆同权（授权即配对） ／ 三套清障最终裁定「清障归 L3 Job」（D-081 追加裁定） ／ 勘测建议：不要现在做…等 J5 落地、两个候选源都真实存在之后，再抽接口 ／ 建议：不要做三套。至少让它们共享同一种透传机制 ／ 勘测建议：RecoverabilityLevel 裁定推迟到 J6 之后
 
+#### `survey/03-ATM9-勘测报告.md` › 0 结论速览 · 四个问题的答案与 4 处意外
+- **节**：「用户指定的四个问题」表
+- **类型**：判据
+- **摘要**：加载器兼容无隐患；约 300/435 模组零成本；7 类触发源必须配置驱动；真正要写代码的是「3 个硬骨头 + 9 个中等」，并列出 4 处会推翻现有设计的意外。
+- **为什么留**：给整包成本定分母，防止按 435 做预算
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 1.1 为什么是 ATM9（用户给定理由）
+- **节**：用户给定理由引文那一段
+- **类型**：设计
+- **摘要**：模组 jar 本体保持上游原样，魔改只在 KubeJS 与配置 ⇒ 适配器只需对齐上游 API。ATM9 把「整合包私有魔改」这个变量消掉了。
+- **为什么留**：解释了把 ATM9 当第一份材料的核心价值
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 1.2 数据来源（全部可复现）
+- **节**：S1 manifest.json 为唯一权威那张表
+- **类型**：判据
+- **摘要**：五个来源分级：manifest.json 是唯一权威（加载器版本 / 模组数 / projectID / fileID），cfwidget 补 jar 名，mcmod.cn 仅作对照且发现大面积滞后。
+- **为什么留**：定下版本断言该信谁、不该信谁
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 1.2 · 4 KB 拿到权威清单的取证技巧
+- **节**：取尾部 70 KB → 解析 EOCD
+- **类型**：经验教训
+- **摘要**：用 HTTP Range 取 zip 尾部中央目录加 manifest 数据段，约 4 KB 即可拿到权威 JSON；注意 HEAD 返回 200 但 size 为 0，必须用真实 GET。
+- **为什么留**：可直接脚本化的取证方法，含一个误判坑
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 1.3 硬事实
+- **节**：包名 / 版本那行起的那张表
+- **类型**：判据
+- **摘要**：ATM9 1.1.1、2025-10-12 发布、MC 1.20.1、forge-47.4.0、435 模组、包体 49.1 MiB 不含 jar；Alice 侧 forge 47.4.10。
+- **为什么留**：环境锁定基线，后续断言的事实底座
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 2.1 判定：Forge，不是 NeoForge
+- **节**：「三条独立证据」那一段
+- **类型**：判据
+- **摘要**：三条独立证据（S1 声明 primary、S4 标签不含 NeoForge、net.neoforged:forge 在 1.20.1 只到 47.1.106）判定 ATM9 跑在 Forge 上。
+- **为什么留**：堵住一个极易误判加载器的岔路
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 2.2 更正一处公开数据错误
+- **节**：mcmod.cn 的 ATM9 清单里有一行
+- **类型**：经验教训
+- **摘要**：1.20.1 是 NeoForge 借用 Forge 版本号的那一代，很多 jar 打了双加载器标记；这些标记说的是「两种加载器都能跑」，不是「整合包用 NeoForge」，本勘测明确否掉。
+- **为什么留**：防止把双标记 jar 误读成加载器证据
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 2.3 对 Alice 的意义
+- **节**：「一个待实测的小口子」
+- **类型**：判据
+- **摘要**：Alice 与 ATM9 同为 Forge mod，直接可装；但 435 个模组按 47.4.0 编译而 Alice 跑 47.4.10，同一 patch 线内风险低但需实测。
+- **为什么留**：给出「能不能进世界」的第一道门槛
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 3.1 能靠标签 / 只读 capability 覆盖的（C0 / C1）→「省事区」
+- **节**：「先给分母」那张分类表
+- **类型**：判据
+- **摘要**：按 CurseForge 分类给出 435 的分母，两条判据：C0 全部零成本，C1 走标准 capability 通用路径即覆盖绝大多数。
+- **为什么留**：把「环境复杂度」与「Alice 工作量」分清
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 3.2 必须配置驱动的（C3）→「中等成本区」
+- **节**：触发源那张表的多方块结构行
+- **类型**：判据
+- **摘要**：触发 C3 的不是模组数量而是语义不规则：多方块、KubeJS 魔改、跨模组统一、权限区域、连锁破坏、合成歧义、传送网络共 7 类，载体是 PackProfile / WorldProfile。
+- **为什么留**：C3 的七类触发源清单，可直接照做
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 3.3 必须写代码适配器的（C4）→「贵区」，按优先级排序
+- **节**：P0 Mekanism 10.4.15.75 那一行
+- **类型**：判据
+- **摘要**：按四条依据排序 P0 到 P3；结论是 C4 真实规模为「3 个硬骨头加 9 个中等」，不是 435 个。
+- **为什么留**：C4 的优先级与排序依据，防范围膨胀
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 3.4 会推翻现有设计的意外 ★
+- **节**：「有会推翻现有设计的意外吗」小节
+- **类型**：设计
+- **摘要**：四处意外：Lootr 使箱子 per-player、对 Mekanism 是无守卫硬链接且版本更新、Quark 等改原版行为、MineColonies 定位重叠。
+- **为什么留**：本报告最重要一节的入口索引
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 硬伤 ①：Lootr ——「箱子」不再是箱子
+- **节**：「把结构里的战利品容器变成每个玩家一份独立内容」
+- **类型**：设计
+- **摘要**：同一位置的 observation 因观测者而异，账本按位置记账与幂等判定全部失效，且「某玩家拿走的物品永久消失」使跨会话账本失效；建议把容器身份升级为三维。
+- **为什么留**：打穿 transfer 账本，必须在设计里预留
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 硬伤 ②：Alice 自己对 Mekanism 是无守卫的硬链接，且版本比 ATM9 新
+- **节**：「事实链（全部可在仓库内核对）」
+- **类型**：经验教训
+- **摘要**：编译目标比 ATM9 锁定版新一个补丁；无任何在场守卫；LinkageError 不是 RuntimeException，catch 抓不到 ⇒ 异常逃逸而非降级。
+- **为什么留**：当前代码的正确性缺口，成本极小止血
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 硬伤 ③：Quark + AttributeFix + Apotheosis + AI Improvements —— 原版行为被改
+- **节**：「打穿 Alice 的哪条假设」表
+- **类型**：设计
+- **摘要**：Quark 的改动不可枚举、AttributeFix 抬高原版属性上限、Apotheosis 造出精英怪、Fast Leaf Decay 32 打在 J1 时序上；「原版行为如此」的断言不再安全。
+- **为什么留**：逐模组列出被打穿的前提，附待实测项
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 硬伤 ④（非技术，但属设计层）：MineColonies 与 Alice 的定位重叠
+- **节**：「它是一个成熟的殖民地自动化模组」
+- **类型**：设计
+- **摘要**：MineColonies 已有市民实体、独立寻路、建筑蓝图、区域管理与供应链近十年积累，与 Alice 的 D 阶段大面积重叠，是产品定位问题而非适配技术问题。
+- **为什么留**：提示先回答「玩家为什么还要 Alice」
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 4 Alice 现有资产在 ATM9 上的存活率审计
+- **节**：capability/InterfaceScanner
+- **类型**：判据
+- **摘要**：逐资产标存活状态：InterfaceScanner 运行存疑、ChainMining 打空、transfer 被 Lootr 打穿、perception 输入变脏、pathing 新增世界会动。
+- **为什么留**：整包风险落点到具体包，便于排期
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 4.1 重点：InterfaceScanner 的版本对齐
+- **节**：「ATM9 比 Alice 旧」
+- **类型**：判据
+- **摘要**：若 Alice 引用的字段或方法是两版之间新增的，在 ATM9 上必然 NoSuchFieldError / NoSuchMethodError；建议逐字段反编译核对。
+- **为什么留**：可复现的静态核对，成本很低
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 4.2 重点：ChainMining 在 ATM9 上是死代码（但是「正确的死法」）
+- **节**：「ATM9 里有没有 Ore Excavation」那行
+- **类型**：经验教训
+- **摘要**：ATM9 没有 Ore Excavation，反射全落空回到 MOD_ABSENT 静默不可用，但优雅降级是设计好的安全死法；ATM9 真正的连锁模组是 FTB Ultimine。
+- **为什么留**：验证反射加降级架构，并指明替代后端
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 5 可学参考（ATM9 里有、Alice 可以直接抄思路的）
+- **节**：「标签驱动的排除表」那行
+- **类型**：设计
+- **摘要**：七条可抄思路：标签排除表、跨模组统一标签、机器自描述脚本控制、声明式物流程序、传送作为图节点、性能诊断工具、多方块自描述。
+- **为什么留**：现成参考实现清单，含开发期工具
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 6 规模估计（勘测员口径）
+- **节**：「让 Alice 在 ATM9 上能启动、能进世界」那行
+- **类型**：判据
+- **摘要**：能启动 1 到 2 个改动；C0/C1 覆盖整包小；C3 与 C4 首包中；GregTech / Create 大；「比现成模组更有用」很大且属定位问题。
+- **为什么留**：分档规模口径，供排期参考
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 7 给主工作流的建议（候选，非决策）
+- **节**：「最高性价比」那一条
+- **类型**：设计
+- **摘要**：六条候选建议：先修 InterfaceScanner 健壮性、加目标整合包体检流程、容器身份升级、寻路增加动态世界维度、定位先行、不按 435 做预算。
+- **为什么留**：候选人可执行项，含最高性价比项
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 8 待确认清单（必须实测 / 反编译才能定论）
+- **节**：第 1 项 Forge 47.4.10 能否加载
+- **类型**：判据
+- **摘要**：十项待实测，各带确认方式与成本档：Forge 版本、Mekanism 字段、LinkageError、Lootr 分片、Fast Leaf Decay 时序、Quark 模块表等。
+- **为什么留**：待实测项与成本，直接可排期
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 附录 A · 模组版本锁定全清单（435 项）
+- **节**：「本表可当作 Alice 的目标环境锁定表」
+- **类型**：判据
+- **摘要**：433/435 经 cfwidget 匹配（JEI 与 Lionfish API 未命中），与 mcmod.cn 多处差异，以本表为准。
+- **为什么留**：适配器版本断言的权威锁定表
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 补遗 A：整合包独占矿石的价值分档（第 11 项待实测）
+- **节**：「ATM9 的独占矿石既不在 4× 的硬编码表里」
+- **类型**：判据
+- **摘要**：独占矿石既不在 4× 硬编码表也不在原版标签里，落到 1.0× 档，越珍贵的矿预算越紧、方向是反的，可能表现为 enter_target_over_budget；影响面仅限独占高分档矿石。
+- **为什么留**：一条方向反了的预算缺口，附影响面
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 补遗 A · 用户裁定：定性为待实测项，不进通用识别
+- **节**：「不预先判定为代码缺陷」
+- **类型**：判据
+- **摘要**：用户 2026-09-10 裁定：定性为待实测项、不把整合包独占方块加入通用识别表、正确方向是给 4× 档一个标签驱动入口而不是塞模组方块 ID。
+- **为什么留**：用户裁定，决定缺口归属与修法
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 补遗 B：一条被否掉的假设（留档以免重复提出）
+- **节**：「该假设经源码核实为假」
+- **类型**：经验教训
+- **摘要**：初稿怀疑模组工具动态组装会让 FALLBACK_ORDINARY_TICKS 校准失效；经源码核实为假，因为用的是标准原版 API 且该常量几乎不触发，留档以免重复提出。
+- **为什么留**：撤销过的结论，防后续重复提出
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/03-ATM9-勘测报告.md` › 落款 · 只增不改历史结论的写法约定
+- **节**：「本报告只增不改历史结论」
+- **类型**：判据
+- **摘要**：勘测报告落款声明：只增不改历史结论，有新结论时追加「补遗」，不悄悄改写过去说过的话。
+- **为什么留**：文档写入纪律，影响后续修订方式
+- **疑似裁定**：建议（三条，任一都能止血，建议全做）：版本对齐（把 build.gradle 的 Mekanism 依赖改成目标整合包锁定版本）／在场守卫：ModList.get().isLoaded("mekanism") 前置判断——零成本／异常面扩大：catch (RuntimeException) → catch (RuntimeException | LinkageError)（或 Throwable），让版本漂移降级成 CAPTURE_ERROR 而不是逃逸 ／ 建议：把「容器身份」从 (dimension, pos) 升级为 (dimension, pos, viewerScope)，并让 InventoryObservation 显式记录观测者身份与内容是否 per-player。现在不必实现，但必须在设计里预留 ／ 建议：把「物理常量重标定」正式列为整合包入场前的固定流程，而不是一次性动作 ／ 建议在 ATM9 场景下明确一句话：Alice 做 MineColonies 不做的事（例如「在任意位置、任意结构上做一次性真实操作」，而不是「建立固定殖民地」） ／ 用户裁定（2026-09-10）：定性 = 待实测项，不预先判定为代码缺陷；不把整合包独占方块加入通用识别表，应作为特定整合包适配工作的一环（对应蓝图阶段 E / PackProfile），不列入当前通用识别内容；正确方向是给 4× 档一个标签驱动的入口，由整合包适配层提供标签 / profile —— 不是往硬编码列表里塞模组方块 ID。
+
+#### `survey/04-Policy-Gate-勘测.md` › 0.1 对蓝图写法的一处修正
+- **节**：「这不是「一个需要补出的层」，而是三件成熟度完全不同的事」
+- **类型**：设计
+- **摘要**：蓝图 §2.2 说「需要显式补出的层」；勘测判定实际是判定、词表、身份三件成熟度不同的事，浑在一起才显得需要一套大架构。
+- **为什么留**：把一个大架构问题拆成三件小事
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 0.2 四个反直觉的发现
+- **节**：「已经是 Policy Gate 的正确形状」
+- **类型**：设计
+- **摘要**：四条：BlockBreakSafety 已是正确形状（集中式是错方向）、失败词表不是缺失而是倒置、requester 全是 unknown、整合包独占内容不进通用识别（用户裁定）。
+- **为什么留**：本报告四条主结论的浓缩索引
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 0.3 成本窗口（本报告最实用的部分）
+- **节**：「三件事都是接口级改动」那张表
+- **类型**：判据
+- **摘要**：三件事都是接口级改动、成本随调用方线性增长：现在改 3 处，D/E/F 之后要改 30+ 处；都不阻塞 J1–J8 主线。
+- **为什么留**：给出改动越晚越贵的量化理由
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 1.1 已存在的「策略」类（6 个，共 274 行）
+- **节**：pathing/TunnelObstaclePolicy
+- **类型**：判据
+- **摘要**：六个策略类共 274 行，命名统一为 *Policy，但彼此无共享契约：没有共同接口、没有共同返回类型。
+- **为什么留**：现状事实：策略类散落无契约
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 1.2 已存在的「预算」类（4 种形态）
+- **节**：SearchBudget 那行
+- **类型**：判据
+- **摘要**：四种预算形态：搜索节点加毫秒且带取消信号、挖掘按 tick 且分珍贵度档、收集任务常量、GoalSpec 墙钟上限强制大于 0；单位差异是真实的，不应强行统一。
+- **为什么留**：定下「不统一单位」这条口径的依据
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 1.3 已存在的「判定」入口
+- **节**：BlockBreakSafety 那行
+- **类型**：判据
+- **摘要**：四个判定入口，其中 BlockBreakSafety 与 SafeZoneData 都是返回 String（null 表示允许）的形状，隧道与筑路各有一个 Policy。
+- **为什么留**：列出既有判定入口，供统一签名复用
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 1.4 关键：没有统一层
+- **节**：「全仓扫描」那句
+- **类型**：判据
+- **摘要**：全仓扫五个 Profile 名全部 0 命中，没有 PolicyGate、没有 PlanValidator、没有统一 adjudication 入口。
+- **为什么留**：用零命中证据否掉「已有统一层」的猜测
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 2.1 正确样本
+- **节**：「Alice 唯一的方块破坏安全入口」
+- **类型**：设计
+- **摘要**：BlockBreakSafety 的形状证明四件事：单一归属可行、不需要知道调用者、返回理由而非 boolean、内部还区分明确任务目标与执行器自选清障方块。
+- **为什么留**：别的域该照抄的目标形状
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 2.2 因此：集中式 PolicyGate 是错的方向
+- **节**：「建一个 PolicyGate.check(...)」
+- **类型**：设计
+- **摘要**：集中式 PolicyGate 会把已松耦合的东西重新拧成一坨，每加一个域就要加一个 case，最终演变成「必须不断问别人问题的空壳」；正确方向是共享签名、各自实现。
+- **为什么留**：明确否掉集中式门禁这个方向
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 3 子问题二：词表 —— ★ 已存在，但结构倒置
+- **节**：「这是本报告相对前几轮口头讨论的重要修正」
+- **类型**：设计
+- **摘要**：词表不是「缺失」而是「摆错了位置」——这是本报告相对前几轮口头讨论的重要修正。
+- **为什么留**：把「缺失」改判为「倒置」，换掉修法
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 3.1 现状：三层词表，层间映射有损
+- **节**：「① Task 接口」那行
+- **类型**：判据
+- **摘要**：三层词表：Task 接口仅 3 个值、终态记录 6 个值、resultCode 是无约束自由字符串；层间映射有损。
+- **为什么留**：词表倒置问题的结构证据
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 3.2 致命处：映射是单向压扁的
+- **节**：「case FAILED -> complete」那一行代码
+- **类型**：经验教训
+- **摘要**：编排驱动点把任务内部的一切区分全部塌缩成同一个 FAILED，只剩字符串里那点信息。
+- **为什么留**：指出语义丢失发生的确切位置
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 3.3 枚举管的恰好是边角
+- **节**：「即：枚举里的 4 个「特殊值」」
+- **类型**：设计
+- **摘要**：枚举里 4 个特殊值全是「任务之上发生的事」（谁取消、谁拒绝），任务内部发生的事一个都没进枚举，语义重心在字符串里。
+- **为什么留**：点明枚举与语义重心的错位
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 3.4 失败词表的分裂（量化）
+- **节**：「同一个意思有三套词」那张表
+- **类型**：经验教训
+- **摘要**：同一意思三套词（SEARCH_LIMIT vs UNREACHABLE、found_but_unminable、goal_timeout）；挖掘域学乖造了新词但学习没传播，Job 层又混用回去。
+- **为什么留**：量化词表分裂，指出学习未传播
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 3.6 改造性质：很轻
+- **节**：「不是重构控制流，而是」
+- **类型**：设计
+- **摘要**：不是重构控制流：把 TerminalStatus 语义向任务内部延伸补两个值、让 Task 自己返回区分而不是编排层从字符串猜、resultCode 保留为细节但不再是唯一载体。
+- **为什么留**：把改造范围钉死在词表层，防扩大
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 4 子问题三：身份 —— requester 永远是 unknown
+- **节**：「三个全部硬编码」
+- **类型**：设计
+- **摘要**：PathRequest 三个工厂方法全部硬编码 unknown，全仓无一处真正填充；系统里现在没有「谁在请求」这个概念，而这是阶段 G 拦 LLM 越权的前提。
+- **为什么留**：身份缺口的证据与阶段 G 的硬约束
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.1 Authority 的粒度 → 枚举够用
+- **节**：「枚举够用」小结句
+- **类型**：设计
+- **摘要**：授权是身份、范围、否决三件事；范围已有结构（allowedMovementTypes），真正只缺身份一个维度，故一个枚举就够，不要上能力令牌链。
+- **为什么留**：明确最小形状，防止过度设计
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.1.2 顺带发现：一个独立缺陷（建议单独记一笔）
+- **节**：「只有 TransferTask 有优雅中断钩子」
+- **类型**：经验教训
+- **摘要**：中断钩子硬编码 instanceof TransferTask，其它任务一律被杀；全仓 instanceof *Task 共 5 处、3 处针对 TransferTask，会随任务类型增加线性恶化。
+- **为什么留**：已在发生的特判，附正确形状与时机
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.2.1 现状：三套互不相干的额度同时存在
+- **节**：「LumberJob 里三个层次并存」那张表
+- **类型**：判据
+- **摘要**：LumberJob 里 Job 层的 GoalSpec.maxTicks、Task 层硬编码 600、Action 层按硬度算的 MiningBudget 三层并存，彼此无任何关系。
+- **为什么留**：预算三层脱节的具体证据
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.2.2 真实后果
+- **节**：「父 Job 已因 goal_timeout 终止」
+- **类型**：经验教训
+- **摘要**：父 Job 已终止而子任务可能还在跑，或反过来父还剩 5000 tick 而收集任务 600 tick 就放弃；多阶段任务里「子任务耗尽了」这句话不够用。
+- **为什么留**：说清脱节会造成什么实际后果
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.2.3 建议：最小改动是「可归因」，不是「统一」
+- **节**：「不要合并这三个数」
+- **类型**：设计
+- **摘要**：不要合并三个数（量的确实是不一样的东西），只要在耗尽时报出是哪个额度：失败原因带上 budget_owner 与 budget_kind，并配合 Outcome 枚举。
+- **为什么留**：给出最小改动方案，避免无谓统一
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.2.4 附带：整合包独占矿石的价值分档缺口（待实测项）
+- **节**：「真实的缺口在 tierOf()」
+- **类型**：判据
+- **摘要**：先否掉「模组工具导致 6.0 tick 校准失效」这一错误假设；真实缺口在 tierOf 的 4× 档硬编码原版方块、缺标签入口，2× 档反而是可扩展的正例。
+- **为什么留**：撤销一个假设并定位真缺口所在档
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.2.4 · 定性与处置方向（用户 2026-09-10 裁定）
+- **节**：「定性 = 待实测项，不预先判定为代码缺陷」
+- **类型**：判据
+- **摘要**：三条裁定：定性为待实测项不预先判缺陷、不把独占方块加入通用识别表、正确方向是给 4× 档一个标签驱动入口由适配层提供标签。
+- **为什么留**：用户裁定，决定该缺口的归属与修法
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.3.1 蓝图画的 vs 实际存在的
+- **节**：「实际是三个，权威性完全不同」那张表
+- **类型**：设计
+- **摘要**：蓝图只画了一个检查点，实际有三个且权威性不同：计划级预检（尚未实现，只是优化）、动作级断言（唯一权威，保命）、抢占否决（最高优先，无条件）。
+- **为什么留**：纠正图与实物的偏差，标出权威层级
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.3.2 ① 为何不能替代 ②
+- **节**：「项目自己的 D-043（重规划下沉）就是证据」
+- **类型**：设计
+- **摘要**：计划级判断天然会过期（D-043 重规划下沉就是证据），故①该做但只能当便宜的先筛掉、不能作安全依据，②绝不能省且形状已对，③图里没有但真实存在。
+- **为什么留**：说清三层检查点各自不可替代的理由
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 5.3.3 ① 放在哪
+- **节**：「建议放在 Orchestrator 里，不单独设层」
+- **类型**：设计
+- **摘要**：建议把计划级预检放在 Orchestrator 里而不单独设层，因为「这个任务类型要检查什么」的知识天然属于编排，抽一层会变成不断问别人问题的空壳。
+- **为什么留**：给出预检落点，与不集中判定一致
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 6 建议形状汇总
+- **节**：「不要建 PolicyGate 类。建三个小东西」那张表
+- **类型**：设计
+- **摘要**：不要建 PolicyGate 类，建三个小东西加一个独立修复：Authority 枚举、Outcome 四值词表、各域保持分散只统一签名、Task.onInterrupt 默认方法。
+- **为什么留**：本报告的落地形状总表，含成本优先级
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 6.1 唯一需要立刻拍板的设计问题
+- **节**：「LLM 与 PLAYER 的默认权限，相同还是不同？」
+- **类型**：判据
+- **摘要**：唯一需立刻拍板的问题：LLM 与 PLAYER 默认权限相同还是不同。勘测员倾向不同（LLM 更窄需显式提权），但必须由用户拍板，它决定整个安全模型形状。
+- **为什么留**：唯一待拍板项，且约束阶段 G 接入
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 7 与既有勘测的关系
+- **节**：「失败词表分裂、每个域重新发明」那行
+- **类型**：判据
+- **摘要**：四条呼应：词表分裂呼应 survey/02 的结构性病灶、判定该分散呼应其死抽象清单、不阻塞主线呼应 README 约定、独占领石块缺口归整合包适配层。
+- **为什么留**：把本报告结论挂回既有勘测，防孤立
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/04-Policy-Gate-勘测.md` › 8 待确认清单
+- **节**：第 4 项已确认那行
+- **类型**：判据
+- **摘要**：五项待确认：终态 6 值是否真被用到、goal_timeout 出现频率、requester 是否有未落地设计意图、instanceof 分派已确认为 5 处、独占矿石是否真落 1.0× 档。
+- **为什么留**：待确认项与成本，含一项已完成
+- **疑似裁定**：勘测结论：这不是「一个需要补出的层」，而是三件成熟度完全不同的事。浑在一起看，才会显得需要一套大架构 ／ 4. 整合包独占内容不进通用识别（用户 2026-09-10 裁定）。例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，应作为特定整合包适配工作的一环（蓝图阶段 E / PackProfile），不列入当前通用识别内容 ／ 结论：enum Authority { PLAYER, LLM, TEST, SYSTEM } 就够，不要上能力令牌链 ／ 不要合并这三个数（它们量的确实是不一样的东西）。只要在耗尽时报出是哪个额度 ／ 正确形状：提到接口上 —— default void onInterrupt(String reason) { }（Task 上的默认空实现）。改动极小（一个 default 方法 + 删掉 instanceof），但必须在 D/E 之前做，否则会长出五套中断协议 ／ 建议放在 Orchestrator 里，不单独设层 ／ 不要建 PolicyGate 类。建三个小东西：① Authority ② Outcome ③ 判定保持分散、只统一签名 ／ 外加一个独立修复：④ Task.onInterrupt ／ 唯一需要立刻拍板的设计问题：LLM 与 PLAYER 的默认权限，相同还是不同？勘测员倾向：不同（LLM 更窄，需玩家显式提权）。但这必须由用户拍板 ／ 三件事都是接口级改动……都不阻塞 J1–J8 主线 ／ *本报告只增不改历史结论；有新结论时追加「补遗」，不悄悄改写过去说过的话。*
+
+#### `survey/05-任务发布与交互勘测.md` › 就地标记 · 批 1 判决 ⌛ 已过期
+- **节**：文件头引用块「2026-10-04 · 就地标记」
+- **类型**：经验教训
+- **摘要**：本件被判过期，现行载体是 LLM 决策框架两份文档与最新任务队列草案；原文一字不改，仅加沿革指针。
+- **为什么留**：过期标记本身即判据，且指出任务发布与交互设计部分已过时。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 0.1 已拍板的三项决定（用户 2026-09-10）
+- **节**：0.1 已拍板的三项决定
+- **类型**：判据
+- **摘要**：NL 只生成草稿、表单是唯一真值；玩家离线时前置资源任务进队列等；授权信封粒度 = per-bot。
+- **为什么留**：三条上游拍板，是交互层与队列设计的前提。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 0.2 两条新增设计的核心结论
+- **节**：0.2 两条新增设计的核心结论
+- **类型**：判据
+- **摘要**：壁垒的内容项目里已长出来：不变式 = 不可授予 = 壁垒；默认任务与队列、待机三样完全不存在，编排层是单任务槽位直接替换。
+- **为什么留**：给出壁垒的判断标准，并点明默认任务要从零做。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 0.3 一条重要统一（本报告最有价值的部分）
+- **节**：0.3 一条重要统一
+- **类型**：设计
+- **摘要**：「进队列等」与「默认任务」是同一件事：任务无法推进时应回默认任务，触发器是完成／失败／阻塞等待三个。
+- **为什么留**：把离线队列与默认任务统一成一个状态机。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 0.4 一个命名冲突（建议动工前先处理）
+- **节**：0.4 一个命名冲突
+- **类型**：经验教训
+- **摘要**：项目里有两个 GoalSpec：pathing 接口与 job record；再加任务发布层就会有第三个，建议先给其一改名（如 PathGoal）。
+- **为什么留**：同名类即红，动工前必须先消歧。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 1. 误判成本不对称 —— 整个交互层的锚点
+- **节**：1. 误判成本不对称
+- **类型**：设计
+- **摘要**：把对话误判成任务不可逆，把任务误判成对话只损失一次交互；故正解是 LLM 只建议、不负责任命，表单是确认界面。
+- **为什么留**：交互层总原则：LLM 分类 = 建议，表单 = 确认。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.1 三层模型
+- **节**：2.1 三层模型
+- **类型**：设计
+- **摘要**：允许(请求) ⟺ 请求所需权限 ≤ 当前信封 ≤ 最高壁垒；②由玩家可调，③由系统/世界设定且任何人不可越。
+- **为什么留**：壁垒的形式化定义与可变性边界。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.2 ★ 壁垒的内容项目里已经长出来了
+- **节**：2.2 ★ 壁垒的内容项目里已经长出来了
+- **类型**：判据
+- **摘要**：不变式（D-024 局部可回收性）不可授予 = 壁垒，策略类可配置可授予。判据：玩家可授予自己资源与风险偏好的处置权，不可授予破坏 bot 可回收性或世界不变式的权力。
+- **为什么留**：现成的壁垒判据，不必重新发明。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.3 「直接失败」的含义：不可升级的拒绝
+- **节**：2.3 「直接失败」的含义
+- **类型**：判据
+- **摘要**：可升级的拒绝要问玩家提权，壁垒违反必须立即终结、不询问不重试；混在一起会让 LLM 退化回猜自然语言。两个检查点各需自己的表达方式。
+- **为什么留**：REFUSED 与壁垒违反的分界及各自处置。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 3.1 现状：三样都没有
+- **节**：3.1 现状：三样都没有
+- **类型**：判据
+- **摘要**：任务队列、默认任务均不存在（beginTask 直接赋值覆盖）；待机隐含存在但未建模，clearTask 后 task == null。
+- **为什么留**：起点事实，决定新增状态机落在哪里。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 3.2 ★ 回退到默认任务的三个触发器
+- **节**：3.2 ★ 回退到默认任务的三个触发器
+- **类型**：设计
+- **摘要**：完成／失败／阻塞等待（REFUSED 待提权、AMBIGUOUS 待选择、前置资源离线）。第 3 个是精髓：不是新增等待状态，而是挂起＋回默认任务＋可恢复。
+- **为什么留**：「进队列等」的正确实现口径。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 3.3 状态阶梯
+- **节**：3.3 状态阶梯
+- **类型**：设计
+- **摘要**：发布任务→（完成/失败/阻塞等待）→默认任务→（无法继续）→待机，维生系统正交始终运行；失败≠停止、默认任务永不弹出、待机是合法终态。
+- **为什么留**：含三条性质的状态机契约。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 3.4 维生系统的位置（与 survey/04 呼应）
+- **节**：3.4 维生系统的位置
+- **类型**：判据
+- **摘要**：权限看「我能要求什么」（玩家最大），优先级看「谁能叫停谁」（维生最高）；默认任务与待机下维生照常可打断，不因新状态机改变。
+- **为什么留**：红线：维生打断权不得被新状态机削弱。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 4.1 词表从 4 → 5 → 6：一次自我审查
+- **节**：4.1 词表从 4 → 5 → 6
+- **类型**：判据
+- **摘要**：因歧义与壁垒违反新增 AMBIGUOUS、FORBIDDEN；准入判据是每个词必须有独占的处置动作，六词处置两两不同才通过。
+- **为什么留**：扩词表的准入判据，防词表分裂。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 4.2 词表 × 生命周期（直接决定回退行为）
+- **节**：4.2 词表 × 生命周期
+- **类型**：判据
+- **摘要**：给出每个结果词的可恢复性、是否占用队列、是否回退默认任务；除 DONE 之外全都回退，即「默认任务永不弹出」的含义。
+- **为什么留**：词表与回退行为的对齐表。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 4.3 AMBIGUOUS 与 ATM9 的 Polymorph 同构
+- **节**：4.3 AMBIGUOUS 与 Polymorph 同构
+- **类型**：设计
+- **摘要**：Polymorph「一个配方多个产出由玩家在 UI 里选」与「输入铁」的例子同构，说明多候选→玩家消歧是该领域标准解法。
+- **为什么留**：为歧义消解提供现实先例。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 5. 前置资源：从两态到四态
+- **节**：5. 前置资源：从两态到四态
+- **类型**：判据
+- **摘要**：有货自动去拿；点里没货或点不可达都归 EXHAUSTED（不是问玩家）；没固定点且没填才 AMBIGUOUS 问玩家自取。混在一起会误报并掩盖真实问题。
+- **为什么留**：四态分类及其结果词映射。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 5.1 离线边界（用户已拍板）
+- **节**：5.1 离线边界
+- **类型**：判据
+- **摘要**：玩家离线＋第 4 态 → 进队列等；实现是挂起该任务→回默认任务→玩家回来恢复，不是新增等待状态、不是静默自取、不是失败。
+- **为什么留**：用户裁定的离线处理口径。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6. 表单设计：参考建议
+- **节**：6. 表单设计：参考建议
+- **类型**：判据
+- **摘要**：用户已说明表单形态不是勘测员负责的内容；以下仅为参考建议，不是交付物，也不构成设计约束。
+- **为什么留**：职责边界声明，防止参考建议被当约束。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6.1 已有的成熟参照（ATM9 内即可取材）
+- **节**：6.1 已有的成熟参照
+- **类型**：设计
+- **摘要**：JEI 搜索栏、Almost Unified、FTB Quests 编辑 UI、Polymorph、SFM 程序编辑器，均已在整合包内可直接开箱比对。
+- **为什么留**：现成 UI 参照清单，降低设计风险。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6.2 ① 自然语言必须是「草稿生成器」，不能是并行入口
+- **节**：6.2 ① 自然语言必须是草稿生成器
+- **类型**：判据
+- **摘要**：NL 与表单若并行则冲突时无法裁决；正解是 NL 解析结果填进表单，表单是唯一真值。
+- **为什么留**：与已拍板决定 1 一致的实现约束。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6.2 ② 表单字段的 schema 要跟着任务类型走，不要集中
+- **节**：6.2 ② 表单字段的 schema
+- **类型**：设计
+- **摘要**：不要写中央 switch(taskType)；任务类型自己声明字段，交互层只负责渲染。现状 job/GoalSpec 字段定死 7 个，需每种 kind 自己一组。
+- **为什么留**：schema 归属必须现在定对，否则阶段 E 变巨型 switch。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6.2 ③ 建议先命令式、后图形化
+- **节**：6.2 ③ 建议先命令式
+- **类型**：设计
+- **摘要**：先做命令式参数（如 /alice mine iron 50）可立刻验证 schema，图形化只换渲染层；先图形化会把 bug 藏进 UI。
+- **为什么留**：降低工期风险的落地顺序。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6.2 ④ 候选下拉的数据来源
+- **节**：6.2 ④ 候选下拉的数据来源
+- **类型**：设计
+- **摘要**：候选源 = Registry 精确 ID ＋ Tag 两套并列；不匹配注册名时交 LLM 识别；格雷系自有矿系与化学体系，候选量大需分级展示或按 profile 收敛。
+- **为什么留**：候选数据源与 GregTech 规模风险。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 6.3 GUI 现状（决定工期）
+- **节**：6.3 GUI 现状
+- **类型**：判据
+- **摘要**：服务端→客户端→网络三段管道都已通、可复用；但现有是槽位式容器菜单，文本输入式自定义 Screen 的控件要自己画，工作量不应低估。
+- **为什么留**：复用面与自研面的边界，直接决定工期。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 7. 代码现状盘点（供主工作流核对）
+- **节**：7. 代码现状盘点
+- **类型**：判据
+- **摘要**：任务发布请求层、队列、默认任务、授权信封、提权全不存在；壁垒部分存在但未抽象；权限检查存在但不统一；GUI 管道已存在。当前可发布任务 9 个。
+- **为什么留**：带证据的现状表，供核对与排期。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 8. 待确认清单
+- **节**：8. 待确认清单
+- **类型**：判据
+- **摘要**：八条待确认：FORBIDDEN 归属、信封默认宽度、提权粒度、挂起保留多久、默认任务设置方式、队列粒度、候选规模、待机是否主动报告。
+- **为什么留**：待用户拍板项清单。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 9.1 一个尚未解决的交叉点（需重点关注）
+- **节**：9.1 一个尚未解决的交叉点
+- **类型**：设计
+- **摘要**：插入前置子任务时「预算三层互不相干」的缺口爆发：从谁额度扣、父超时子还在跑、挂起恢复后已耗额度怎么算；必须一起想。
+- **为什么留**：定向到 06 草案的未解问题。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 0：本轮拍板汇总
+- **节**：补遗 0：本轮拍板汇总
+- **类型**：判据
+- **摘要**：八条拍板：FORBIDDEN 单列；默认信封＝能做计划、不能动世界；提权绑定具体任务目标；挂起主判据＝世界前提；QUEUE_COMMIT 不给；挂起上限 3；子任务继承提权不可反向。
+- **为什么留**：本轮八条拍板的唯一汇总入口。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 1：默认信封的边界——蓝图里已经写好了
+- **节**：补遗 1：默认信封的边界
+- **类型**：判据
+- **摘要**：蓝图已写明 LLM 不负责宣告成功、自行扩权、猜槽位，负责解析目标、从候选选择、请求用户信息；结论：默认信封＝能做计划，不能动世界。该约束目前只活在文档里。
+- **为什么留**：默认信封口径与其代码缺口。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 2：信封结构
+- **节**：补遗 2：信封结构
+- **类型**：设计
+- **摘要**：record Envelope 字段：authority／grants／scope／grantedBy／grantedAt／expiresAt；提权绑定到具体目标，null＝长期。
+- **为什么留**：信封的数据契约。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.1 Grant 集合（按「动不动世界」分层）
+- **节**：2.1 Grant 集合
+- **类型**：判据
+- **摘要**：默认给 LLM：QUEUE_SUGGEST／PARAM_SET／QUEUE_REORDER／TASK_CANCEL；需提权：世界修改层＋QUEUE_COMMIT；DECLARE_DONE 永不授予。
+- **为什么留**：默认授权面与需提权面的分层表。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.2 DECLARE_DONE 为何是壁垒而非提权项
+- **节**：2.2 DECLARE_DONE 为何是壁垒
+- **类型**：判据
+- **摘要**：蓝图明令 LLM 不负责宣告成功；这不是危险而是职责错配，完成判据必须来自服务端事实，故不随时间或提权改变。
+- **为什么留**：壁垒的第二个实例及其理由。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.3 RESOURCE_SELF_FETCH 为何不单设（拍板 6）
+- **节**：2.3 RESOURCE_SELF_FETCH 为何不单设
+- **类型**：判据
+- **摘要**：自取会实际触发世界修改；若单设会出现有自取却无 MOVE_BREAK 的半通状态。正解是不设，自取直接落到已有世界修改 grants。
+- **为什么留**：少一个概念且不留半通状态。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 2.4 权限检查
+- **节**：2.4 权限检查
+- **类型**：判据
+- **摘要**：允许(请求) ⟺ 请求所需 grants ⊆ 当前信封 grants ⊆ 最高壁垒；壁垒内容沿用 D-024 局部可回收性不变式。
+- **为什么留**：信封判定的最终形式。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 3：QUEUE_COMMIT 与责任转移（本轮最重要的机制）
+- **节**：补遗 3：QUEUE_COMMIT 与责任转移
+- **类型**：设计
+- **摘要**：QUEUE_SUGGEST 与「表单是唯一真值」一致，QUEUE_COMMIT 会让 LLM 绕过表单；拍板：不默认给 LLM，但保留责任转移机制。
+- **为什么留**：核心机制的由来与拍板。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 3.3 ★ 责任转移：确认即转移
+- **节**：3.3 ★ 责任转移：确认即转移
+- **类型**：设计
+- **摘要**：LLM 建议＋玩家确认 → 任务以 PLAYER 权限运行；LLM 自主（已得 QUEUE_COMMIT）→ 以 LLM 运行；故绝大多数任务的执行主体是 PLAYER。
+- **为什么留**：自动同时满足自由与安全。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 3.4 为什么这比"直接给 LLM 提权"更好
+- **节**：3.4 为什么这比直接提权更好
+- **类型**：设计
+- **摘要**：默认路径不需提权、玩家体验无摩擦；LLM 自主权是显式授予的；出问题能明确回答「这是谁授权跑的」，由 grantedBy 承载。
+- **为什么留**：责任转移的三条收益。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 4：提权生命周期（拍板 3 / 8）
+- **节**：补遗 4：提权生命周期
+- **类型**：判据
+- **摘要**：Escalation 绑定 GoalRef；生效于该任务与派生（前置）子任务；不可反向、跨 bot 不继承；任务到终态自动撤销，挂起时保留，壁垒项永不撤销。
+- **为什么留**：提权规则的完整生命周期表。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 4.3 GoalRef 的定义
+- **节**：4.3 GoalRef 的定义
+- **类型**：判据
+- **摘要**：建议 = 发布时分配的 UUID ＋ 任务类型；用 UUID 而非类型/位置，使「取消后重新发布」不会误继承旧提权。
+- **为什么留**：GoalRef 的取值口径及其理由。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 4.4 ⚠️ 与预算继承同源（正文 §9.1 未解决项）
+- **节**：4.4 与预算继承同源
+- **类型**：设计
+- **摘要**：子任务继承父任务权限已答为继承，额度继承仍未答；两者同属「父子任务的资源传递」同一族问题，建议一起定。
+- **为什么留**：指向 06 草案的待解问题。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 5：挂起任务保留策略（拍板 4 / 7）
+- **节**：补遗 5：挂起任务保留策略
+- **类型**：判据
+- **摘要**：核心原则：不用纯计时器，主判据＝世界前提是否成立。挂 8 小时若前提还在应恢复，挂 2 分钟若目标已被挖走则恢复就是错的。
+- **为什么留**：挂起保留的主判据。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 5.2 判据表
+- **节**：5.2 判据表
+- **类型**：判据
+- **摘要**：五条：世界前提失效（主）→立即 FAILED；tick 上限 24000 兜底；玩家回来（主路径）→恢复；被新任务替换；挂起超 3 个淘汰最旧。
+- **为什么留**：可复算的挂起失效／恢复判据表。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 5.3 ★ 恢复时重新规划，不重放旧计划
+- **节**：5.3 ★ 恢复时重新规划
+- **类型**：设计
+- **摘要**：挂起时只保存目标、不保存计划，因为计划是对世界的假设；副产品是失效判定极简——只需检查目标是否还存在。
+- **为什么留**：与 D-043 同精神，且简化失效判定。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 5.4 关于 24000
+- **节**：5.4 关于 24000
+- **类型**：经验教训
+- **摘要**：它几乎不会在单机触发（玩家离线＝服务器停了＝不涨 tick），只在专用服务器上有意义；数值不关键，关键是主判据不是它。
+- **为什么留**：防止把兜底阈值误当主判据。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 6：落地与验证路径（顺带发现，对主工作流可能有用）
+- **节**：补遗 6：落地与验证路径
+- **类型**：判据
+- **摘要**：CI 只跑编译、无 src/test；BotSelftest 913 行 13 用例与 86 个 mcfunction 场景已存在。信封／队列／权限是纯逻辑，可挂 headless，成本低一个数量级。
+- **为什么留**：验证路径的成本差一个数量级。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/05-任务发布与交互勘测.md` › 补遗 7：更新后的待确认清单
+- **节**：补遗 7：更新后的待确认清单
+- **类型**：判据
+- **摘要**：八条中 1、2、3、4、6 已拍板／已定，5、7、8 待定或待实测，并新增第 9 条：子任务的额度继承（与权限继承同源）。
+- **为什么留**：拍板状态一览，含新增第 9 项。
+- **疑似裁定**：★ 就地标记（2026-10-04）：用户逐字「过期，已经没有价值，LLM决策框架要见最新的任务队列草案，除此之后的设计已经过期」 ／ §0.1 决定 1（用户 2026-09-10）：NL 只生成草稿，表单是唯一真值 ／ §0.1 决定 2：玩家离线时，前置资源任务进队列等 ／ §0.1 决定 3：授权信封粒度 = per-bot ／ 用户原话（§2.1）：「玩家可以给 LLM 提权，让他自助决定一些本来要用户授权的任务，但是有最高权限壁垒，无论什么权限，遇到自己无法决定的事都应该直接失败。」 ／ 用户对状态阶梯第 3 条的表述：「这个任务没办法继续进行了，就只能进去待机状态了，当然维生系统还在运行。」 ／ §5.1：玩家离线 + 第 4 态 → 进队列等（用户裁定） ／ 补遗 0 拍板 1：`FORBIDDEN` 是否单列 ✅ 单列（不可升级的拒绝与可升级的拒绝必须分开） ／ 补遗 0 拍板 2：信封默认宽度 ✅ 能做计划，不能动世界；`QUEUE_COMMIT` 不默认 ／ 补遗 0 拍板 3：提权粒度 ✅ 绑定到「完成一个具体任务目标」为止 ／ 补遗 0 拍板 4：挂起保留时间 ✅ 主判据 = 世界前提是否成立，tick 上限仅作兜底 ／ 补遗 0 拍板 5：`QUEUE_COMMIT` 默认 ✅ 不给 LLM，改为责任转移机制 ／ 补遗 0 拍板 6：`RESOURCE_SELF_FETCH` ✅ 不单设，落到已有世界修改 grants ／ 补遗 0 拍板 7：挂起上限 ✅ 3 个，超出淘汰最旧 ／ 补遗 0 拍板 8：子任务继承父任务提权 ✅ 继承，不可反向 ／ 补遗 3.2：`QUEUE_COMMIT` 不默认给 LLM，但保留责任转移机制 ／ 补遗 7：1、2、3、4 ✅ 已拍板，6 ✅ 已定（队列 per-bot）
+
+#### `survey/06-额度继承草案.md` › 0.1 本草案的核心命题
+- **节**：0.1 本草案的核心命题
+- **类型**：设计
+- **摘要**：「额度继承」本身是歧义词：时间类资源只能共享（父扣子也扣），配额类只能分配（父给子上限）；混为一谈是所有混乱的根源。
+- **为什么留**：全篇的统一命题。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 0.2 ★ 勘测中发现一个真实缺陷（本草案的活标本）
+- **节**：0.2 ★ 勘测中发现一个真实缺陷
+- **类型**：经验教训
+- **摘要**：同一常量 MAX_CLEAR_PER_TREE 在扫描里是每棵、在执行里是整个 Job；累计用掉 8 格后每棵额度为 0，后续清障树全以 :clear_budget 失败，属潜伏缺陷。
+- **为什么留**：scope 不一致的教科书标本与后果链。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 0.2 · 事后核实：本条已过时（2026-09-14）
+- **节**：0.2 内的「2026-09-14 事后核实」块
+- **类型**：经验教训
+- **摘要**：缺陷在 2026-09-10 就被修掉（清障预算按棵计），旧 job 级字段已删，引用行号与当前文件对不上，不要把本条当现役工作单。
+- **为什么留**：撤销过的结论，防止照旧单动手。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 0.3 六条设计规则（草案）
+- **节**：0.3 六条设计规则
+- **类型**：判据
+- **摘要**：scope 一致性、两类传递、预留、级联取消、挂起冻结、可归因——六条各一句话。
+- **为什么留**：全篇规则的索引。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 1.1 全量清点
+- **节**：1.1 全量清点
+- **类型**：判据
+- **摘要**：七种额度的单位／实际 scope／注释声称／一致性：三种 scope 都合法，问题不在多样而在没人声明；CollectDrops 的 600 靠每棵 new 实例隐式重置。
+- **为什么留**：额度现状的事实基线。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 1.2 现状小结
+- **节**：1.2 现状小结
+- **类型**：判据
+- **摘要**：额度声明、scope 归属、父子传递、预留、级联取消、挂起冻结全无；失败归因只有不带 owner 的字符串。
+- **为什么留**：缺口清单，与六条规则一一对应。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 2.1 问题本质
+- **节**：2.1 问题本质
+- **类型**：设计
+- **摘要**：额度 = (name, scope, unit)，scope 是「谁能扣、何时重置」；继承的本质 = 子任务的 scope 比父小，从父的池里扣。
+- **为什么留**：额度与继承的定义。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 2.2 三种合法 scope
+- **节**：2.2 三种合法 scope
+- **类型**：判据
+- **摘要**：JOB 累计只减不增、UNIT 每单位重置、ACTION 每次动作独立，并各给现有实例。
+- **为什么留**：scope 的可选值域。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 2.3 ★ 规则
+- **节**：2.3 ★ 规则
+- **类型**：判据
+- **摘要**：任何限额都必须显式声明 scope；计数器的 scope 必须与限额的 scope 一致（clearedBlocks 正违反后半句）。
+- **为什么留**：规则 1 的正文。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 2.4 修法（两条路，需用户裁定）
+- **节**：2.4 修法
+- **类型**：判据
+- **摘要**：A 重置并改名（恢复每棵 8 格的原意图，勘测员倾向）；B 改名并把限额乘配额（改变意图，与常量名及文档冲突）；progressSummary 的 cleared= 语义不明。
+- **为什么留**：两条修法与会偏向。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 3.1 关键区分
+- **节**：3.1 关键区分
+- **类型**：判据
+- **摘要**：时间类不可再生、必须共享（共享池）；配额类可再生、不能共享（父给子上限）。
+- **为什么留**：规则 2 的核心二分。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 3.2 为什么这个区分是根本的
+- **节**：3.2 为什么这个区分是根本的
+- **类型**：设计
+- **摘要**：时间不可能凭空生出来，子任务「自己的 600 tick」实际会变成 600×子任务数的爆炸；配额则可以有意义地授予。
+- **为什么留**：二分的物理理由。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 3.3 规则
+- **节**：3.3 规则
+- **类型**：判据
+- **摘要**：时间类资源 → 共享池（父子从同一池扣）；配额类资源 → 配额分配（父给子上限，子用完报 EXHAUSTED）。
+- **为什么留**：规则 2 的判据化表述。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 3.4 映射到现有代码
+- **节**：3.4 映射到现有代码
+- **类型**：判据
+- **摘要**：逐条给出应改成什么；CollectDrops 的 600 同时是时间与配额，建议拆成（从父池扣的真实耗时，父授予的上限）二元组。
+- **为什么留**：把规则落到现有额度上。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 4.1 问题（survey/05 §9.1 提出）
+- **节**：4.1 问题
+- **类型**：判据
+- **摘要**：前置子任务若与主任务共享父时间池，前置可能吃光父的时间，导致主任务还没开始就超时。
+- **为什么留**：预留要解决的问题。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 4.2 规则
+- **节**：4.2 规则
+- **类型**：判据
+- **摘要**：父任务为前置子任务预留额度，预留部分不可被主任务挪用，反之亦然；算例 600 = 预留 150 ＋ 主任务 450，前置超出以 EXHAUSTED 结束。
+- **为什么留**：规则 3 的正文与算例。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 4.3 为什么预留是必须的
+- **节**：4.3 为什么预留是必须的
+- **类型**：设计
+- **摘要**：不留预留只有两种坏结果：前置吃光致主任务必失败，或主任务优先致前置永远做不完；预留是唯一让两者都输得起。
+- **为什么留**：预留的必要性论证。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 4.4 与蓝图的一致性
+- **节**：4.4 与蓝图的一致性
+- **类型**：设计
+- **摘要**：蓝图已把 Policy Gate 写成「库存守恒、材料预留、容量和危险检查」，本节的额度预留是同一思路在时间维度上的补齐。
+- **为什么留**：说明它不是新概念。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 5.1 现状：未定义
+- **节**：5.1 现状：未定义
+- **类型**：经验教训
+- **摘要**：父超时 finish(FAILED) 时，仍在 RUNNING 的 miner／clearTask／collector 状态未定义（finish 不触碰它们）。
+- **为什么留**：孤儿任务缺口的现场。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 5.2 规则
+- **节**：5.2 规则
+- **类型**：判据
+- **摘要**：父任务到终态 → 所有在途子任务级联取消；理由：子任务是父的组成部分，没有独立存在的意义。
+- **为什么留**：规则 4 的正文与理由。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 5.3 ⚠️ 依赖：优雅中断钩子
+- **节**：5.3 依赖：优雅中断钩子
+- **类型**：设计
+- **摘要**：级联取消要求每个任务都能优雅中断，而现状只有 TransferTask 有钩子；必须先做 Task.onInterrupt(String)，两件事必须一起做。
+- **为什么留**：级联取消的前置契约。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 5.4 一个必须小心的边界
+- **节**：5.4 一个必须小心的边界
+- **类型**：判据
+- **摘要**：级联取消（父任务终态，任务层内部）≠ 维生中断（SurvivalSystem，优先级最高）；维生中断不因级联取消而改变。
+- **为什么留**：防止两种中断被混为一谈。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 6.1 问题（survey/05 §4.4 提出）
+- **节**：6.1 问题
+- **类型**：判据
+- **摘要**：挂起 8 小时恢复：墙钟继续累计则任务必然超时（挂起＝慢性死亡），完全重置则可靠挂起刷额度而失去预算的意义。
+- **为什么留**：挂起定额的两难。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 6.2 规则
+- **节**：6.2 规则
+- **类型**：判据
+- **摘要**：挂起期间冻结活动 tick，配额类保留已消耗；恢复后剩余 = 总额 − 挂起前已消耗。
+- **为什么留**：规则 5 的正文。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 6.3 为什么必须区分
+- **节**：6.3 为什么必须区分
+- **类型**：设计
+- **摘要**：挂起期间 bot 在做默认任务、没有推进该任务，计入预算不合理；已砍的树是真的砍了，那是已完成的工作而非额度。
+- **为什么留**：冻结与保留各自的理由。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 6.4 与 survey/05 §5.3 的呼应
+- **节**：6.4 与 survey/05 的呼应
+- **类型**：设计
+- **摘要**：配额是进度（喂给规划器的输入），计划是对世界的假设（必须重建），两者层次不同，故配额保留与「只存目标」不冲突。
+- **为什么留**：消解两处结论的表面冲突。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 7.1 问题
+- **节**：7.1 问题
+- **类型**：判据
+- **摘要**：现状耗尽只报字符串（:clear_budget／enter_target_over_budget／goal_timeout），不带 owner，上层无法判断是谁的额度耗尽。
+- **为什么留**：归因缺口的现状。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 7.2 规则
+- **节**：7.2 规则
+- **类型**：判据
+- **摘要**：报 (name, scope) 而不只报「超预算」；EXHAUSTED 应携带 budget／scope／used／limit。
+- **为什么留**：规则 6 的正文与字段。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 7.3 为什么这条最关键
+- **节**：7.3 为什么这条最关键
+- **类型**：设计
+- **摘要**：EXHAUSTED 的处置是「加预算重试」，不知道是谁的额度耗尽就无法决定加哪一个；也是多层任务失败向上传递成立的前提。
+- **为什么留**：归因决定上层能否正确决策。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 8.1 不建「预算框架」，先做三件小事
+- **节**：8.1 不建预算框架
+- **类型**：判据
+- **摘要**：① 修 clearedBlocks 的 scope（1 行重置＋改名）② 给现有额度加 scope 声明 ③ Task.onInterrupt 钩子；都不需要新抽象层。
+- **为什么留**：最小实现清单与成本。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 8.2 暂不做的
+- **节**：8.2 暂不做的
+- **类型**：判据
+- **摘要**：BudgetLedger 抽象层次未知（只有 1 个 Job 消费者）；预留需前置子任务场景先存在；挂起冻结需挂起机制先存在。草案价值在规则与判据，不在数据结构。
+- **为什么留**：克制边界：不拿架构换还没遇到的问题。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 8.3 落地路径
+- **节**：8.3 落地路径
+- **类型**：判据
+- **摘要**：额度／权限是纯逻辑，可挂 BotSelftest 走 headless，不需要 WINDOWS_CLIENT，成本低一个数量级。
+- **为什么留**：验证方式与成本。
+- **疑似裁定**：（无）
+
+#### `survey/06-额度继承草案.md` › 10. 待确认清单
+- **节**：10. 待确认清单
+- **类型**：判据
+- **摘要**：七条待确认：clearedBlocks 修法 A/B、600 改共享池或 UNIT、预留比例、级联取消是否保留已产出、挂起冻结是否覆盖子任务、8 格是否够、是否暴露剩余额度。
+- **为什么留**：待用户裁定项与勘测员倾向。
+- **疑似裁定**：（无）
+
+#### `survey/07-方向审核-20260914.md` › 0. 结论速览
+- **节**：结论速览 · 方向是对的，但它不是新功能
+- **类型**：判据
+- **摘要**：方向正确且近期工作价值最高，但最高价值不是新功能；模组适配没有终点线（分母=ATM9 的 435 个模组）是最重要的战略问题。
+- **为什么留**：六条结论给出本轮审核的全部判断基线。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 1.2 代码模块分布（**本报告关键数据**）
+- **节**：模块分布表「25 107 / task/ / 39.8%」
+- **类型**：判据
+- **摘要**：`task/` 以 25 107 行占 39.8%，正是生产面与夹具面混住之处；内核 `pathing/` 只占 11.1%。
+- **为什么留**：面积最大模块＝夹具混住处，是后续分离决策的量化依据。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 2.1 事实（引自审查 §1.5，本报告复核确认）
+- **节**：夹具是否进发布 jar ⇒ **是**（全部）
+- **类型**：判据
+- **摘要**：夹具与生产任务同包且全部进发布 jar；`task/` 顶层 38/74 是诊断件，`item/` 测试入口 40 个，注册物品 73 个。
+- **为什么留**：可复算命令与数字，是“夹具混入生产”的验收口径。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 2.2 判断：这是台账自我生成的**代码版**
+- **节**：每做一个新东西，就生成一套属于自己的验证装置
+- **类型**：经验教训
+- **摘要**：代码层复现了文档层台账自我生成的同一形态：每做一个新东西就生成一套与本体一样大的验证装置，只是载体从 `docs/` 变成 `task/` 与 `item/`。
+- **为什么留**：把文档层病根识别为代码层同构，是防复发的核心教训。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 2.4 建议：把 T4 的一小块**单独提前**
+- **节**：提前 | 夹具移出生产包 / 移出发布 jar
+- **类型**：设计
+- **摘要**：只把“夹具移出生产包／移出发布 jar”从 T4 提前，纯移动不改逻辑；包图 SCC、`task/mining` 外移、大范围 rename 维持缓做。
+- **为什么留**：划定提前与缓做的边界，含误删寻路段先例的限定条件。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 3.2 判断：**边际成本很便宜，但它是「每模组」成本，而分母是 435**
+- **节**：这与台账自我生成是同一个陷阱，只是换了个维度
+- **类型**：经验教训
+- **摘要**：单模组边际成本很便宜，但按当前节奏适配完科技模组是几个月且没有天然停止点；这与台账自我生成是同一陷阱换了维度。
+- **为什么留**：解释了“每个模组都像可收口闭环”为何是无底洞。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 3.3 解法已在蓝图 §1.2 里（且用户自己的实验刚好证明了它）
+- **节**：这条路线是模组无关的
+- **类型**：设计
+- **摘要**：蓝图 §1.2「玩家定义的模拟 AE」只要输入／输出／缓存端点 + 插入提取（C1/C2 级别）+ 完成判据；机器自己会干活，Alice 不需要理解它。
+- **为什么留**：给出模组无关的登记流水线路线及其最小契约。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 3.4 两条路线的成本曲线对比
+- **节**：成本曲线 | **常数** | **线性 × 435**
+- **类型**：判据
+- **摘要**：登记流水线（阶段 D）模组无关、只需 C1/C2、成本常数；机器理解（3-B）逐模组、需 C4、成本线性 × 435。
+- **为什么留**：两条路线的选型尺子，可直接复用比较。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 3.5 ★ 建议：把模组适配从「覆盖率驱动」改成「需求驱动」
+- **节**：只为实际存档里真正用到的东西做适配
+- **类型**：判据
+- **摘要**：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”；开销上限 = 用户实际玩到哪儿。须在 Create/EC 之前采纳。
+- **为什么留**：唯一能防无限适配的机制，且有时效性要求。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 4.3 判断
+- **节**：若决策层立不起来，它就是一个非常好的自动化框架
+- **类型**：判据
+- **摘要**：执行层基本可用、任务层已有闭环、决策层很早期；决策层不立则项目只是自动化框架，而产品承诺正在那一层。
+- **为什么留**：给出“真正的下一站是决策-执行框架”的判断依据。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 5. 建议（有序、有界）
+- **节**：第 2 条**不需写代码，只需一个决定**
+- **类型**：判据
+- **摘要**：五条有序建议：收尾 T3、定模组停止规则、夹具与生产分离、转向决策层、设预算护栏；其中第 2 条只花一个决定且拖一天贵一天。
+- **为什么留**：有优先级与代价的排期候选，含“最紧急”的定位。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 6. 关于成本（如实）
+- **节**：需分清三类：harness 脾气 / 验证设施 / 模组适配
+- **类型**：经验教训
+- **摘要**：用户已花 700–800 元，分三类看：摸 harness 脾气是一次性学费、验证设施是资产、模组适配有无停止规则决定有限还是无底。
+- **为什么留**：成本归类的口径，避免用“其实很便宜”淡化。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 6.1 一个对照
+- **节**：这不是省钱，这是把用户的时间还给他
+- **类型**：经验教训
+- **摘要**：T2 前验证一次要用户到场跑客户端，T2 后只需一条命令；这不是省钱而是把用户的时间还给他，而用户时间才是项目真正瓶颈。
+- **为什么留**：说明无头通道的价值口径：瓶颈是用户时间。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/07-方向审核-20260914.md` › 7. 一条值得记住的自我纪律
+- **节**：不要过度自信，“编译过/电池绿”只证明没崩、不证明对
+- **类型**：经验教训
+- **摘要**：除寻路内核外多为原创脚手架，不要过度自信；“编译过/电池绿”只证明没崩、不证明对。风险不是做得不对，而是做得太对而看不清全局。
+- **为什么留**：全项目最有价值的一句自评，可作通用纪律。
+- **疑似裁定**：**除寻路内核外多为原创脚手架 ⇒ 不要过度自信，“编译过/电池绿”只证明没崩、不证明对。** ／ **规则：只为实际存档里真正用到的东西做适配，不做“这个模组很有名所以适配一下”。** ／ **时效性**：本建议**在 Create/EC 之前**采纳才有效。一旦进入队列，刹车的心理成本会显著上升。 ／ 本报告建议限定为“移动文件 + 同步导入”，不含任何逻辑改动，且应在 `T2` 无头回归**可用**的前提下做（`T2` 已落地 ⇒ 前提**已满足**）。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 1. 先更正我自己（**本勘测员**的过度解读，请勿采信）
+- **节**：它**存在**，但**不可复用**
+- **类型**：经验教训
+- **摘要**：登记并撤回两处过度解读：`RoadBuildTask` 存在但用户裁定不可复用（“很夸张的屎山”），不能把“存在”当成“可用”；另有一处未复算仅转引。
+- **为什么留**：防后续会话把“存在”当“可用”，并示范主动撤回。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 2.2 用蓝图对齐（**这才是关键**）
+- **节**：用户与主工作流在做同一个阶段的两个不同项
+- **类型**：判据
+- **摘要**：挖矿与木材是蓝图阶段 B「通用助手闭环」的头两项，阶段 B 八项里仅 3 项有实现；用户与主工作流在做同一阶段的两个不同项，是并行不是转向。
+- **为什么留**：一次对齐定死“挖矿≠转移方向”，防后续重议。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 2.3 用户澄清的“需求化模组适配”= 阶段 D，而它的入口是空的
+- **节**：阶段 D 的入口在阶段 C，而阶段 C 是一个空类目
+- **类型**：判据
+- **摘要**：阶段 D 及前置阶段 C 的关键类型源码命中全为 0；不是难，是前面那一格是空的。
+- **为什么留**：阻止把“下一步是登记流水线”当默认前提。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 2.4 ★ 一个收敛：两个方向**不是竞争，是先后**
+- **节**：卡机检测与 G2 的周期复评是同一件事
+- **类型**：设计
+- **摘要**：阶段 D 要的“卡机检测”与审计 G2 的“周期复评”是同一件事；用户撞上的正是阶段 D 将来要用的承重墙。
+- **为什么留**：把两条看似竞争的线收敛为先后关系，收窄后续范围。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 3.1 现状：三种挖掘模式**全部**假定“目标在够得着范围内”
+- **节**：向下最多 5~6 格。全部是“微观到达”
+- **类型**：设计
+- **摘要**：三种挖掘模式的深度上限同为 `floor(reach + 1.54) ≈ 6`，全是微观到达；深埋矿与 60 格外矿区都做不到，失败码 `found_but_unminable` 诚实可观测。
+- **为什么留**：量化短线能力边界，并肯定诚实失败码这一设计。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 3.3 ★ 为什么“哪哪都接不上”：长度变了之后，所有缺口同时出现
+- **节**：不是模块缺了，是这一段的入口被整个跳过了
+- **类型**：设计
+- **摘要**：5 格放大到 60 格后，中途有事、预算授权、回不来、背包满/镐坏、从哪下等缺口同时出现；不是模块缺了，是这一段入口被整个跳过。
+- **为什么留**：解释“处处接不上”的成因，并说明作业区为何排第一。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 3.4 ★ 但短线的形状**已经存在**（不要重造）
+- **节**：给一个已有的循环补一个维度
+- **类型**：设计
+- **摘要**：`MineJob` 已有 `SELECT → MINE → COLLECT` 循环 + 定额 + `attempted` 去重；目标形态不是新设计，是给已有循环补一个维度。
+- **为什么留**：防止重造已有循环，指明应复用的形状。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 3.5 远距离寻路：**不需要分层，需要“粗目标”**
+- **节**：实现它不是造分层规划器，是“把 goal 变粗”
+- **类型**：设计
+- **摘要**：Alice 与 Baritone 的真正差别在目标形态：`GoalFoot` 精确到格⇒未加载即 `GOAL_NOT_LOADED`，`GoalXZ` 只要附近；滚动重规划骨架已在跑，缺的是粗目标。
+- **为什么留**：否掉“造分层规划器”，给出便宜的实现方向。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 4.1 第一堵墙 = **授权层**（挡在门口）
+- **节**：刻意不含 PILLAR / FALL / DOWNWARD
+- **类型**：判据
+- **摘要**：D-076 禁止把不可达当作“那就挖过去”，因承诺不同（清障瞬时 vs 60 格竖井）；`miningApproach` 刻意禁用 PILLAR/FALL/DOWNWARD。
+- **为什么留**：说明“不能直接加一行”的规则依据与承诺差异。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 4.2 第二堵墙 = **可回收性要求层**（放开授权后立刻撞上）
+- **节**：缺的位置在「要求端」
+- **类型**：判据
+- **摘要**：能力与要求都停在最低档 `LOCAL_STEP`，能通过不是因为安全而是没人要求更多；缺的位置在要求端，但必须先有产出者才能抬 `required`，否则合规边也抛。
+- **为什么留**：锁定缺口位置并给出不可违反的顺序纪律。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 4.3 「修建通道」语义**还在**，但按用户裁定**不可复用**
+- **节**：只登记“语义存在”这个事实，不把它当资产
+- **类型**：经验教训
+- **摘要**：`road/` 与 `RoadBuildTask` 语义确实存在（`MAX_AXIS_DELTA = 128`），但缺“拆干净”承诺、无保护区检查，用户裁定不可复用。
+- **为什么留**：只登记存在性、不当资产，防再次误判可复用。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 4.4 ★ 三种「承诺」—— 用户直觉的正确形式化
+- **节**：分界不是能否重复通行，而是要不要还原
+- **类型**：设计
+- **摘要**：按“世界被改了要不要还原”分三种：清障要还原、通道挖掘不还原且必须能走回、修路要保留；可回收性天生是给通道挖掘准备的。
+- **为什么留**：把用户直觉形式化为三分类，并解释可回收性像孤岛的原因。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 5.2 四件零件的现状（**逐件复算**）
+- **节**：这不是死抽象
+- **类型**：判据
+- **摘要**：四级已定义、门槛表在工作、评估器有真读者（`LOCAL_STEP` 35 / `PATH_REVERSIBLE` 41 处）；另两级各 2 处且无产出者。
+- **为什么留**：用出现次数证明不是死抽象，同时定位两个空插槽。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 5.3 权力结构（用户问的“维生 vs 风险的边界”的答案在此）
+- **节**：预算是情报，不是否决。否决只有一处
+- **类型**：设计
+- **摘要**：规划期准入与执行期事前只做过滤＋定价、不宣称否决权；`SurvivalSystem.shouldInterrupt` 是维生唯一且绝对的嘴；谁否决都得说清“那该去哪”。
+- **为什么留**：划定风险与维生的职权边界，防两方都保守而原地不动。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 5.4 ★ 缺的那一环：**反向可达性（逃生集）搜索** —— 全仓 0 命中
+- **节**：这一环一点没做。而它就是“保证能回去”的实现形式
+- **类型**：设计
+- **摘要**：草案 §3.2“进入时保守，逃离时激进”无任何实现（`escapeSet`/`retreat`/`逃生集`/`反向可达` 全仓 0 命中）；倒着算逃生集、正向只走集内，那两个死值是给它预留的插槽。
+- **为什么留**：定位最关键的空白环，并说明两个死值不是废料。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 5.5 「风险管控系统的形态」一句话答案
+- **节**：反向算逃生集 / 正向只走逃生集内
+- **类型**：设计
+- **摘要**：形态 = 随请求冻结的画像 + 门槛表 + 评估器 + 定价 + 两个搜索方向 + 唯一否决；运行时机三次。
+- **为什么留**：风险系统的整体形态定义，可作后续实现对照。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 6. 风险系统六片草案的实际进度（**逐条核实**）
+- **节**：六片：1 完成、1 接线、1 部分、3 未动
+- **类型**：判据
+- **摘要**：S1–S6 四天后：S2/S3 已做、S5/S6 部分、S1/S4 未做（`RiskProfile`/`EdgeAdmission` 无文件）；三件禁用属授权层非风险等级。
+- **为什么留**：六片进度的逐条复算口径，含授权层与风险等级的区分。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 7. 挖矿范例的停止条件（**用户 2026-09-15 拍板**）
+- **节**：M2 是“自主”这个词的物理载体
+- **类型**：判据
+- **摘要**：停止条件＝一次长作业自主闭环、全程不需人插手；据此反推 7 块承重件里必需的是 M1/M2/M4→M3/转向/中止收尾，其中 M2 最要紧，没有它“自主”在物理上不存在。
+- **为什么留**：把停止条件反推成有终止条件的清单，收窄必需范围。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 7 · M4 先 M3 后（本报告对审计 M1–M6 的唯一实质性修改）
+- **节**：先 M4 把失败事实结构化，再借 M3 搬运归因
+- **类型**：判据
+- **摘要**：把审计的 M3 先改为 M4 先：`deriveTopLevelReason` 用 `contains()` 匹配，照搬会复制脆弱写法；并更正 G3 后果措辞。
+- **为什么留**：唯一修改审计顺序的条目，含理由与措辞更正。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 8.1 立即可做（零成本 / 纯决策）
+- **节**：确认挖矿范例的停止条件
+- **类型**：判据
+- **摘要**：A1 确认停止条件落 `AI_DECISIONS.md`、A2 确认挖矿属阶段 B 避免重议转向、A3 确认阶段 C/D 是空类目——三条均零成本纯决策。
+- **为什么留**：零成本即可消除的三处不一致，可立即采纳。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 8.2 挖矿范例线（M 系列，**建议的提交顺序**）
+- **节**：M5 是全清单最便宜的一件
+- **类型**：判据
+- **摘要**：M 系列顺序 M1→M2→M4→M3→M5→M6，各条带代价与判据（M1 负例 `no_mine_candidate`、M5 近处 `resumed`）。
+- **为什么留**：带判据的可执行提交顺序，含最便宜的一件。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 8.3 ★ 主线顺序建议：**“到达”要排在 M6 之后**
+- **节**：把 `found_but_unminable` 当里程碑
+- **类型**：判据
+- **摘要**：先用现有 5~6 格能力跑通闭环、把 `found_but_unminable` 当里程碑停在上面，下一步才做宏观到达；簇是优化不是承重件。
+- **为什么留**：排期主线顺序，并防止优化件插到“到达”之前。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 8.3 · 守住审计 §6 的拒绝清单
+- **节**：这些是“这条线里**没有终点**的部分”
+- **类型**：判据
+- **摘要**：明确拒绝：战斗 AI / 簇优化 / 常驻矿区 / 饥饿进食 / 暴露预算 / `EdgeAdmission`，理由是它们属于这条线里没有终点的部分。
+- **为什么留**：一份显式拒绝清单，可作范围护栏直接沿用。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 8.4 风险系统线（**若决定动**）
+- **节**：S1（`RiskProfile` 随请求冻结）排第一
+- **类型**：判据
+- **摘要**：若动风险线：S1 排第一（≥3 个已存在真实消费者、解决已登记不一致、是“低风险模式应用到哪些任务”的载体），反向逃生集搜索必须排 S1 之后，通道挖掘前不要抬 `required`。
+- **为什么留**：风险线的顺序与启动条件，兼有硬性顺序纪律。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 8.5 流程建议（对审查/勘测类文档）
+- **节**：“可复用/有样板”断言须标注未经验证
+- **类型**：判据
+- **摘要**：书写纪律：引符号名不引行号、附 commit hash、每条缺口写复算命令；新增——可复用类断言须标注未经验证。
+- **为什么留**：文档级可复用纪律，已由 `RoadBuildTask` 实例验证。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 9. 待实测 / 待确认（**本环境跑不了，需在 PC 上做**）
+- **节**：缺镐时 LLM 选的下一步对不对？
+- **类型**：判据
+- **摘要**：四项待实测：缺镐时 LLM 选的对不对、未加载区块 `getBlockState()` 行为、假人是否 tick 食物条、R4 夹具负例。
+- **为什么留**：待实测清单，含“先证伪再实现”的门槛条件。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/08-挖矿范例与风险系统形态-20260915.md` › 10. 本报告**没有**回答的问题（显式留白）
+- **节**：用“停止条件”替代它
+- **类型**：设计
+- **摘要**：显式留白四问：挖矿最终形态（用停止条件替代）、宏观到达的具体算法、`RoadBuildTask` 能不能修值不值得修、阶段 C 的最小启动切法。
+- **为什么留**：显式留白即边界声明，防后续会话把留白当缺口。
+- **疑似裁定**：用户已拍板停止条件：**「一次长作业自主闭环，全程不需人插手」**。 ／ 用户 2026-09-15 明确指的就是蓝图 **§1.2「玩家登记自己的流水线」**。 ／ **D-076 寻路红线（现行表述）**：**寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。** ／ **先**让评估器能产出真实等级、**后**才抬 required。否则 `LOCAL_STEP < required` ⇒ **现有合法边也会抛**。 ／ **用户裁定：先完成当前主线，本议题只记录、不展开修复。** ／ **复核触发**：① 真实挖矿出现“明明有办法却够不到”的**具体案例**；② 开始做决策层 / 蓝图 §1.2 而需要**可调风险等级**时；③ `RiskSwitches` 需要第 2 个开关时。 ／ 用户 2026-09-15 直接裁定：`RoadBuildTask` **不是可以直接复用的任务**，“勉强能用，但绝对是很夸张的屎山”，且“数学模拟也只是一个说法”。
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 1.1 · M5 是错的（tryRecoverUnfinishedTeardown 并非 0 调用者）
+- **节**：1.1 M5 是错的
+- **类型**：经验教训
+- **摘要**：勘测员自认 M5 不成立：该符号已在假人生成路径内被调用，错误来自照抄审计而未自验。教训：否定性结论要求含定义文件的完整 grep + 人工确认。
+- **为什么留**：「0 调用者」类否定结论的自验纪律，可复用到任何符号核实
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 1.2 · 主工作流复核采纳了的三条修改
+- **节**：1.2 主工作流复核采纳了
+- **类型**：经验教训
+- **摘要**：M4 先于 M3（避免照搬脆弱写法）、G3 措辞更正为「一段无结构的文字」、两处过度解读撤回。这三条已采纳，`survey/08` 对应结论不必再引用。
+- **为什么留**：自由文本匹配是脆弱写法，复用它会复制脆弱
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 2.1 · 复核结果：主工作流对的部分（GoalSpec 与节点级门控）
+- **节**：2.1 主工作流对的部分
+- **类型**：判据
+- **摘要**：`GoalSpec` 是接口且只有 `GoalFoot` 一个实现（加第二个是架构上被邀请的），滚动重规划骨架已在跑，节点级门控已是 Baritone 形状（跨区块边界加载假则跳过该边）。
+- **为什么留**：给出「粗目标代价小」这一判断中已被证实的半截
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 2.2 · 没算到的三件代价（硬前置 ／ 两个故意上限 ／ goalFoot 语义）
+- **节**：2.2 主工作流没有算到的三件代价
+- **类型**：判据
+- **摘要**：① 目标区块未加载时搜索前即返 `GOAL_NOT_LOADED`，放宽它是安全规则语义变更；② 空转上限是故意设的，粗目标需换停止规则；③ `goalFoot()` 对 XZ 粗目标有语义缺口。
+- **为什么留**：三条代价定性，是「粗目标不是改一个字段」的依据
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 2.3 · 最关键一条：粗目标解决「远」，不解决「深」
+- **节**：2.3 最关键的一条
+- **类型**：判据
+- **摘要**：`GOAL_NOT_LOADED` 是区块加载（XZ 两维）问题；到 Y=-59 是垂直问题，竖井每格都在同一已加载区块里。粗目标碰不到竖井问题任何一环。
+- **为什么留**：纠正「粗目标能帮挖矿到达」的误判
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 2.4 · 它真实的独立价值：FollowTask.MAX_TARGET_DISTANCE = 24
+- **节**：2.4 但它有一个真实的、独立的
+- **类型**：设计
+- **摘要**：玩家走远 24 格以上，跟随以 `follow_distance_limit` 直接失败。其正确解法恰是粗目标，满足 D-046「先有消费者再建类型」，消费者 = `FollowTask`。
+- **为什么留**：给出粗目标的真实消费者，决定它该单独立项
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 2.5 · 复核结论与三条正交的轴
+- **节**：2.5 复核结论
+- **类型**：判据
+- **摘要**：粗目标不比 M1–M6 小，且与 B3 无关，应单独登记、不与挖矿「到达」捆绑。三轴分工：垂直到达（最贵）／水平远距离（中）／退路保证（中）。
+- **为什么留**：把一件事拆成三条互不替代的轴，是排期依据
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 3 · 两条线撞上同一堵墙，却是两份独立的待拍板
+- **节**：3 两条线撞上同一堵墙
+- **类型**：判据
+- **摘要**：挖矿通道挖掘与溺水自救卡在同一对前置（放宽 D-076 写授权 / 内核垂直移动），全仓核实无文档把两者联系。分开拍很可能得出两个不一致的答案，建议合并讨论。
+- **为什么留**：一次拍板同时解锁两条线，避免两个不一致答案
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 4.1 · 逃生拆开是四步（分类 ／ 判决 ／ 找落点 ／ 走过去）
+- **节**：4.1 它拆开是四步
+- **类型**：设计
+- **摘要**：危险分类 6 类 → 判决 5 值 → 8 格内查安全格（纯查询）→ 一次最普通的走路。设计原话：维生给落点、寻路给路径、维生仍然不找路。
+- **为什么留**：逃生四层契约，是后续所有改动的落点地图
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 4.2 · 「退开一步」的四条证据
+- **节**：4.2 退开一步的四条证据
+- **类型**：判据
+- **摘要**：半径仅 8 格；只保证那一格此刻安全（无以后安全、无能否回得来）；是放弃而非暂停；出口只有走路与纯输入上浮两种。核心：只能逃到本来就走得到的地方。
+- **为什么留**：界定逃生能力边界：挖开／搭上／游出都做不到
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 4.3 · 真缺口：逃生路径本身不评估危险
+- **节**：4.3 顺手查出的一个真缺口
+- **类型**：判据
+- **摘要**：D-238 的可规划预检只问去不去得了，不问路上会不会踩进岩浆；`PlanRouteSafety.lavaContacts` 全仓只有 2 个消费者且都是诊断物品。
+- **为什么留**：已有检查缺消费者，是最便宜的补法之一
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 4.4 · 真正的杀手：三条件叠加 ⇒ 自挖竖井里 bot 无解
+- **节**：4.4 真正的杀手：三个条件叠加
+- **类型**：判据
+- **摘要**：竖井内 8 格无安全格 + 出口必须可规划 + `PathRequest.of` 不含 `PILLAR` ⇒ 上不去、挖不动、退路被切，只能如实登记 `exit=none` 停在原地等干预。
+- **为什么留**：把竖井无解归因到三个具体条件，便于逐条拆解
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 5.1 · 不要模拟液体流向的四重理由
+- **节**：5.1 四重理由
+- **类型**：判据
+- **摘要**：服务端已每 tick 算流体；需要的是别被关住（静态 6 邻格检查）；退路被切断是拓扑问题不是流体动力学；且没有消费者，会是第 4 个死抽象。
+- **为什么留**：否定性建议，防止后续会话重新提出做流体模拟
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 5.1 补 · 未标定：项目里从来没记过水的流速
+- **节**：诚实标注：项目里从来没记过水的流速
+- **类型**：判据
+- **摘要**：流速类符号全仓 0 命中；岩浆 30 tick/格、水 5 tick/格是原版数值、未在 Alice 验证，写进任何判据前必须先实测标定。
+- **为什么留**：防止把未标定的原版常量照抄进判据
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 5.2 · 量级对比：岩浆不追你，水追得上但不立刻致死
+- **节**：5.2 一个关键的量级对比
+- **类型**：判据
+- **摘要**：对照 bot 实测 6 tick/格：水 5 tick/格比 bot 快约 20%（唯一追得上的东西）；岩浆 30 tick/格且只流 3 格。水的杀伤是 300 tick 空气，有时间跑。
+- **为什么留**：量级对比直接决定「水该拦到什么程度」
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 6.1 · FluidRiskPolicy 现状的三个边界
+- **节**：6.1 现状：FluidRiskPolicy 已存在
+- **类型**：判据
+- **摘要**：只看 `FluidTags.LAVA`（水完全不查）、只看 6 个正邻格（不含对角）、只看目标格（走廊／清障破的格子不在检查范围内）。
+- **为什么留**：三条边界即三处待补，最小改动即可复用
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 6.2 · 真缺口：走廊破格走的是另一条链
+- **节**：6.2 第三条是真缺口
+- **类型**：判据
+- **摘要**：`FluidRiskPolicy` 只有 `MiningPlanner` 一个调用点，而走廊破格只挡这格本身是流体 ⇒ 可破开墙而墙后是岩浆池、全程无检查。
+- **为什么留**：指明第一件事是把已有检查接到走廊上，不是新增机制
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 6.3 · 「硬禁邻液体」对水是错的层级
+- **节**：6.3 但硬禁邻液体对水是错的层级
+- **类型**：判据
+- **摘要**：水不掉血、夺走的是选项，地下处处是水（1.18 含水层）⇒ 硬禁等于禁掉一大片正常采矿，违反「守太紧也是 bug」。分界线是拓扑而非液体种类，属可回收性系统。
+- **为什么留**：给出水与 lava 的不同处置层级及归类归属
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 6.4 · 「找另一条回去的路」不是通用方法
+- **节**：6.4 找另一条回去的路不是通用方法
+- **类型**：经验教训
+- **摘要**：1 格宽死胡同出口数 = 1，封住 = 0，A* 搜不出不存在的边；它在自然地形成立、在你自己挖的地方失效，而危险恰好都在那里。Baritone 挖穿的路就是走的路。
+- **为什么留**：解释补救手段为何在需要它的位置失效，属形态代价
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 7.1 · 权利的正确轴：「这个任务改不改世界」
+- **节**：7.1 用户的直觉方向对，但轴不对
+- **类型**：设计
+- **摘要**：轴不是「野外 vs 基地」：安全区挖竖井一样会困住自己，野外采集若不破坏方块就永远困不住自己。该轴已是字段 `MovementCapabilities.changesWorld()`。
+- **为什么留**：把授权轴落到已存在字段上，避免新造一层
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 7.3 · 逃生准备金：从 WriteBudget 预留一小部分
+- **节**：7.3 具体做法（便宜、可审计）
+- **类型**：设计
+- **摘要**：`WriteBudget` 每作用域 64 破坏，预留例如 8 格只能用于逃生：事前决定、可归因、有界，不够用时如实失败。它不违反 D-076，形状与 `scaffoldRemoval` 一致。
+- **为什么留**：给出不违 D-076 的逃生写权落地形状与先例
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 8.1 ／ 8.2 · 最便宜的一块：原路返回（轨迹记忆全仓为 0）
+- **节**：8.1 全仓无任何轨迹记忆
+- **类型**：设计
+- **摘要**：轨迹记忆类搜索全部 0 命中，bot 不记得自己从哪来。提案把逃生候选格来源改成「先看轨迹，再看半径」，只需环形缓冲；轨迹格已被证明可站可走、天然沿隧道走。
+- **为什么留**：不碰 D-076、不需新 Movement、不需模拟的最便宜解
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 8.3 · 为什么原路返回比其余四层都优先
+- **节**：8.3 为什么它比其余四层都优先
+- **类型**：判据
+- **摘要**：危险层、可回收层、观测层、逃生预算四层都是事后补救，唯原路返回是上游根治：它让问题不发生。
+- **为什么留**：给出五层相对优先级，是排期比较的直接依据
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 9.1 · 建议顺序：零成本（纯决策 A1–A3）
+- **节**：9.1 零成本（纯决策）
+- **类型**：判据
+- **摘要**：A1 把「两条线撞同一堵墙」合并成一次讨论；A2 粗目标从「到达」摘出单独登记、消费者 = `FollowTask`；A3 确认「液体不模拟」写进决策。
+- **为什么留**：三条零成本决策，可直接采纳
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 9.2 · 建议顺序：便宜且承重（B1–B4 带判据夹具）
+- **节**：9.2 便宜且承重
+- **类型**：判据
+- **摘要**：B1 原路返回、B2 把 `FluidRiskPolicy` 接到走廊破格、B3 逃生路径岩浆检查、B4 逃生写准备金，每条都带验收夹具或负例。
+- **为什么留**：每条都带验收夹具或负例，可直接变成测试
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 9.3 · 需要真实存档地形才能排的三条（C1–C3）
+- **节**：9.3 需要真实存档地形才能排
+- **类型**：判据
+- **摘要**：C1 垂直到达最贵（新 Movement + 授权 + 停止规则）且须真实存档地形做判据；C2 可回收性产出者需先有 C1；C3 水流速标定写进判据前必须实测。
+- **为什么留**：划出哪些不能靠静态阅读定序
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 10 · 本报告没有回答的问题（显式留白）
+- **节**：10. 本报告没有回答的问题
+- **类型**：判据
+- **摘要**：五处显式留白：垂直到达算法、粗目标 `goalFoot()` 语义、退路是否被切断的可执行判据、`RoadBuildTask` 能否修、阶段 C 的最小启动切法。
+- **为什么留**：留白清单能防止后续会话把这些当成已有结论
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 补遗 A.1 ／ A.2 · 判决与起任务在 tick N、走在 tick N+1
+- **节**：A.1 实际时序
+- **类型**：判据
+- **摘要**：tick N 判决并起任务（预检 600 节点 / 20ms），tick N+1 才真规划（`UNLIMITED`）。跨 2 tick 是巧合：两次都在主线程同步阻塞，总停顿没变。
+- **为什么留**：澄清「1 tick 内完成」这一前提被误解的时序细节
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 补遗 A.3 · 三条比「1 tick」更严重的事实
+- **节**：A.3 三条比1 tick更严重的事实
+- **类型**：判据
+- **摘要**：① 逃生用 `UNLIMITED` 可在主线程阻塞任意久；② 预检只拦 `UNREACHABLE`，`SEARCH_LIMIT` 按未知放行；③ 缓存键用精确脚位。
+- **为什么留**：三条可直接导致卡顿的机制性事实
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 补遗 A.3 ③ · 缓存每 tick 失效 ⇒ 最坏吃掉一半以上 tick 预算
+- **节**：③ decide() 每 tick 调一次
+- **类型**：判据
+- **摘要**：`HOLD_NO_EXIT` 不否决任务继续跑 ⇒ bot 移动 ⇒ 脚位每 tick 变 ⇒ 缓存每 tick 失效。每 tick 一次 17³ 格扫描加一次规划，最坏吃掉 50ms 的一半以上。
+- **为什么留**：给出可量化的每 tick 开销，是最硬的性能判据
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 补遗 A.4 · 用户担心的那个前提正是 D-238 打破的
+- **节**：A.4 最关键的一句
+- **类型**：经验教训
+- **摘要**：D-238 之前逃生根本没有规划（纯几何查询）⇒ 前提成立；之后插入真规划 ⇒ 前提被打破。这不是失误，但引入的成本在 D-238 验收判据里看不见。
+- **为什么留**：示范「验收判据漏掉副作用」这一失败模式
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 补遗 A.5 · 修法四条：有界预算 ／ 未知更保守 ／ 缓存键 ／ 分帧
+- **节**：A.5 修法（锚点全部现成）
+- **类型**：设计
+- **摘要**：给逃生请求有界预算别用 `UNLIMITED`；`SEARCH_LIMIT` 不该无条件放行；缓存键改成脚位变化超 N 格才重算；分帧，先例是 `SAFE_STOP_DEFER_TICKS=20`。
+- **为什么留**：四条修法各自都有现成锚点，可立刻落地
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/09-逃生与液体与粗目标复核-20260915.md` › 补遗 A.6 · 与正文的关系：原路返回同时消掉这条开销
+- **节**：A.6 与本文正文的关系
+- **类型**：判据
+- **摘要**：逃生形态与原路返回结论不变且被加强：原路返回把「搜一张图」变成「读一个列表」⇒ 同时消掉 A.3 的开销。优先级：A.5 的 1/2/3 是止血，原路返回是根治。
+- **为什么留**：止血与根治的分工，决定两项建议的相对先后
+- **疑似裁定**：回避提问原话「现在维生系统实现的前提是不是游戏 1 tick 内就能完成维生系统的逃跑路线规划」；答案「不是 1 tick —— 是跨 2 tick。但实际的严重程度比“1 tick”更高。」 ／ 复核请求原话：「“允许粗目标”（不用新算法，只是让 goal 不精确）可能比 M1–M6 里任何一件都小，值得单独评估，而不是跟着“到达”一起排到 B3 之后。⚠️ 但我没有验证它的代价……请勘测员先复核代价再决定。」 ／ 复核结论「粗目标比 M1–M6 都小吗？ ❌ 不成立。」＋「它该排在 B3 之前还是之后？ 与 B3 无关 —— 它属于另一条（水平远距离 ／ 跟随），不属于“到达”（垂直）」＋「建议 单独登记为一条待评估项，消费者 = FollowTask；不要与挖矿“到达”捆绑排期」 ／ 对被采纳教训的裁定「被采纳的教训（我认同并记为自身纪律）」「勘测员纪律新增一条：转引他人（含主线审计）的否定性结论时，必须自验或显式标注“未自验”」 ／ 「survey/08 §8.3 把“宏观到达”整体排到 B3 并没有错，只是理由要换：不是“粗目标也贵”，而是“粗目标解决的是另一件事”」 ／ 「建议：合并成一次讨论。用户只需回答一次「路径规划器可以在什么条件下写世界」，两条线同时解锁。」 ／ 「分界线是拓扑，不是液体种类 ⇒ 它属于可回收性系统（SAFE_EXIT_REQUIRED），不属于危险系统。」 ／ 第 7.3「它不违反 D-076」「这正是 D-076 允许的形状 —— 与 scaffoldRemoval 当初的立法方式一模一样」 ／ 「⇒ 优先级建议：A.5 的 1/2/3 是“止血”（小、立刻可做）；§8 的原路返回是“根治”。」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 0 · 结论速览（九条）
+- **节**：0. 结论速览
+- **类型**：判据
+- **摘要**：九条速览：Baritone 单开线程不能照抄；多 bot 灾难是 N 个 bot 分一个 50ms tick；漏一 tick 对危险中的 bot 等于死；一 bot 一线程是错的。
+- **为什么留**：整份件的结论索引，先读这一节能省掉通读
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 1.1 · Alice 的搜索是同步主线程，因为它直接读权威世界
+- **节**：1.1 Alice 的搜索是同步主线程
+- **类型**：设计
+- **摘要**：`CorePathPlanner` javadoc 明写「同步主线程执行：采集实时世界 → Movement-aware A* → PathPlan」；搜索直接读权威 `ServerLevel`。
+- **为什么留**：同步主线程是这个架构的事实前提，不是随意选择
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 1.2 · Baritone 能开线程在 Alice 不成立，以及已有的半个前提
+- **节**：1.2 为什么 Baritone 能开线程不成立
+- **类型**：设计
+- **摘要**：Baritone 读客户端 world 副本（读旧无所谓）；Alice 读权威 `ServerLevel`，搬 worker 线程要付撕裂读 / 触发区块加载 / 非线程安全三条代价。
+- **为什么留**：把「照抄 Baritone」拆成 Alice 独有代价，并给出异步的一半前提
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 2.1 ／ 2.2 · 多 bot 的灾难：N 个 bot 分一个 50ms tick
+- **节**：2.1 今天的调度是串行的
+- **类型**：判据
+- **摘要**：`onServerTick` 在一个 for 循环里依次跑每个 bot，谁阻塞后面的全等。一个 bot 吃 40ms 时另 4 个 bot 这一 tick 全被挤掉：不是变慢，是什么都没做。
+- **为什么留**：今天即成立的多 bot 灾难机制，无需等线程
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 2.3 · 对危险中的 bot「漏一 tick」= 死，且会级联
+- **节**：2.3 对正在危险中的 bot，漏一 tick = 死
+- **类型**：判据
+- **摘要**：溺水少一 tick 上浮、岩浆少一 tick 逃生、下落少一 tick 输入 ⇒ 落点错位。级联形态：A 拖慢 tick ⇒ B 的维生判决延后 ⇒ B 死 ⇒ 死亡处理又要时间 ⇒ C 更晚。
+- **为什么留**：把「延迟」定性成生存失败，是 tick 预算的动机
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 2.4 · 「漏 tick」已有前科：D-176 物理冻结
+- **节**：2.4 而漏 tick 这件事本身已有前科
+- **类型**：经验教训
+- **摘要**：D-176 记载：会话在跑但 bot 实体整 tick 没被 tick ⇒ 物理冻结，表现为任务在跑、bot 一格不动、没有任何报错。对策是实体 tick 看门狗。
+- **为什么留**：证明「一个 tick 没做事」是已造成真实故障的失败模式
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 3 · 为什么「一 bot 一线程」是错的（四条理由）
+- **节**：3. 为什么一 bot 一线程是错的
+- **类型**：设计
+- **摘要**：线程数无界增长；并发读权威世界风险 ×N；真正稀缺的是主线程的 50ms 不是 CPU 核数，结果的「应用」仍必须在主线程；对等线程里快淹死的 bot 无法抢占。
+- **为什么留**：否掉一个直觉解法，并点出真正的瓶颈
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 4.1 · 最内层：先别做规划（逃生不需要图搜索）
+- **节**：4.1 最内层：先别做规划
+- **类型**：设计
+- **摘要**：原路返回把「搜一张图」变成「读一个列表」：逃生选落点从 17³ 扫描加一次无界规划变成读环形缓冲，线程需求为零。同一模式项目里已出现两次。
+- **为什么留**：给出消除问题而非解决线程的三层中最内层
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 4.2 · 中层：有界池 + 可取消 + 优先级 + deadline
+- **节**：4.2 中层：有界池 + 可取消 + 优先级
+- **类型**：设计
+- **摘要**：池大小固定 M 与 bot 数解耦；可取消已有锚点 `SearchBudget.cancelled`；优先级今天没有；deadline 而非 budget；应用在主线程；只读已加载区块、绝不触发加载。
+- **为什么留**：若真要做异步，这是带「已有／缺」标注的形状清单
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 4.3 · 项目已有的完整模板：LlmClient.askAsync + GoalDirector.pending
+- **节**：4.3 项目已经有这个形状的完整模板
+- **类型**：设计
+- **摘要**：`LlmClient` 用 `CompletableFuture` 与命名 daemon 线程池，明写绝不在主线程上等；`GoalDirector` 提供 single-flight、节流、看门狗。
+- **为什么留**：给出已验证的模板，把「新架构」降级成搬运
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 4.3 附 · LlmClient 线程池注释里的硬教训：卡住一个不能堵死管道
+- **节**：LlmClient 的线程池注释里留着一条硬教训
+- **类型**：经验教训
+- **摘要**：① 必须多线程缓存池，一个卡住的调用不能把整条管道堵死；② 绝不能把它同时交给 `HttpClient` 当内部 executor，否则 `send()` 占住唯一线程 ⇒ 死锁、超时永不触发。
+- **为什么留**：同一命题已被解过一次，是异步搜索的直接前例
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 4.4 · 一处已登记的债：PathingStats.snapshotAndReset 是清空式
+- **节**：4.4 一处已登记的债
+- **类型**：判据
+- **摘要**：风险草案 §9 明说：`PathingStats.snapshotAndReset()` 是清空式的，将来若在异步线程规划会丢数据；目前是同步主线程，先记着这个约束，它是异步的第一个已知破坏点。
+- **为什么留**：异步改造的已知破坏点，先记着免重复发现
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 5.1 ／ 5.2 · 根解：给 tick 做预算（今天 0 命中）
+- **节**：5.1 全仓没有任何 tick 级预算
+- **类型**：设计
+- **摘要**：tick 级预算类搜索全仓 0 命中，没有任何东西计量这一 tick 花了多少。做法：每 tick 只允许 K 个 bot 做昂贵工作，紧急的优先，非紧急的延后但要留可归因的账。
+- **为什么留**：本文核心建议，含可归因要求以防幽灵 bug
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 5.3 · 它和 WriteBudget 是同一个思想
+- **节**：5.3 它和 WriteBudget 是同一个思想
+- **类型**：设计
+- **摘要**：世界写入已有 `WriteBudget`、权限已有授权信封（per-bot），算力（tick）没有。资源要计量、要有限额、要可归因；缺的是这个思想在算力上的版本。
+- **为什么留**：把 tick 预算接进已有的资源计量范式，非新发明
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 6.1 ／ 6.2 ／ 6.3 · 建议顺序（止血 ／ 根治 ／ 结构性）与一条顺序提醒
+- **节**：6.1 止血（小、立刻可做）
+- **类型**：判据
+- **摘要**：止血 A1–A3（有界预算、缓存键、分帧）；根治 B1 原路返回、B2 tick 预算分摊；结构性 C1 异步搜索、C2 `PathingStats` 非清空式、C3 多 bot 调度验收。
+- **为什么留**：三批建议加顺序纪律，可直接进排期讨论
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 6.4 · 一条顺序提醒：异步应排在治愈之后
+- **节**：6.4 一条顺序提醒
+- **类型**：判据
+- **摘要**：C1（异步）应当排在 B1/B2 之后，理由：「在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。」
+- **为什么留**：一句顺序纪律，防止先建基础设施再消问题
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
+#### `survey/10-多bot与tick预算-20260915.md` › 7 · 本报告没有回答的问题（显式留白）
+- **节**：7. 本报告没有回答的问题
+- **类型**：判据
+- **摘要**：所有成本数字都是量级推算非实测（排期前必须先测）；K 取多少未给；「昂贵工作」分类标准未给；能容忍的陈旧读程度未勘测；多 bot 身份边界文件未逐条核对。
+- **为什么留**：标明推算与实测的界线，防止把估算当结论排期
+- **疑似裁定**：「⚠️ 本文含成本估算（毫秒 ／ 格数），全部是"量级推算"，不是实测值 —— 凡涉及数值处均已显式标注。」 ／ 第 0 条速览裁定「★★ 多 bot 的灾难不是「线程互相堵」，是「N 个 bot 分一个 50ms tick」」 ／ 「⇒ 真实的多 bot 灾难形态：不是「互相堵塞」，是「一个 bot 的重活，把其他所有人的生存时钟一起拖慢」」 ／ 「⇒ 线程数不是解法，它是把同一个瓶颈换了个地方排队。」 ／ 「⇒ "把搜索做成异步"不是新架构 —— 是把已经在 LLM 那条路上验证过的形状，搬到搜索上。」 ／ 「⇒ 这是同一个模式，项目里已经出现过两次」（流体不模拟 ／ 路径不搜索）＋「⇒ 如果 design 层面修好了，"要不要开线程"这个问题会自己消失一半。」 ／ 「> 资源要计量、要有限额、要可归因。」 ／ 「★ 用户的直觉早已对过：`survey/05` 定的「授权信封 per-bot」…… 正是这个思想在**权限**上的版本；**缺的是它在「算力」上的版本**。」 ／ 顺序裁定「**C1（异步）应当排在 B1/B2 之后。** 理由：> **在"逃生不需要搜索"之前做异步搜索，是在给一个本可以消失的问题建基础设施。**」 ／ 留白裁定「**所有成本数字都是量级推算，不是实测** …… **真正要排期前必须先测**」
+
 ## 七 · 落地（⭐ **目的地** —— ⛔ 不是"一遍"）
 
 > ⭐ 本节 = **落地到本册的那一半**；⚠️ **裁定类 ⛔ 不落这里** ⇒ 落 `docs/AI_DECISIONS.md`
