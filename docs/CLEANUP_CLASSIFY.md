@@ -569,7 +569,7 @@
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-far-goal-usage.py` | ⑥ 边界即机器 | 14 | 4 | — |
 | `tools/check-fixture-hygiene.sh` | ⑥ 边界即机器 | 11 | 2 | — |
-| `tools/check-frozen-code.py` | ⑥ 边界即机器 | 21 | 3 | — |
+| `tools/check-frozen-code.py` | ⑥ 边界即机器 | 22 | 3 | — |
 | `tools/check-glossary.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-glossary.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-goal-vocabulary.sh` | ⑥ 边界即机器 | 7 | 0 | — |
@@ -578,7 +578,7 @@
 | `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-layer-direction.py` | ⑥ 边界即机器 | 25 | 7 | — |
-| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 19 | 2 | — |
+| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 20 | 2 | — |
 | `tools/check-new-home.sh` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — |
@@ -639,7 +639,7 @@
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
 | `tools/kernel-predicates.py` | ⑥ 边界即机器 | 48 | 9 | — |
 | `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — |
-| `tools/machine-map.py` | ⑥ 边界即机器 | 31 | 2 | — |
+| `tools/machine-map.py` | ⑥ 边界即机器 | 32 | 2 | — |
 | `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 11 | 0 | — |
@@ -655,7 +655,7 @@
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/render-scene-preview.py` | ⑥ 边界即机器 | 3 | 0 | — |
-| `tools/risk-surface.py` | ⑥ 边界即机器 | 12 | 1 | — |
+| `tools/risk-surface.py` | ⑥ 边界即机器 | 13 | 1 | — |
 | `tools/simulate-scene-plan.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/skills-index.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — |
@@ -678,19 +678,19 @@
 | `docs/THERMAL_S1_FACTS.md` | ⑦ 事实/数据 | 9 | 1 | — |
 | `docs/authz/AUTHZ_REGISTRY.csv` | ⑦ 事实/数据 | 16 | 2 | — |
 | `docs/authz/CONTAINER_WRITE_SITES.csv` | ⑦ 事实/数据 | 10 | 1 | — |
-| `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 14 | 2 | — |
+| `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 15 | 2 | — |
 | `docs/authz/POLICY_MATRIX.csv` | ⑦ 事实/数据 | 24 | 3 | — |
 | `docs/data/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — |
-| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/action/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/compat/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/debug/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/staging/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
-| `src/main/java/com/dddgn/alice/step/package-info.java` | ⑧ 设计（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/action/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/compat/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/debug/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/staging/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
+| `src/main/java/com/dddgn/alice/step/package-info.java` | ⑧ 设计（`package-info.java`） | 50 | 10 | — |
 | `.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt` | ⑩ 域外（⛔ 不进体系） | 0 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑩ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
