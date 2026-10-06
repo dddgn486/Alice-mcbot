@@ -1,5 +1,5 @@
 # 键	已产出条数（⭐ 由 tools/check-extraction-status.py --write 维护 · ⛔ 只许变长）
 # 键 = `p<N>`（第 N 遍）或 `landing`（落地节）
 p1	188
-p2	927
+p2	1344
 landing	0

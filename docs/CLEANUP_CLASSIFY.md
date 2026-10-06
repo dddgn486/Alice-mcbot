@@ -568,7 +568,7 @@
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-far-goal-usage.py` | ⑥ 边界即机器 | 14 | 4 | — |
-| `tools/check-fixture-hygiene.sh` | ⑥ 边界即机器 | 11 | 2 | — |
+| `tools/check-fixture-hygiene.sh` | ⑥ 边界即机器 | 12 | 2 | — |
 | `tools/check-frozen-code.py` | ⑥ 边界即机器 | 22 | 3 | — |
 | `tools/check-glossary.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-glossary.sh` | ⑥ 边界即机器 | 2 | 0 | — |
