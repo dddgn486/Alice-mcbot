@@ -28,10 +28,10 @@
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
 | ⑥ 边界即机器 | 132 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
-| ⑪ 咨询通道 | 8 | **7** | **待用户判**（本表只报数） |
+| ⑪ 咨询通道 | 9 | **8** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **626** | **150** | 这个合计**没有行动含义**（见上） |
+| **合计** | **627** | **151** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -43,7 +43,7 @@
 ⇒ ⭐ **结论**：本节**不是**主要行动面（⛔ 别把 `0 件` 读成「没活可干」）；
     真正有信息的是**下一节**（自称生效而 `src/` 零落点）。
 
-**149 件** —— 打勾栏：`保留` / `丢` / `合并到 X` / `已过期`（`§D′-9` 9.5 的四个选项）。
+**150 件** —— 打勾栏：`保留` / `丢` / `合并到 X` / `已过期`（`§D′-9` 9.5 的四个选项）。
 
 | # | 件 | 好家 | 提到它的文件数 | 候选理由（机械） | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|
@@ -192,10 +192,11 @@
 | 143 | `consult/receipt/001-七类表缺维护栏.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 144 | `consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 | 145 | `consult/receipt/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 146 | `consult/request/001-七类表缺维护栏.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 147 | `consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 148 | `consult/request/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
-| 149 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 146 | `consult/receipt/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 147 | `consult/request/001-七类表缺维护栏.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 148 | `consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 149 | `consult/request/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
+| 150 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | **0** | 全仓**只有它自己**提到自己 | ☐ | ☐ | ☐ | ☐ |
 
 ## 三 · **批 1 的靶子**：**疑似**自称生效、而 `src/` 里零引用 ⭐⭐
 
@@ -288,7 +289,7 @@
 
 | 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 |
 |---|---|---|---|---|
-| `AGENTS.md` | ① 常驻规范 | 95 | 5 | — |
+| `AGENTS.md` | ① 常驻规范 | 96 | 5 | — |
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 29 | 0 | — |
 | `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
@@ -301,7 +302,7 @@
 | `src/main/java/com/dddgn/alice/step/package-info.java` | ①-code 设计说明（`package-info.java`） | 46 | 10 | — |
 | `README.md` | ② 入口 ＋ 地图 | 59 | 0 | — |
 | `docs/README.md` | ② 入口 ＋ 地图 | 60 | 0 | — |
-| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 122 | 7 | — |
+| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 123 | 7 | — |
 | `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 32 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
@@ -318,10 +319,10 @@
 | `docs/DEATH_AND_REVIVAL_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 6 | 0 | — |
 | `docs/DECISION_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 15 | 2 | — |
 | `docs/DECISION_LAYER_FINAL_FORM.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
-| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
-| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 28 | 0 | — |
+| `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 14 | 0 | — |
+| `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 29 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 15 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 69 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
@@ -334,7 +335,7 @@
 | `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 17 | 1 | — |
 | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 9 | 1 | — |
 | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
-| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 61 | 4 | 已落地 |
+| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 62 | 4 | 已落地 |
 | `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 7 | 2 | — |
 | `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
@@ -553,7 +554,7 @@
 | `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-design-index.sh` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 5 | 0 | — |
-| `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 3 | 0 | — |
+| `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 13 | 3 | — |
@@ -563,7 +564,7 @@
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-expected-reds.py` | ⑥ 边界即机器 | 10 | 0 | — |
-| `tools/check-extraction-status.py` | ⑥ 边界即机器 | 6 | 0 | — |
+| `tools/check-extraction-status.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-extraction-status.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
@@ -579,7 +580,7 @@
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-layer-direction.py` | ⑥ 边界即机器 | 24 | 7 | — |
 | `tools/check-machine-map.sh` | ⑥ 边界即机器 | 18 | 2 | — |
-| `tools/check-new-home.sh` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/check-new-home.sh` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/check-policy-matrix.sh` | ⑥ 边界即机器 | 11 | 0 | — |
@@ -610,14 +611,14 @@
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — |
-| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/cleanup-classify.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 16 | 0 | — |
-| `tools/design-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/design-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
@@ -630,7 +631,7 @@
 | `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/goal-vocabulary.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/headless-battery.sh` | ⑥ 边界即机器 | 42 | 4 | — |
-| `tools/ingest-extraction.py` | ⑥ 边界即机器 | 5 | 0 | — |
+| `tools/ingest-extraction.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
@@ -641,7 +642,7 @@
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
-| `tools/new-home-audit.py` | ⑥ 边界即机器 | 14 | 0 | — |
+| `tools/new-home-audit.py` | ⑥ 边界即机器 | 15 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
@@ -665,7 +666,7 @@
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 10 | 0 | — |
 | `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 30 | 1 | — |
 | `docs/CAPABILITY_LIST.md` | ⑦ 事实/数据 | 19 | 0 | — |
-| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 20 | 0 | — |
+| `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/MACHINE_MAP.csv` | ⑦ 事实/数据 | 19 | 0 | — |
 | `docs/MEKANISM_FACTS.md` | ⑦ 事实/数据 | 9 | 0 | — |
@@ -910,10 +911,11 @@
 | `consult/receipt/001-七类表缺维护栏.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/receipt/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | 0 | 0 | — |
+| `consult/receipt/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/001-七类表缺维护栏.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 626 -->
+<!-- CLEANUP_ROWS 627 -->
 
