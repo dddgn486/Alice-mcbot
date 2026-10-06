@@ -20,11 +20,28 @@
 | 2 | 回吐体必须是**合法 JSON** | 被截断的体症状就是**断在中间** ⇒ 解析当场炸 |
 | 3 | 每件的 `path` 必须在**靶子集**内（现算） | ⛔ 防把范围外的件写进册子 |
 | 4 | 现算靶子数必须 **== `TARGET1`**（⭐ 从 `check-extraction-status.py` **导入**，⛔ 不另写一个数） | ⛔ **同一个量不许两个数** |
-| 5 | `sections` **≤ 3**（⭐ 2026-10-05 开发者裁「`sections` 降到 3 个」） | 体积：首件实测该项占 ~31% |
+| 5 | `sections` **≤ 3**（⭐ 2026-10-05 开发者裁「`sections` 降到 3 个」） | 体积：首件实测该项占 ~31%。⚠️⭐ **只属于第 1 遍** —— 节级那一遍**没有这个上限**（见下方 §"两套形状"） |
 | 6 | 摘要 **⛔ 不截断**，`> 100` 字**只追加标记**（⭐ 开发者逐字「**超长摘要改由我截断并标记**」） | ⛔ 脚本不许丢内容；⚠️ 断点八十七 §E 曾写反成「由脚本硬截断」 |
-| 7 | 已在册的 `path` ⛔ 不许再写（遍内**只许追加**、⛔ 不覆盖） | 对齐门禁判据④「每一遍只许变长」 |
-| 8 | 本批写完后**累计 ≤ `TARGET1`** | ⛔ 不许把这批写成让门禁判据③ 变红的形状 |
+| 7 | 已在册的**本遍条目** ⛔ 不许再写（**本遍内**只许追加、⛔ 不覆盖） | 对齐门禁判据④「每一遍只许变长」。⭐⭐ **作用域 = 本遍**（⛔ 不是全册，见下方"两套形状"） |
+| 8 | 第 1 遍：本批写完后**累计 ≤ `TARGET1`**；第 2 遍及以后：**件必须来自上一遍** | ⛔ 不许把这批写成让门禁变红的形状（判据③／判据②a） |
 | 9 | 只许追加到**指定遍节**尾部，且遍标题**恰好一个**、插入点**由断言保证** | ⭐ 上面第 2 个事故的正解 |
+| 10 | `read_ok` 必填且必须是 `true`（⭐ **读失败 ≠ 无价值**） | 2026-10-06 批 2 事故：17 件读失败被回吐成「判：无」 |
+
+## ⭐⭐ 两套形状（2026-10-06 立 · 出处 = 开发者裁「**一节一条**」）
+
+| 遍 | 一条 = | 条目标题 | 回吐体字段 |
+|---|---|---|---|
+| **第 1 遍**（件级） | **一件** | `` #### `<件>` `` | `path`／`read_ok`／`has_value`／`kind`／`sections`（**字符串** ≤ 3）／`types`／`ruling`／`summary` |
+| **第 2 遍及以后**（节级） | **一节** | `` #### `<件>` › <节标题> `` | `path`／`read_ok`／`sections`（**对象**：`title`／`anchor`／`summary`／`type`／`why_keep`）／`ruling`／`summary`（整件筛掉时的**理由**）／`drop_reason`（`过期`／`无效`） |
+
+⚠️⭐ **为什么判据⑦/⑧ 必须按遍分开**（2026-10-06 当场复算出来的硬阻塞）：第 2 遍处理的是
+**同一批 188 件** ⇒ 若判据⑦ 的 `already` 还是**全册**的，第 2 遍**一条都落不进去**，
+而判据⑧ 的累计 `188 + n` **必 > 188** ⇒ ⭐ 病根一处：**把「全册」当成了「本遍」**。
+⚠️⭐ **为什么节级那一遍 ⛔ 不设 `sections` 上限**：那条 3 个的裁是 **2026-10-05 针对第 1 遍**下的
+（口径是"**在哪几节**"，⭐ 只作**线索**）；节级那一遍的**任务本身**就是"**把有价值的节提全**"
+⇒ 套 3 个上限＝**按配额丢内容**（⭐ 与判据⑥「⛔ 不许丢内容」同一条纪律）。
+⚠️ 它**不是**"免检"：本遍唯一的硬约束仍是**回吐体 ≤ 45000 字节**（判据①）⇒ 装不下就**分批**。
+
 
 ## ⛔ 它判不了（诚实边界 · ⛔ 不许读成"已验"）
 
@@ -77,6 +94,13 @@ OVER_MARK = "　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截�
 KINDS = ("设计", "判据", "经验教训", "混合")
 #: `类型` 字段允许的值
 TYPES = ("设计", "判据", "经验教训")
+
+#: ⭐⭐ **第 2 遍及以后**：整件被筛掉时允许的原因（⭐ = 本遍的**收窄判据**，册子 `§三.1`）。
+#:    ⚠️ ⛔ **不含「已落地」** —— 那属**第 4 遍**（回执 `004` 的 `M5` 逐字澄清）。
+DROP_REASONS = ("过期", "无效")
+#: ⭐ 整件被筛掉时渲染出的**节标题** —— ⭐ 让它也是一条**节级**条目：一遍只许一种形状，
+#:    ⛔ 不许混进一条件级的（那会让门禁判据②**判不动** ⇒ 红）。
+DROP_TITLE = "⛔ 整件筛掉"
 
 RESULT = "INGEST_EXTRACTION_RESULT"
 
@@ -178,13 +202,74 @@ def _as_list(v, what: str, errs: list[str], where: str) -> list[str]:
     return out
 
 
+def pass_slice(text: str, pass_no: int) -> str:
+    """⭐ `### 第 N 遍 …` 标题到**下一节标题**之间的正文 —— **判据⑦/⑧ 的作用域 = 本遍**。
+
+    ⚠️⭐ **为什么必须有它**（2026-10-06 当场复算出来的硬阻塞）：原判据⑦ 的 `already` 是
+    **全册**的 `` #### `<件>` ``（⛔ 不分遍），而第 2 遍处理的是**同一批 188 件**
+    ⇒ ⭐ 第 2 遍**一条都落不进去**（每条都被判「已在册」），而判据⑧ 的累计 `188 + n`
+    **必 > 188** ⇒ 两个红一起响。
+    ⇒ ⭐ 病根只有一处：**把「全册」当成了「本遍」** —— ⚠️ 而且**报错会指错方向**
+    （读起来像"我重复提交了"，其实是判据的作用域错了）。
+    """
+    ms = list(re.finditer(rf"^###\s*第\s*{pass_no}\s*遍[^\n]*$", text, re.M))
+    if len(ms) != 1:
+        return ""
+    tail = text[ms[0].end():]
+    nxt = re.search(r"^#{1,3}\s", tail, re.M)
+    return tail[:nxt.start()] if nxt else tail
+
+
+def pass_items(text: str, pass_no: int) -> list[tuple[str, str | None]]:
+    """→ 那一遍的 `(件路径, 节标题|None)` 列表（⭐ 顺序 = 册子里的顺序）。
+
+    ⭐ **形状的正则来自门禁**（`check-extraction-status.ITEM_TITLE_RE`）—— ⛔ 本脚本**不另抄一份**：
+    抄一份就迟早会漂，而「同一个形状两份定义」正是「同一个量两个数」的变体。
+    """
+    r = _ces().ITEM_TITLE_RE
+    out: list[tuple[str, str | None]] = []
+    for l in pass_slice(text, pass_no).splitlines():
+        m = r.match(l)
+        if m:
+            out.append((m.group(1), m.group(2)))
+    return out
+
+
+def _mark(summary: str, stats: dict) -> str:
+    """⭐ 判据 ⑥：摘要 **⛔ 不截断**，`> 100` 字**只追加标记**（⭐ 截断由开发者自己做）。"""
+    if len(summary) > SUMMARY_SOFT:
+        stats["over"] += 1
+        return summary + OVER_MARK
+    return summary
+
+
 def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tuple[list[str], str, dict]:
-    """纯函数：返回 (错误列表, 渲染块, 读数)。⛔ **不碰磁盘** —— 臂才跑得动。"""
+    """纯函数：返回 (错误列表, 渲染块, 读数)。⛔ **不碰磁盘** —— 臂才跑得动。
+
+    ⭐⭐ **两套形状**（⭐ 单一出处 = 册子 `§六`；标题正则 = 门禁的 `ITEM_TITLE_RE`）：
+
+      · **第 1 遍（件级）**：一条 = **一件** ⇒ 标题 `` #### `<件>` ``（回吐体照旧）
+      · **第 2 遍及以后（节级）**：一条 = **一节** ⇒ 标题 `` #### `<件>` › <节标题> ``
+        —— ⭐ 开发者 2026-10-06 裁「**一节一条**」：一次子代理调用仍只读**一件**
+        （⛔ 不许一件多次调用），但**渲染成多条**；回吐体照回执 `004` 的 `M2` 字段表
+        （`sections[].title / anchor / summary / type / why_keep`）。
+        ⭐ **整件被筛掉**（本遍的收窄判据 = **过期／无效**）⇒ 给 `drop_reason`，
+        ⛔ 不给 `sections` ⇒ 渲染成一条「**⛔ 整件筛掉（原因）**」（⭐ ⛔ 不许静默丢掉）。
+    """
     errs: list[str] = []
-    already = set(re.findall(r"^####\s+`([^`]+)`\s*$", ledger_text, re.M))
-    seen: set[str] = set()
+    ces = _ces()
+    #: ⭐⭐ **判据⑦ 的作用域 = 本遍**（⛔ 不是全册）—— 见 `pass_slice` 的注释。
+    already = set(pass_items(ledger_text, pass_no))
+    #: ⭐ **判据⑧′**：第 2 遍及以后的件必须来自**上一遍**（漏斗不许添新件）。
+    prev_files = {p for p, _ in pass_items(ledger_text, pass_no - 1)} if pass_no >= 2 else set()
+    #: ⭐ **判据⑧**：只对**第 1 遍**比 `TARGET1`（⭐ 那是**件级**靶子 —— 别的遍单位不同）。
+    p1_here = len(pass_items(ledger_text, 1)) if pass_no == 1 else 0
+    seen: set[tuple[str, str | None]] = set()
     block: list[str] = []
-    stats = {"n": 0, "over": 0, "bytes": 0, "chars": 0, "capped": 0}
+    stats = {"n": 0, "over": 0, "bytes": 0, "chars": 0, "capped": 0, "dropped": 0}
+    #: ⭐ 判据⑤（`sections` ≤ 3）是 **2026-10-05 针对第 1 遍**裁的 ⇒ ⛔ 不套到节级那一遍上
+    #:   （节级本来就要**把有价值的节提全**，套 3 个上限＝**按配额丢内容**）。
+    secs_max = SECTIONS_MAX if pass_no == 1 else None
 
     if not isinstance(items, list):
         return ([f"顶层 `items` 必须是数组（拿到 {type(items).__name__}）"], "", stats)
@@ -209,91 +294,177 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
             elif path.startswith("docs/reviews/archive/"):
                 hint = "（⚠️ `docs/reviews/archive/` ⛔ 不在靶子集 —— reviews 口径是**顶层**）"
             errs.append(f"{where}：⛔ **不在靶子集**{hint}")
-        # 判据 ⑦：已在册 / 本批内重复
-        if path in already:
-            errs.append(f"{where}：⛔ **已在册**（本遍只许**追加**，⛔ 不许覆盖）")
-        if path in seen:
-            errs.append(f"{where}：⛔ **本批内重复**")
-        seen.add(path)
-
-        has = rec.get("has_value")
-        if not isinstance(has, bool):
-            errs.append(f"{where}：`has_value` 必须是**布尔**（拿到 {has!r}）")
-            has = None
-
-        kind = rec.get("kind")
-        sections = _as_list(rec.get("sections"), "sections", errs, where)
-        types = _as_list(rec.get("types"), "types", errs, where)
-        ruling = rec.get("ruling")
-        if ruling is not None and (not isinstance(ruling, str) or not ruling.strip()):
-            ruling = None
-        summary = rec.get("summary")
-
-        if not isinstance(summary, str) or not summary.strip():
-            errs.append(f"{where}：`summary` 缺失／空 ⇒ ⭐ 判「无」也必须给**理由**")
-            summary = None
-        else:
-            summary = summary.strip()
-
-        # 判据 ⑤：sections ≤ 3
-        if len(sections) > SECTIONS_MAX:
-            errs.append(f"{where}：⛔ `sections` **{len(sections)} 个 > {SECTIONS_MAX} 个**"
-                        f"（2026-10-05 开发者裁「`sections` 降到 3 个」）")
-        if has is True:
-            if kind not in KINDS:
-                errs.append(f"{where}：判「有」时 `kind` 必须是 {'／'.join(KINDS)} 之一（拿到 {kind!r}）")
-            if not sections:
-                errs.append(f"{where}：判「有」时 `sections` ⛔ 不许空")
-            if not types:
-                errs.append(f"{where}：判「有」时 `types` ⛔ 不许空")
-            for t in types:
-                if t not in TYPES:
-                    errs.append(f"{where}：`types` 里有不认识的值 {t!r}（允许 {'／'.join(TYPES)}）")
-        elif has is False:
-            for nm, v in (("kind", kind), ("sections", sections), ("types", types)):
-                if v:
-                    errs.append(f"{where}：判「无」时 `{nm}` 必须为空（⭐ ⛔ 不许编内容）")
 
         # ⭐⭐ 判据 ⑩：**读没读到** ≠ **有没有价值** —— 2026-10-06 批 2 当场撞出来的。
         #   ⚠️ 事故形状：子代理的工作目录是 `/home/vscode`，而注入的是**仓库相对路径**
         #   ⇒ **26/55 件根本没读到**，其中 **17 件回吐成 `has_value: false`＋摘要写「读取失败」**
-        #   ⇒ ⛔ 若照单落盘，册子里会出现 **17 条「判：无」的假条目**（＝把**读失败**当**无价值**，
-        #   与 `survey/38` 那次是同一个病）。⭐ 修法**不是**加一句散文，是**加一个必填字段**：
-        #   子代理必须回吐 `read_ok`；`read_ok is not True` ⇒ **响亮失败**，⛔ 不许写。
+        #   ⇒ ⛔ 若照单落盘，册子里会出现 **17 条「判：无」的假条目**（＝把**读失败**当**无价值**）。
+        #   ⭐ 修法**不是**加一句散文，是**加一个必填字段**：子代理必须回吐 `read_ok`；
+        #   `read_ok is not True` ⇒ **响亮失败**，⛔ 不许写。⭐ 两遍都必填。
         if rec.get("read_ok") is not True:
             got = rec.get("read_ok", "<缺字段>")
             errs.append(f"{where}：⛔ `read_ok` 不是 `true`（拿到 {got!r}）⇒ "
                         f"⭐ **没读到件** ⇒ ⛔ **不许**写成「判：无」（⭐ 读失败 ≠ 无价值）")
 
-        if errs and (summary is None or path not in targets):
-            continue                                       # ⛔ 有硬错就不渲染，免得写出半截
+        # ⭐ 判据 ⑧′：第 2 遍及以后 —— 件必须来自**上一遍**（⭐ 漏斗不许添新件）
+        if pass_no >= 2 and path not in prev_files:
+            errs.append(f"{where}：⛔ **不属于第 {pass_no - 1} 遍的件** ⇒ ⭐ 漏斗只许在"
+                        f"上一遍的件里收窄，⛔ 不许添新件（⭐ 靶子**冻结**，⛔ 不追加）")
 
-        # ⭐ 判据 ⑥：**⛔ 不截断，只标记**
-        over = len(summary) > SUMMARY_SOFT
-        if over:
-            summary = summary + OVER_MARK
-            stats["over"] += 1
+        ruling = rec.get("ruling")
+        if ruling is not None and (not isinstance(ruling, str) or not ruling.strip()):
+            ruling = None
+        summary = rec.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            summary = summary.strip()
+        else:
+            summary = None
 
-        stats["n"] += 1
-        stats["chars"] += len(summary)
-        body = [
-            f"#### `{path}`",
-            (f"- **判**：**有**价值内容（{kind}）" if has else "- **判**：**无**"),
-            f"- **在哪几节**：{' ／ '.join(sections) if sections else '（无）'}",
-            f"- **类型**：{'·'.join(types) if types else '（无）'}",
-            f"- **疑似裁定**：{ruling or '（无）'}",
-            f"- **摘要**：{summary}",
-            "",
-        ]
-        block.append("\n".join(body) + "\n")
+        keys: list[tuple[str, str | None]] = []
+
+        if pass_no == 1:
+            # ---------------------------------------------------- 第 1 遍 · 件级
+            has = rec.get("has_value")
+            if not isinstance(has, bool):
+                errs.append(f"{where}：`has_value` 必须是**布尔**（拿到 {has!r}）")
+                has = None
+            kind = rec.get("kind")
+            sections = _as_list(rec.get("sections"), "sections", errs, where)
+            types = _as_list(rec.get("types"), "types", errs, where)
+
+            if summary is None:
+                errs.append(f"{where}：`summary` 缺失／空 ⇒ ⭐ 判「无」也必须给**理由**")
+            # 判据 ⑤：sections ≤ 3（⭐ 2026-10-05 开发者裁「`sections` 降到 3 个」）
+            if len(sections) > SECTIONS_MAX:
+                errs.append(f"{where}：⛔ `sections` **{len(sections)} 个 > {SECTIONS_MAX} 个**"
+                            f"（2026-10-05 开发者裁「`sections` 降到 3 个」）")
+            if has is True:
+                if kind not in KINDS:
+                    errs.append(f"{where}：判「有」时 `kind` 必须是 {'／'.join(KINDS)} 之一（拿到 {kind!r}）")
+                if not sections:
+                    errs.append(f"{where}：判「有」时 `sections` ⛔ 不许空")
+                if not types:
+                    errs.append(f"{where}：判「有」时 `types` ⛔ 不许空")
+                for t in types:
+                    if t not in TYPES:
+                        errs.append(f"{where}：`types` 里有不认识的值 {t!r}（允许 {'／'.join(TYPES)}）")
+            elif has is False:
+                for nm, v in (("kind", kind), ("sections", sections), ("types", types)):
+                    if v:
+                        errs.append(f"{where}：判「无」时 `{nm}` 必须为空（⭐ ⛔ 不许编内容）")
+
+            if summary is None or path not in targets:
+                continue                                   # ⛔ 有硬错就不渲染，免得写出半截
+            summary = _mark(summary, stats)
+            keys = [(path, None)]
+            stats["n"] += 1
+            stats["chars"] += len(summary)
+            block.append("\n".join([
+                f"#### `{path}`",
+                (f"- **判**：**有**价值内容（{kind}）" if has else "- **判**：**无**"),
+                f"- **在哪几节**：{' ／ '.join(sections) if sections else '（无）'}",
+                f"- **类型**：{'·'.join(types) if types else '（无）'}",
+                f"- **疑似裁定**：{ruling or '（无）'}",
+                f"- **摘要**：{summary}",
+                "",
+            ]) + "\n")
+        else:
+            # -------------------------------------------- 第 2 遍及以后 · 节级（一节一条）
+            drop = rec.get("drop_reason")
+            secs_raw = rec.get("sections")
+            if drop is not None:
+                # ⭐ **整件被筛掉**（本遍的收窄判据 = 过期／无效）
+                if drop not in DROP_REASONS:
+                    errs.append(f"{where}：⛔ `drop_reason` 只能是 {'／'.join(DROP_REASONS)}"
+                                f"（拿到 {drop!r}）⇒ ⭐ 本遍的收窄判据只有这两条（册子 `§三.1`）")
+                if secs_raw:
+                    errs.append(f"{where}：⛔ **整件被筛掉**时 ⛔ 不许再给 `sections`"
+                                f"（⭐ 筛掉就是筛掉，⛔ 不许又留一半）")
+                if summary is None:
+                    errs.append(f"{where}：⛔ **整件筛掉必须给理由**（`summary` 空）⇒ "
+                                f"⭐ 统计报告要按原因分布（册子 `§三.2`）")
+                if summary is None or path not in targets:
+                    continue
+                s = _mark(summary, stats)
+                keys = [(path, DROP_TITLE)]
+                stats["n"] += 1
+                stats["chars"] += len(s)
+                stats["dropped"] += 1
+                block.append("\n".join([
+                    f"#### `{path}` › {DROP_TITLE}",
+                    f"- **判**：**筛掉**（{drop}）",
+                    f"- **摘要**：{s}",
+                    "",
+                ]) + "\n")
+            else:
+                # ⭐ 本遍的**正形状**：一条 = 一节
+                if not isinstance(secs_raw, list) or not secs_raw:
+                    errs.append(f"{where}：⛔ 第 {pass_no} 遍**一条 = 一节** ⇒ `sections` 必须是"
+                                f"**非空数组**（⭐ 整件被筛掉才用 `drop_reason`）")
+                    secs_raw = []
+                if secs_max is not None and len(secs_raw) > secs_max:
+                    errs.append(f"{where}：⛔ `sections` **{len(secs_raw)} 个 > {secs_max} 个**")
+                if path not in targets:
+                    continue
+                for j, sec in enumerate(secs_raw):
+                    sw = f"{where} 第 {j + 1} 节"
+                    bad: list[str] = []
+                    if not isinstance(sec, dict):
+                        errs.append(f"{sw}：不是对象（拿到 {type(sec).__name__}）")
+                        continue
+                    title = sec.get("title")
+                    anchor = sec.get("anchor")
+                    ssum = sec.get("summary")
+                    stype = sec.get("type")
+                    why = sec.get("why_keep")
+                    if not isinstance(title, str) or not title.strip():
+                        errs.append(f"{sw}：`title` 缺失／空 ⇒ ⭐ 标题＝条目标题的后半截，⛔ 不许空")
+                        continue
+                    title = title.strip()
+                    if not isinstance(anchor, str) or not anchor.strip():
+                        bad.append("`anchor` 缺失／空 ⇒ ⭐ 落盘一律用**描点**，⛔ 不写行号")
+                    if not isinstance(ssum, str) or not ssum.strip():
+                        bad.append("`summary` 缺失／空 ⇒ ⭐ 每节都要 2–3 句")
+                    if stype not in TYPES:
+                        bad.append(f"`type` 必须是 {'／'.join(TYPES)} 之一（拿到 {stype!r}）")
+                    if not isinstance(why, str) or not why.strip():
+                        bad.append("`why_keep` 缺失／空 ⇒ ⭐ **为什么留这节**是本遍的过滤理由，⛔ 不许省")
+                    ssum = ssum.strip() if isinstance(ssum, str) else ""
+                    for b in bad:
+                        errs.append(f"{sw}（`{title}`）：{b}")
+                    if bad:
+                        continue                                    # ⛔ 有硬错的节不渲染
+                    s = _mark(ssum, stats)
+                    keys.append((path, title))
+                    stats["n"] += 1
+                    stats["chars"] += len(s)
+                    block.append("\n".join([
+                        f"#### `{path}` › {title}",
+                        f"- **节**：{anchor.strip()}",
+                        f"- **类型**：{stype}",
+                        f"- **摘要**：{s}",
+                        f"- **为什么留**：{why.strip()}",
+                        f"- **疑似裁定**：{ruling or '（无）'}",
+                        "",
+                    ]) + "\n")
+
+        # ⭐ 判据 ⑦（**本遍内**）：已在册 ／ 本批内重复
+        for key in keys:
+            label = f"`{key[0]}`" + (f" › `{key[1]}`" if key[1] else "")
+            if key in already:
+                errs.append(f"{where}：⛔ **已在册**（{label} —— 本遍只许**追加**，⛔ 不许覆盖）")
+            if key in seen:
+                errs.append(f"{where}：⛔ **本批内重复**（{label}）")
+            seen.add(key)
 
     rendered = "".join(block)
     stats["bytes"] = len(rendered.encode("utf-8"))
-    total = len(already) + stats["n"]
-    _t1 = _ces().TARGET1
-    if total > _t1:                                        # 判据 ⑧
-        errs.append(f"⛔ 本批写完后累计 **{total}** 条 > `TARGET1` **{_t1}** "
-                    f"⇒ 会让门禁判据③（第 1 遍 ≤ {_t1}）变红 ⇒ ⛔ 拒绝")
+    if pass_no == 1:                                           # 判据 ⑧（⭐ 只对第 1 遍）
+        total = p1_here + stats["n"]
+        _t1 = ces.TARGET1
+        if total > _t1:
+            errs.append(f"⛔ 本批写完后**第 1 遍累计** **{total}** 条 > `TARGET1` **{_t1}** "
+                        f"⇒ 会让门禁判据③（第 1 遍 ≤ {_t1}）变红 ⇒ ⛔ 拒绝")
     return errs, rendered, stats
 
 
@@ -368,11 +539,18 @@ def main() -> int:
     errs, block, stats = run(raw, text, a.pass_no)
     targets = target_set()
     _t1 = _ces().TARGET1
-    already = len(re.findall(r"^####\s+`([^`]+)`\s*$", text, re.M))
+    #: ⭐⭐ **已在册 = 本遍的条目数**（⛔ 不是全册 —— 第 2 遍处理的是**同一批 188 件**，
+    #:    按全册数会把整批判成「已在册」⇒ 一条都落不进去）。
+    here = pass_items(text, a.pass_no)
+    already = len(here)
+    unit = "节" if any(s for _, s in here) else "件"
+    prev_here = {p for p, _ in pass_items(text, a.pass_no - 1)} if a.pass_no >= 2 else set()
 
     print(f"体积自报：回吐体 **{stats.get('raw', len(raw))}** 字节 / 上限 {MAX_BYTES} 字节")
     print(f"靶子清单：**{len(targets)}** 件（⭐ **冻结** · ⛔ 不随改名／搬迁变动） vs `TARGET1` **{_t1}**"
           + ("　✅ 一致" if len(targets) == _t1 else "　⛔ **对不上**"))
+    print(f"落点：第 **{a.pass_no}** 遍 · 该遍单位 = **{unit}** · 已在册 **{already}** 条"
+          + (f" · 上一遍件集 **{len(prev_here)}** 件" if a.pass_no >= 2 else ""))
     if len(targets) != _t1:
         errs.append(f"⛔ 靶子清单 {len(targets)} ≠ `TARGET1` {_t1} ⇒ 清单被动过，⛔ 先查口径再写")
     live = set(live_targets())
@@ -388,8 +566,12 @@ def main() -> int:
     if block:
         print(f"本批读数：**{stats['n']}** 条 · 渲染体 **{stats['bytes']}** 字节 "
               f"· 均值 **{stats['bytes'] // max(stats['n'], 1)}** 字节/条 · "
-              f"摘要超 {SUMMARY_SOFT} 字 **{stats['over']}** 条（⭐ 只标记，⛔ 未截断）")
-        print(f"累计读数：已在册 {already} ＋ 本批 {stats['n']} = **{already + stats['n']}** / {_t1}")
+              f"摘要超 {SUMMARY_SOFT} 字 **{stats['over']}** 条（⭐ 只标记，⛔ 未截断）"
+              + (f" · ⭐ **整件筛掉 {stats.get('dropped', 0)} 件**（收窄判据 = 过期／无效，"
+                 f"⭐ 它们也是本遍的产出）" if a.pass_no >= 2 else ""))
+        print(f"本遍读数：已在册 {already} ＋ 本批 {stats['n']} = **{already + stats['n']}** 条"
+              + (f" / `TARGET1` {_t1}（⭐ 判据⑧ 只对第 1 遍）" if a.pass_no == 1
+                 else f"（⭐ 本遍单位 = {unit} ⇒ ⛔ 与第 1 遍的**件**不是同一个量）"))
     if errs:
         print(f"{RESULT} FAIL")
         for e in errs:
@@ -428,6 +610,24 @@ def _mk_ledger() -> str:
 def _rec(path="docs/AI_PROJECT_STATE.md", **kw):
     r = {"path": path, "read_ok": True, "has_value": True, "kind": "混合", "sections": ["一"],
          "types": ["判据"], "ruling": None, "summary": "摘要。" * 1}
+    r.update(kw)
+    return r
+
+
+def _sec(title="一 · 假的一节", **kw):
+    s = {"title": title, "anchor": "§ 假描点", "summary": "节摘要。" * 1, "type": "判据",
+         "why_keep": "因为它是判据。"}
+    s.update(kw)
+    return s
+
+
+def _rec2(path="docs/ACCEPTANCE_GUIDE.md", **kw):
+    """⭐ **节级**回吐体（第 2 遍及以后）—— 一条 = **一件**，但**渲染成一节一条**。
+
+    ⚠️ 默认 `path` 挑的是**合成册子第 1 遍里已有的那件**（`docs/ACCEPTANCE_GUIDE.md`）
+    —— ⭐ 因为第 2 遍的件必须来自上一遍（判据⑧′）。
+    """
+    r = {"path": path, "read_ok": True, "sections": [_sec()], "ruling": None}
     r.update(kw)
     return r
 
@@ -556,15 +756,17 @@ def selftest() -> int:
         else:
             fail += 1
             print("  [⛔臂失效] L 插入位置错了")
-    # M 遍标题缺失 ⇒ 红（⛔ 不新建遍节）
-    errs, _, _ = run(_body([_rec()]), L, 9)
+    # M 遍标题缺失 ⇒ **插入点 None**（⛔ 不新建遍节）
+    #   ⚠️⭐ 本臂的**主语是插入点**，⛔ 不是 `run()` 的 errs —— 退回验过一次：2026-10-06
+    #   加了判据⑧′（件必须来自上一遍）之后，`--pass 9` 会**因为另一个原因**红
+    #   （没有第 8 遍 ⇒ 件集空）⇒ 原来那句 `not errs` 会让**本臂失效**（⭐ 它与插入点无关）。
     pos9 = insert_pos(L, 9)
-    if not errs and pos9 is None:
+    if pos9 is None:
         ok += 1
         print("  [ok] M `### 第 9 遍` 不存在 ⇒ 插入点 None（⛔ 不新建）")
     else:
         fail += 1
-        print("  [⛔臂失效] M 缺失的遍节没被拦住")
+        print(f"  [⛔臂失效] M 缺失的遍节没被拦住：pos={pos9}")
     # M′ ⭐ **遍标题重复** ⇒ 插入点 None（⛔ 不猜哪一个）—— ⚠️ 本条是**退回验出来的漏洞**：
     #   合成册子原先只有一个「第 1 遍」⇒ 判据 `len(ms) != 1` 与 `len(ms) < 1` **无法区分**
     #   ⇒ 把判据改成 `< 1` 臂**照样绿**。⭐ 补一个**重复标题**的册子才照得出这条判据。
@@ -583,13 +785,17 @@ def selftest() -> int:
     else:
         fail += 1
         print(f"  [⛔臂失效] N 靶子对不上：现算 {len(T)} vs TARGET1 {_ces().TARGET1}")
-    # O 累计 > TARGET1 ⇒ 红（把已在册数灌满到 188 再写 1 条）
+    # O 累计 > TARGET1 ⇒ 红（⭐ **填充件必须落在第 1 遍节内** —— ⚠️ 本臂 2026-10-06 改过：
+    #   ⛔ 原先把 188 条**追加在册子末尾**（＝落在**落地节**里），而判据⑧ 的作用域已收窄到
+    #   **第 1 遍** ⇒ 那样填**根本喂不到判据**（臂会失效成"恒绿"）。
     many = "\n\n".join(f"#### `docs/f{i}.md`\n- **判**：**无**\n- **在哪几节**：（无）\n"
                        f"- **类型**：（无）\n- **疑似裁定**：（无）\n- **摘要**：x。" for i in range(_ces().TARGET1))
-    errs, _, _ = run(_body([_rec()]), L + "\n\n" + many, 1)
+    L_full = ("# 提取册（合成）\n\n## 六 · 漏斗\n\n### 第 1 遍 · 粗筛（件级）\n\n> 口径\n\n" + many +
+              "\n\n### 第 2 遍 · 细筛（节级）\n\n> 空\n\n## 七 · 落地（⛔ 不是一遍）\n\n> 空\n")
+    errs, _, _ = run(_body([_rec()]), L_full, 1)
     if errs:
         ok += 1
-        print("  [ok] O 累计会超 `TARGET1` ⇒ 红")
+        print("  [ok] O 第 1 遍累计会超 `TARGET1` ⇒ 红")
     else:
         fail += 1
         print("  [⛔臂失效] O 超靶子没被拦住")
@@ -619,6 +825,84 @@ def selftest() -> int:
     else:
         fail += 1
         print(f"  [⛔臂失效] R 冻结清单里有白名单件：{in_frozen}")
+
+    #: ⭐⭐⭐ **本刀的正主**（2026-10-06）：⛔ **第 2 遍同一批件 ⇒ 不许再被判「已在册」**。
+    #:   ⚠️ **退回验过**：改之前，同一条回吐体在 `--pass 2` 下**两处红**
+    #:   （`已在册` ＋ `累计 189 > TARGET1 188`）⇒ 第 2 遍**一条都落不进去**。
+    want("S ⭐ 第 2 遍 · 同一件 ⇒ ⛔ 不再误红（判据⑦ 作用域＝本遍）",
+         [_rec2()], red=False, pass_no=2)
+    #: S′ 反向：第 2 遍里**同一节**再来一次 ⇒ 红（⭐ 判据⑦ 仍然管得住"本遍内不覆盖"）
+    #:   ⚠️⭐ 那条**已存在**的节条目必须落在**第 2 遍节内** —— 退回验过一次：
+    #:   追加在册子**末尾**时它落在**落地节**里 ⇒ `already`（作用域＝第 2 遍）是空的
+    #:   ⇒ 本臂**恒绿**（⭐ 那就是"验的是空气"）。
+    L_p2 = _mk_ledger().replace(
+        "### 第 2 遍 · 细筛（节级）\n\n> 空\n\n",
+        "### 第 2 遍 · 细筛（节级）\n\n"
+        "#### `docs/ACCEPTANCE_GUIDE.md` › 一 · 假的一节\n"
+        "- **节**：§ x\n- **类型**：判据\n- **摘要**：y。\n"
+        "- **为什么留**：z。\n- **疑似裁定**：（无）\n\n", 1)
+    want("S′ 第 2 遍 · 同一节重复 ⇒ 红（判据⑦ 本遍内）",
+         [_rec2(title="一 · 假的一节")], red=True, pass_no=2, ledger=L_p2)
+    #: X ⭐ 第 2 遍的件**必须来自第 1 遍**（⭐ 漏斗不许添新件 = 判据⑧′）
+    want("T 第 2 遍 · 件不在第 1 遍里 ⇒ 红（判据⑧′）",
+         [_rec2(path="docs/AI_DEVELOPMENT_PLAYBOOK.md")], red=True, pass_no=2)
+    #: Y ⭐ **一节一条**：一次回吐 3 节 ⇒ 渲染成 **3 条**（⛔ 不是 1 条）
+    errs, block, st = run(_body([_rec2(sections=[_sec("甲"), _sec("乙"), _sec("丙")])]), L, 2)
+    if not errs and block.count("#### ") == 3 and st["n"] == 3:
+        ok += 1
+        print("  [ok] U 3 节 ⇒ **渲染成 3 条**（一节一条）")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] Y 一节一条没做到：条数={block.count('#### ')} n={st.get('n')} errs={errs[:1]}")
+    #: Z ⭐ 节级那一遍 **⛔ 没有 `sections` ≤ 3 的上限**（那条裁只属于第 1 遍）
+    #:   ⚠️ 与臂 C（第 1 遍 4 个 ⇒ 红）**配对** —— ⛔ 别把这条读成"判据⑤ 被删了"。
+    want("V 第 2 遍 · 5 节 ⇒ 绿（⛔ 3 个上限只属于第 1 遍）",
+         [_rec2(sections=[_sec(f"节 {i}") for i in range(5)])], red=False, pass_no=2)
+    #: A′ 整件筛掉（收窄判据 = 过期／无效）⇒ 绿 ＋ 渲染成**节级**的一条（⛔ 不许静默丢掉）
+    errs, block, st = run(_body([_rec2(sections=[], drop_reason="过期", summary="整份已被取代。")]), L, 2)
+    if not errs and f"› {DROP_TITLE}" in block and "**筛掉**（过期）" in block and st["dropped"] == 1:
+        ok += 1
+        print("  [ok] W 整件筛掉（过期）⇒ 绿 ＋ 留痕（⛔ 不静默）")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] A′ 整件筛掉没落对：{block!r} errs={errs[:1]}")
+    #: B′ 筛掉的原因只许两条（⭐「已落地」属第 4 遍，⛔ 不在本遍）
+    want("X 第 2 遍 · `drop_reason=已落地` ⇒ 红（⛔ 属第 4 遍）",
+         [_rec2(sections=[], drop_reason="已落地", summary="x")], red=True, pass_no=2)
+    #: C′ 筛掉却还带 sections ⇒ 红（⛔ 不许又留一半）
+    want("Y 第 2 遍 · 筛掉却带 `sections` ⇒ 红",
+         [_rec2(drop_reason="无效", summary="x")], red=True, pass_no=2)
+    #: D′ 节级缺 `why_keep` ⇒ 红（⭐ 回执 `M2` 的字段表：过滤理由 ⛔ 不许省）
+    _nosec = _sec()
+    _nosec.pop("why_keep")
+    want("Z 第 2 遍 · 节缺 `why_keep` ⇒ 红", [_rec2(sections=[_nosec])], red=True, pass_no=2)
+    #: E′ 节级缺 `anchor` ⇒ 红（⭐ 落盘一律用描点）
+    _noanchor = _sec()
+    _noanchor.pop("anchor")
+    want("AA 第 2 遍 · 节缺 `anchor` ⇒ 红", [_rec2(sections=[_noanchor])], red=True, pass_no=2)
+    #: F′ 既无 `sections` 也无 `drop_reason` ⇒ 红（⭐ 空手回吐 = 静默丢件）
+    want("AB 第 2 遍 · 空手回吐（无 sections 无 drop_reason）⇒ 红",
+         [_rec2(sections=[])], red=True, pass_no=2)
+    #: G′ ⭐ **渲染逐字**（节级形状，防漂）
+    errs, block, _ = run(_body([_rec2()]), L, 2)
+    want2 = ("#### `docs/ACCEPTANCE_GUIDE.md` › 一 · 假的一节\n"
+             "- **节**：§ 假描点\n- **类型**：判据\n- **摘要**：节摘要。\n"
+             "- **为什么留**：因为它是判据。\n- **疑似裁定**：（无）\n\n")
+    if block == want2:
+        ok += 1
+        print("  [ok] AC 节级渲染逐字（字段顺序 · 标点 · 空行）")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] G′ 渲染漂了：\n期望 {want2!r}\n实得 {block!r}")
+    #: H′ ⭐ 节级超长摘要 ⇒ **只标记、⛔ 不截断**（⭐ 判据⑥ 对两遍都成立）
+    long_sec = "甲" * (SUMMARY_SOFT + 5)
+    errs, block, st = run(_body([_rec2(sections=[_sec(summary=long_sec)])]), L, 2)
+    if not errs and long_sec + OVER_MARK in block and st["over"] == 1:
+        ok += 1
+        print("  [ok] AD 节级超长摘要 → 全文保留 ＋ 新标记")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] H′ 节级超长摘要被截断或没标记：errs={errs[:1]}")
 
     print(f"INGEST_EXTRACTION_SELFTEST {'PASS' if fail == 0 else 'FAIL'}: 臂 {ok}/{ok + fail}")
     return 0 if fail == 0 else 1
