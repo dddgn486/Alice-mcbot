@@ -232,36 +232,75 @@ def _as_list(v, what: str, errs: list[str], where: str) -> list[str]:
 
 
 def pass_slice(text: str, pass_no: int) -> str:
-    """⭐ `### 第 N 遍 …` 标题到**下一节标题**之间的正文 —— **判据⑦/⑧ 的作用域 = 本遍**。
+    """⚠️ **已退役 —— 切法只能有一份**（2026-10-06 · 对抗性复核打穿的 `★3`）。
 
-    ⚠️⭐ **为什么必须有它**（2026-10-06 当场复算出来的硬阻塞）：原判据⑦ 的 `already` 是
-    **全册**的 `` #### `<件>` ``（⛔ 不分遍），而第 2 遍处理的是**同一批 188 件**
-    ⇒ ⭐ 第 2 遍**一条都落不进去**（每条都被判「已在册」），而判据⑧ 的累计 `188 + n`
-    **必 > 188** ⇒ 两个红一起响。
-    ⇒ ⭐ 病根只有一处：**把「全册」当成了「本遍」** —— ⚠️ 而且**报错会指错方向**
-    （读起来像"我重复提交了"，其实是判据的作用域错了）。
+    ⛔ 本函数**不再实现切法**：它原先自己写了一套（`^#{1,3}\\s` 就停）⇒ 与门禁的切法
+    **不一致** ⇒ 一条 `## 嵌套小标题` 就能让**两个工具看见的第 N 遍不一样**
+    （⭐ 一边放行落盘、一边判红，**而且两边都指错方向**）。
+    ⇒ ⭐ 现在**一律走门禁导出的** `_ces().pass_lines()`／`pass_items()`／`pass_shapes()`
+    （⭐ 它们**认围栏**、按**边界行**切 —— ⛔ 本脚本不另判一次）。
     """
-    ms = list(re.finditer(rf"^###\s*第\s*{pass_no}\s*遍[^\n]*$", text, re.M))
-    if len(ms) != 1:
-        return ""
-    tail = text[ms[0].end():]
-    nxt = re.search(r"^#{1,3}\s", tail, re.M)
-    return tail[:nxt.start()] if nxt else tail
+    return "\n".join(_ces().pass_lines(text, pass_no))
 
 
-def pass_items(text: str, pass_no: int) -> list[tuple[str, str | None]]:
-    """→ 那一遍的 `(件路径, 节标题|None)` 列表（⭐ 顺序 = 册子里的顺序）。
+def pass_items(text: str, pass_no: int) -> list[tuple[str | None, str | None]]:
+    """→ 那一遍的 `(件路径, 节标题)` 列表（⭐ **直接调门禁**，⛔ 不另抄正则、⛔ 不另写切法）。
 
-    ⭐ **形状的正则来自门禁**（`check-extraction-status.ITEM_TITLE_RE`）—— ⛔ 本脚本**不另抄一份**：
-    抄一份就迟早会漂，而「同一个形状两份定义」正是「同一个量两个数」的变体。
+    ⚠️ **形状外的标题 ⇒ `(None, None)`**（⛔ 不丢、不猜 —— 判据⑪ 要数它）。
     """
-    r = _ces().ITEM_TITLE_RE
-    out: list[tuple[str, str | None]] = []
-    for l in pass_slice(text, pass_no).splitlines():
-        m = r.match(l)
-        if m:
-            out.append((m.group(1), m.group(2)))
+    return _ces().pass_items(text, pass_no)
+
+
+def pass_shapes(text: str, pass_no: int) -> dict[str, int]:
+    """→ 那一遍的**形状计数** `{"file", "section", "other"}`（⭐ 直接调门禁）。"""
+    return _ces().pass_shapes(text, pass_no)
+
+
+def rendered_shapes(block: str) -> dict[str, int]:
+    """→ **渲染块**里各类行数：`{head, file, section, other}`（⭐ 供判据⑬ 自校验）。
+
+    ⚠️ 判据⑬ 是**独立**的一道网：它把**已经渲染好的文本**重新当册子解析一遍，
+    ⛔ 不依赖"我记得查了哪些字段"（⭐ 那正是本仓最贵那族错的来源）。
+    """
+    ces = _ces()
+    out = {"head": 0, "file": 0, "section": 0, "other": 0}
+    for l in block.splitlines():
+        if ces.PASS_RE.match(l) or ces.LANDING_RE.match(l):
+            out["head"] += 1
+            continue
+        if not ces.ITEM_ANY_RE.match(l):
+            continue
+        m = ces.ITEM_TITLE_RE.match(l)
+        if m is None:
+            out["other"] += 1
+        elif m.group(2):
+            out["section"] += 1
+        else:
+            out["file"] += 1
     return out
+
+
+def _oneline(v, what: str, errs: list[str], where: str) -> str | None:
+    """⭐ **自由文本字段必须单行** —— ⛔ 不许含换行（2026-10-06 · 对抗性复核 `★1`）。
+
+    ⚠️⭐ **为什么这是硬判据而不是洁癖**：`title`／`anchor`／`summary`／`why_keep` 是**子代理的
+    自由文本**，而它们会被**逐字拼进**册子的 `#### ` 行与正文 ⇒ 一个 `\\n` 就能
+    **注入伪造条目**、甚至**伪造整整一遍**：
+      `title = "甲\\n\\n### 第 3 遍 · 伪造的第三筛\\n\\n#### \\`docs/X.md\\` › 乙"`
+      ⇒ 落地器自报「本批 1 条」，而册子里多出**一遍从未跑过的第 3 遍**，⭐ **门禁事后判绿**。
+    ⇒ ⭐ 这是「**伪造成功**」那一族（本仓明令不接受）⇒ **落地器必须响亮失败**。
+    """
+    if v is None:
+        return None
+    if not isinstance(v, str):
+        errs.append(f"{where}：`{what}` 必须是字符串（拿到 {type(v).__name__}）")
+        return None
+    if "\n" in v or "\r" in v:
+        errs.append(f"{where}：⛔ `{what}` **含换行** ⇒ ⭐ 自由文本会被**逐字拼进**册子 ⇒ "
+                    f"换行可以**注入伪造条目、甚至伪造一整遍**（⭐ 门禁会**事后判绿**）"
+                    f"⇒ ⛔ **拒绝**（本仓明令：**伪造成功一律不接受**）")
+        return None
+    return v
 
 
 def _mark(summary: str, stats: dict) -> str:
@@ -289,8 +328,20 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
     ces = _ces()
     #: ⭐⭐ **判据⑦ 的作用域 = 本遍**（⛔ 不是全册）—— 见 `pass_slice` 的注释。
     already = set(pass_items(ledger_text, pass_no))
+    #: ⚠️⭐ **但第 1 遍例外：照旧按【全册】查重**（对抗性复核 `F-5`）—— 判据⑦ 收窄之后，
+    #:   某个件的**裸条目**若落在**别的节**里（§七 落地节、§二 之后任何位置），
+    #:   `--pass 1` 就再也拦不住重复写（⭐ 门禁只数条数、**不查重复** ⇒ 静默重复）。
+    #:   ⇒ ⭐ 第 1 遍用**全册的件级条目集**（⛔ 只有第 2 遍及以后才是"本遍内查重"）。
+    ledger_files = _ces().ledger_file_items(ledger_text) if pass_no == 1 else set()
     #: ⭐ **判据⑧′**：第 2 遍及以后的件必须来自**上一遍**（漏斗不许添新件）。
     prev_files = {p for p, _ in pass_items(ledger_text, pass_no - 1)} if pass_no >= 2 else set()
+    #: ⚠️⭐ **判据⑭：同一件"留下"与"整件筛掉"互斥**（对抗性复核 `F-6`）——
+    #:   判据⑦ 的键是 `(件, 节标题)`，而"筛掉"用的是**合成标题** ⇒ 两条永不相等
+    #:   ⇒ 原先可以**先留一节、再整件筛掉**（反之亦然），两条**自相矛盾**的条目共存、门禁全绿
+    #:   ⇒ ⭐ 而 §三.2 那张统计报告的「原因分布」会把同一件**既算留下又算筛掉**。
+    _here = pass_items(ledger_text, pass_no)
+    drop_paths = {q for q, sec in _here if sec == DROP_TITLE}
+    kept_paths = {q for q, sec in _here if sec and sec != DROP_TITLE}
     #: ⭐ **判据⑧**：只对**第 1 遍**比 `TARGET1`（⭐ 那是**件级**靶子 —— 别的遍单位不同）。
     p1_here = len(pass_items(ledger_text, 1)) if pass_no == 1 else 0
     seen: set[tuple[str, str | None]] = set()
@@ -343,11 +394,14 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
         ruling = rec.get("ruling")
         if ruling is not None and (not isinstance(ruling, str) or not ruling.strip()):
             ruling = None
+        ruling = _oneline(ruling, "ruling", errs, where)
         summary = rec.get("summary")
         if isinstance(summary, str) and summary.strip():
             summary = summary.strip()
         else:
             summary = None
+        #: ⭐⭐ **判据⑫：自由文本必须单行**（⛔ 换行 = 可注入伪造条目／伪造整遍 ⇒ 见 `_oneline`）。
+        summary = _oneline(summary, "summary", errs, where)
 
         keys: list[tuple[str, str | None]] = []
 
@@ -358,8 +412,11 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
                 errs.append(f"{where}：`has_value` 必须是**布尔**（拿到 {has!r}）")
                 has = None
             kind = rec.get("kind")
-            sections = _as_list(rec.get("sections"), "sections", errs, where)
-            types = _as_list(rec.get("types"), "types", errs, where)
+            #: ⭐⭐ 判据⑫：这两列会被 **拼进正文的一行**（`／`／`·` 连接）⇒ 逐项也必须单行
+            sections = [_oneline(x, "sections[]", errs, where) or ""
+                        for x in _as_list(rec.get("sections"), "sections", errs, where)]
+            types = [_oneline(x, "types[]", errs, where) or ""
+                     for x in _as_list(rec.get("types"), "types", errs, where)]
 
             if summary is None:
                 errs.append(f"{where}：`summary` 缺失／空 ⇒ ⭐ 判「无」也必须给**理由**")
@@ -412,6 +469,9 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
                 if summary is None:
                     errs.append(f"{where}：⛔ **整件筛掉必须给理由**（`summary` 空）⇒ "
                                 f"⭐ 统计报告要按原因分布（册子 `§三.2`）")
+                if path in kept_paths:
+                    errs.append(f"{where}：⛔ **这件已经「留下一节」了** ⇒ ⛔ 不许再「整件筛掉」"
+                                f"（⭐ 两条自相矛盾：留了节又筛掉整件 ⇒ ⛔ 判据⑭ 互斥）")
                 if summary is None or path not in targets:
                     continue
                 s = _mark(summary, stats)
@@ -433,6 +493,9 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
                     secs_raw = []
                 if secs_max is not None and len(secs_raw) > secs_max:
                     errs.append(f"{where}：⛔ `sections` **{len(secs_raw)} 个 > {secs_max} 个**")
+                if path in drop_paths:
+                    errs.append(f"{where}：⛔ **这件已经「整件筛掉」了** ⇒ ⛔ 不许再塞回一节"
+                                f"（⭐ 两条自相矛盾 ⇒ ⛔ 判据⑭ 互斥）")
                 if path not in targets:
                     continue
                 for j, sec in enumerate(secs_raw):
@@ -441,15 +504,18 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
                     if not isinstance(sec, dict):
                         errs.append(f"{sw}：不是对象（拿到 {type(sec).__name__}）")
                         continue
-                    title = sec.get("title")
-                    anchor = sec.get("anchor")
-                    ssum = sec.get("summary")
-                    stype = sec.get("type")
-                    why = sec.get("why_keep")
-                    if not isinstance(title, str) or not title.strip():
+                    sw_oneline = f"{sw}（节级自由文本）"
+                    raw_title = sec.get("title")
+                    if not isinstance(raw_title, str) or not raw_title.strip():
                         errs.append(f"{sw}：`title` 缺失／空 ⇒ ⭐ 标题＝条目标题的后半截，⛔ 不许空")
                         continue
-                    title = title.strip()
+                    title = _oneline(raw_title.strip(), "title", errs, sw_oneline)
+                    if title is None:            # ⭐ 已报过（含换行／非字符串）⇒ ⛔ 不重复报
+                        continue
+                    anchor = _oneline(sec.get("anchor"), "anchor", errs, sw_oneline)
+                    ssum = _oneline(sec.get("summary"), "summary", errs, sw_oneline)
+                    stype = sec.get("type")
+                    why = _oneline(sec.get("why_keep"), "why_keep", errs, sw_oneline)
                     if not isinstance(anchor, str) or not anchor.strip():
                         bad.append("`anchor` 缺失／空 ⇒ ⭐ 落盘一律用**描点**，⛔ 不写行号")
                     if not isinstance(ssum, str) or not ssum.strip():
@@ -480,24 +546,50 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
         # ⭐ 判据 ⑦（**本遍内**）：已在册 ／ 本批内重复
         for key in keys:
             label = f"`{key[0]}`" + (f" › `{key[1]}`" if key[1] else "")
-            if key in already:
-                errs.append(f"{where}：⛔ **已在册**（{label} —— 本遍只许**追加**，⛔ 不许覆盖）")
+            hit = key in already or (pass_no == 1 and key[0] in ledger_files)
+            if hit:
+                errs.append(f"{where}：⛔ **已在册**（{label} —— 本遍只许**追加**，⛔ 不许覆盖"
+                            + ("；⭐ 第 1 遍按**全册**查重" if pass_no == 1 else "") + "）")
             if key in seen:
                 errs.append(f"{where}：⛔ **本批内重复**（{label}）")
             seen.add(key)
 
     rendered = "".join(block)
     stats["bytes"] = len(rendered.encode("utf-8"))
+    #: ⭐⭐ **判据⑬：落盘前自校验渲染块**（2026-10-06 对抗性复核 `F-1` 的第二道网）。
+    #:   ⚠️⭐ **为什么必须有它**：判据⑫ 只挡"我**记得**查的那些字段"；而这一段是**独立**的：
+    #:   它把**已经渲染出来的文本**重新当册子解析一遍 ⇒ 不管注入从哪来（新字段、拼接、
+    #:   未来的改法），只要**渲染块里出现了结构**（遍头／落地头）**或条数与自报不符** ⇒ 响亮失败。
+    #:   ⭐ 这条不依赖任何人"记得检查字段"（⭐ 那正是本仓最贵那族错的来源）。
+    rsh = rendered_shapes(rendered)
+    if rsh["head"]:
+        errs.append(f"⛔ **判据⑬**：渲染块里出现了 **{rsh['head']} 个遍／落地标题** ⇒ "
+                    f"⭐ 一定有自由文本**注入了伪造的结构**（⚠️ 门禁会把它当**真的一遍**）"
+                    f"⇒ ⛔ **拒绝落盘**（本仓明令：**伪造成功一律不接受**）")
+    if rsh["other"]:
+        errs.append(f"⛔ **判据⑬**：渲染块里有 **{rsh['other']} 条形状外的条目行** ⇒ ⛔ 拒绝"
+                    f"（⭐ 不许「写进去再让门禁红」）")
+    n_items = rsh["file"] + rsh["section"]
+    if n_items != stats["n"]:
+        errs.append(f"⛔ **判据⑬**：渲染块数出 **{n_items}** 条 ≠ 本批自报 **{stats['n']}** 条 ⇒ "
+                    f"⭐ 有内容**多写或少写** ⇒ ⛔ 拒绝落盘")
     #: ⭐ 判据 ⑪：**本遍形状必须纯**（写完之后**这一遍**只许有一种单位）。
-    #:   ⚠️ 起因（2026-10-06 走**真实命令行**跑第 2 遍时当场撞出来的）：门禁判据②
-    #:   对"一遍里混了两种形状"是**红**的 ⇒ 落地器若不先判，就会**写进去再红**
-    #:   （⭐ 那正是判据⑧「⛔ 不许把这批写成让门禁变红的形状」的同一件事）。
-    units = {UNIT_SECTION if s else UNIT_FILE for _, s in already}
-    units |= {UNIT_SECTION if s else UNIT_FILE for _, s in seen}
-    if len(units) > 1:
-        errs.append(f"⛔ 本批写完后**第 {pass_no} 遍会混两种形状**"
-                    f"（已在册＝{'／'.join(sorted(units))} 里不止一种）⇒ 会让门禁**判据②判不动 ⇒ 红**"
-                    f"（⭐ 一遍只许一种：件级 `` #### `<件>` `` 或节级 `` #### `<件>` › <节标题> ``）")
+    #:   ⚠️⭐⭐ **2026-10-06 对抗性复核打穿后重写**（`★3`）：原先它只数得出
+    #:   `ITEM_TITLE_RE` **命中**的那些 + 只认**本脚本自己**的切法 ⇒ 两条路能穿过去：
+    #:     ① 一遍里放个 `#### 随便写`（形状外）⇒ 落地器报「已在册 0 条（单位 空）」**放行**，
+    #:        门禁随后红 —— ⛔ 那正是本判据要消灭的「**写进去再让门禁红**」；
+    #:     ② 一遍里放 `## 嵌套小标题`（切法不同 ⇒ 两个工具看见的**不是同一段**）。
+    #:   ⇒ ⭐ 现在**一律用门禁的** `pass_shapes()`（⭐ 同一份切法、同一个正则）⇒
+    #:     **形状外也算一种形状**（>0 ⇒ 红），两个工具**看见的永远是同一段**。
+    shapes = dict(pass_shapes(ledger_text, pass_no))
+    for _, sec in seen:
+        shapes["section" if sec else "file"] += 1
+    kinds = [k for k, v in shapes.items() if v]
+    if len(kinds) > 1:
+        errs.append(f"⛔ 本批写完后**第 {pass_no} 遍会形状不纯**"
+                    f"（件级 {shapes['file']} ／ 节级 {shapes['section']} ／ **形状外 {shapes['other']}**）"
+                    f"⇒ 会让门禁**判据②判不动 ⇒ 红**（⭐ 一遍只许一种：件级 `` #### `<件>` `` "
+                    f"或节级 `` #### `<件>` › <节标题> ``；⭐ **形状外的标题也算一种**）")
     if pass_no == 1:                                           # 判据 ⑧（⭐ 只对第 1 遍）
         total = p1_here + stats["n"]
         _t1 = ces.TARGET1
@@ -511,13 +603,18 @@ def validate(items, ledger_text: str, targets: set[str], *, pass_no: int) -> tup
 
 
 def insert_pos(text: str, pass_no: int) -> int | None:
-    """⭐ 返回**指定遍节尾**的插入点；遍标题缺失 ⇒ `None`（⛔ 不猜、⛔ 不新建）。"""
-    ms = list(re.finditer(rf"^###\s*第\s*{pass_no}\s*遍[^\n]*$", text, re.M))
-    if len(ms) != 1:
+    """⭐ 返回**指定遍节尾**的插入点；遍标题**恰好一个**才算得出来（⛔ 不猜、⛔ 不新建）。
+
+    ⚠️⭐ **2026-10-06 起一律走门禁的 `pass_span()`**（对抗性复核 `F-12`）：
+    原先本函数用 `^###` 找标题、用「`^#{1,3}` ＋ 空白」找下一个边界 ⇒ 与门禁的
+    「标题通吃 `##`–`####`、边界只认**遍头／落地头**」**不是同一套** ⇒
+    册子只要把遍头写成 `## 第 2 遍`，**门禁看见 p2 有 1 条，而本函数说"标题不是恰好一个"**。
+    """
+    ces = _ces()
+    if ces.pass_head_count(text, pass_no) != 1:
         return None
-    tail = text[ms[0].end():]
-    nxt = re.search(r"^#{1,3}\s", tail, re.M)
-    return ms[0].end() + (nxt.start() if nxt else len(tail))
+    span = ces.pass_span(text, pass_no)
+    return None if span is None else span[1]
 
 
 def apply_block(text: str, pos: int, block: str) -> str:
@@ -625,11 +722,24 @@ def main() -> int:
             print(f"  [FAIL] {e}")
         return 1
 
+    if not block:
+        # ⚠️⭐ 对抗性复核 `F-15`：空载荷 + `--write` 原先会**崩在 `apply_block` 的断言上**
+        #   （traceback ⇒ ⛔ 不是干净拒绝，而且读的人看不到"哪一步"。）
+        print(f"{RESULT} FAIL")
+        print("  [FAIL] ⛔ **本批渲染块是空的** ⇒ ⛔ 没什么可落的（⭐ 空手回吐＝静默丢件，"
+              "⛔ 不许当成「成功」）")
+        return 1
+
     pos = insert_pos(text, a.pass_no)
     if pos is None:
         print(f"{RESULT} FAIL")
-        print(f"  [FAIL] ⛔ 册子里 `### 第 {a.pass_no} 遍` 标题**不是恰好一个** ⇒ "
-              f"⛔ 本脚本**不新建遍节**（新建=改结构，那是另一刀的事）")
+        # ⚠️⭐ 对抗性复核 `F-17`：第 N 遍**节不存在**时，原先的报文会变成
+        #   「不属于第 N-1 遍的件」（⭐ **指错方向**）⇒ 先把真因说清楚。
+        if _ces().pass_head_count(text, a.pass_no) == 0:
+            print(f"  [FAIL] ⛔ 册子里**没有** `### 第 {a.pass_no} 遍` 这个标题 ⇒ "
+                  f"⭐ 真因是**这一遍还不存在**（⛔ 本脚本**不新建遍节** —— 新建=改结构，那是另一刀的事）")
+        else:
+            print(f"  [FAIL] ⛔ 册子里 `### 第 {a.pass_no} 遍` 标题**不是恰好一个** ⇒ ⛔ 不猜是哪一个")
         return 1
 
     if not a.write:
@@ -637,7 +747,13 @@ def main() -> int:
         return 0
     out = apply_block(text, pos, block)
     ledger.write_text(out, encoding="utf-8")
-    print(f"{RESULT} OK（**已落盘**）· {ledger.relative_to(ROOT)} "
+    # ⚠️⭐ 对抗性复核 `F-14`：`--ledger` 在**仓外**时原先 `relative_to(ROOT)` 会抛
+    #   `ValueError` ⇒ **文件已经写完、进程却崩了**（exit 1、⛔ 连 RESULT 行都没有）。
+    try:
+        shown = ledger.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        shown = f"{ledger}（⭐ 在仓外 —— ⚠️ 只该用于自证／实验）"
+    print(f"{RESULT} OK（**已落盘**）· {shown} "
           f"{len(text.encode())} → {len(out.encode())} 字节")
     return 0
 
@@ -825,13 +941,6 @@ def selftest() -> int:
         fail += 1
         print("  [⛔臂失效] M′ 重复遍标题没被拦住")
 
-    # N 靶子对账：现算必须 == TARGET1（⛔ 一个量两个数）
-    if len(T) == _ces().TARGET1:
-        ok += 1
-        print(f"  [ok] N 靶子现算 {len(T)} == `TARGET1` {_ces().TARGET1}")
-    else:
-        fail += 1
-        print(f"  [⛔臂失效] N 靶子对不上：现算 {len(T)} vs TARGET1 {_ces().TARGET1}")
     # O 累计 > TARGET1 ⇒ 红（⭐ **填充件必须落在第 1 遍节内** —— ⚠️ 本臂 2026-10-06 改过：
     #   ⛔ 原先把 188 条**追加在册子末尾**（＝落在**落地节**里），而判据⑧ 的作用域已收窄到
     #   **第 1 遍** ⇒ 那样填**根本喂不到判据**（臂会失效成"恒绿"）。
@@ -847,14 +956,17 @@ def selftest() -> int:
         fail += 1
         print("  [⛔臂失效] O 超靶子没被拦住")
 
-    # P ⭐⭐ **本刀的主臂**：靶子 = **冻结清单**（⛔ 不扫磁盘）⇒ 清单必须恰好 188 件
+    # N ⭐⭐ **靶子 = 冻结清单**（⛔ 不扫磁盘）⇒ 清单必须恰好 188 件
+    #   ⚠️⭐ 2026-10-06 复核 `F-18`：原先有**两条臂是同一条断言**（旧 `N` 用 `target_set()`、
+    #   `P` 也用 `target_set()`），而旧 `N` 的标签写"**现算**"—— ⭐ 那是个**假**标签
+    #   （现算 = `live_targets()`，是另一件事）⇒ 已删掉旧的那条，只留本臂。
     frozen = target_set()
     if len(frozen) == _ces().TARGET1:
         ok += 1
-        print(f"  [ok] P 靶子清单（冻结）{len(frozen)} 件 == TARGET1")
+        print(f"  [ok] N 靶子清单（冻结）{len(frozen)} 件 == TARGET1（⭐ ⛔ 不是「现算」）")
     else:
         fail += 1
-        print(f"  [⛔臂失效] P 靶子清单 {len(frozen)} ≠ TARGET1 {_ces().TARGET1}")
+        print(f"  [⛔臂失效] N 靶子清单 {len(frozen)} ≠ TARGET1 {_ces().TARGET1}")
     # Q ⭐ **白名单生效**：本次改革的落点件 ⛔ 不许出现在「现算」里
     live = live_targets()
     leaked = [w for w in DEST_WHITELIST if w in live]
@@ -890,10 +1002,10 @@ def selftest() -> int:
         "- **为什么留**：z。\n- **疑似裁定**：（无）\n\n", 1)
     want("S′ 第 2 遍 · 同一节重复 ⇒ 红（判据⑦ 本遍内）",
          [_rec2(sections=[_sec("一 · 假的一节")])], red=True, pass_no=2, ledger=L_p2)
-    #: X ⭐ 第 2 遍的件**必须来自第 1 遍**（⭐ 漏斗不许添新件 = 判据⑧′）
+    #: T ⭐ 第 2 遍的件**必须来自第 1 遍**（⭐ 漏斗不许添新件 = 判据⑧′）
     want("T 第 2 遍 · 件不在第 1 遍里 ⇒ 红（判据⑧′）",
          [_rec2(path="docs/AI_DEVELOPMENT_PLAYBOOK.md")], red=True, pass_no=2)
-    #: Y ⭐ **一节一条**：一次回吐 3 节 ⇒ 渲染成 **3 条**（⛔ 不是 1 条）
+    #: U ⭐ **一节一条**：一次回吐 3 节 ⇒ 渲染成 **3 条**（⛔ 不是 1 条）
     errs, block, st = run(_body([_rec2(sections=[_sec("甲"), _sec("乙"), _sec("丙")])]), L, 2)
     if not errs and block.count("#### ") == 3 and st["n"] == 3:
         ok += 1
@@ -901,11 +1013,11 @@ def selftest() -> int:
     else:
         fail += 1
         print(f"  [⛔臂失效] Y 一节一条没做到：条数={block.count('#### ')} n={st.get('n')} errs={errs[:1]}")
-    #: Z ⭐ 节级那一遍 **⛔ 没有 `sections` ≤ 3 的上限**（那条裁只属于第 1 遍）
+    #: V ⭐ 节级那一遍 **⛔ 没有 `sections` ≤ 3 的上限**（那条裁只属于第 1 遍）
     #:   ⚠️ 与臂 C（第 1 遍 4 个 ⇒ 红）**配对** —— ⛔ 别把这条读成"判据⑤ 被删了"。
     want("V 第 2 遍 · 5 节 ⇒ 绿（⛔ 3 个上限只属于第 1 遍）",
          [_rec2(sections=[_sec(f"节 {i}") for i in range(5)])], red=False, pass_no=2)
-    #: A′ 整件筛掉（收窄判据 = 过期／无效）⇒ 绿 ＋ 渲染成**节级**的一条（⛔ 不许静默丢掉）
+    #: W 整件筛掉（收窄判据 = 过期／无效）⇒ 绿 ＋ 渲染成**节级**的一条（⛔ 不许静默丢掉）
     errs, block, st = run(_body([_rec2(sections=[], drop_reason="过期", summary="整份已被取代。")]), L, 2)
     if not errs and f"› {DROP_TITLE}" in block and "**筛掉**（过期）" in block and st["dropped"] == 1:
         ok += 1
@@ -913,24 +1025,24 @@ def selftest() -> int:
     else:
         fail += 1
         print(f"  [⛔臂失效] A′ 整件筛掉没落对：{block!r} errs={errs[:1]}")
-    #: B′ 筛掉的原因只许两条（⭐「已落地」属第 4 遍，⛔ 不在本遍）
+    #: X 筛掉的原因只许两条（⭐「已落地」属第 4 遍，⛔ 不在本遍）
     want("X 第 2 遍 · `drop_reason=已落地` ⇒ 红（⛔ 属第 4 遍）",
          [_rec2(sections=[], drop_reason="已落地", summary="x")], red=True, pass_no=2)
-    #: C′ 筛掉却还带 sections ⇒ 红（⛔ 不许又留一半）
+    #: Y 筛掉却还带 sections ⇒ 红（⛔ 不许又留一半）
     want("Y 第 2 遍 · 筛掉却带 `sections` ⇒ 红",
          [_rec2(drop_reason="无效", summary="x")], red=True, pass_no=2)
-    #: D′ 节级缺 `why_keep` ⇒ 红（⭐ 回执 `M2` 的字段表：过滤理由 ⛔ 不许省）
+    #: Z 节级缺 `why_keep` ⇒ 红（⭐ 回执 `M2` 的字段表：过滤理由 ⛔ 不许省）
     _nosec = _sec()
     _nosec.pop("why_keep")
     want("Z 第 2 遍 · 节缺 `why_keep` ⇒ 红", [_rec2(sections=[_nosec])], red=True, pass_no=2)
-    #: E′ 节级缺 `anchor` ⇒ 红（⭐ 落盘一律用描点）
+    #: AA 节级缺 `anchor` ⇒ 红（⭐ 落盘一律用描点）
     _noanchor = _sec()
     _noanchor.pop("anchor")
     want("AA 第 2 遍 · 节缺 `anchor` ⇒ 红", [_rec2(sections=[_noanchor])], red=True, pass_no=2)
-    #: F′ 既无 `sections` 也无 `drop_reason` ⇒ 红（⭐ 空手回吐 = 静默丢件）
+    #: AB 既无 `sections` 也无 `drop_reason` ⇒ 红（⭐ 空手回吐 = 静默丢件）
     want("AB 第 2 遍 · 空手回吐（无 sections 无 drop_reason）⇒ 红",
          [_rec2(sections=[])], red=True, pass_no=2)
-    #: G′ ⭐ **渲染逐字**（节级形状，防漂）
+    #: AC ⭐ **渲染逐字**（节级形状，防漂）
     errs, block, _ = run(_body([_rec2()]), L, 2)
     want2 = ("#### `docs/ACCEPTANCE_GUIDE.md` › 一 · 假的一节\n"
              "- **节**：§ 假描点\n- **类型**：判据\n- **摘要**：节摘要。\n"
@@ -941,7 +1053,7 @@ def selftest() -> int:
     else:
         fail += 1
         print(f"  [⛔臂失效] G′ 渲染漂了：\n期望 {want2!r}\n实得 {block!r}")
-    #: H′ ⭐ 节级超长摘要 ⇒ **只标记、⛔ 不截断**（⭐ 判据⑥ 对两遍都成立）
+    #: AD ⭐ 节级超长摘要 ⇒ **只标记、⛔ 不截断**（⭐ 判据⑥ 对两遍都成立）
     long_sec = "甲" * (SUMMARY_SOFT + 5)
     errs, block, st = run(_body([_rec2(sections=[_sec(summary=long_sec)])]), L, 2)
     if not errs and long_sec + OVER_MARK in block and st["over"] == 1:
@@ -960,6 +1072,54 @@ def selftest() -> int:
         "- **疑似裁定**：（无）\n- **摘要**：件级残留。\n\n", 1)
     want("AE 第 2 遍里已有件级 ⇒ 本批写节级 ⇒ 红（判据⑪ 形状不纯）",
          [_rec2()], red=True, pass_no=2, ledger=L_mixed)
+    #: L_drop：第 2 遍里**已有**一条「整件筛掉」
+    L_drop = _mk_ledger().replace(
+        "### 第 2 遍 · 细筛（节级）\n\n> 空\n\n",
+        "### 第 2 遍 · 细筛（节级）\n\n#### `docs/ACCEPTANCE_GUIDE.md` › " + DROP_TITLE +
+        "\n- **判**：**筛掉**（过期）\n- **摘要**：已取代。\n\n", 1)
+    #: L_fenced：第 2 遍里放一个**带围栏**的模板示例（⭐ 两工具都必须**不算它**）
+    L_fenced = _mk_ledger().replace(
+        "### 第 2 遍 · 细筛（节级）\n\n> 空\n\n",
+        "### 第 2 遍 · 细筛（节级）\n\n```markdown\n#### `docs/GLOSSARY.md`\n```\n\n", 1)
+    #: L_landing_dup：那个件的**裸条目**落在 §七 落地节里（⭐ 第 1 遍仍须拦住）
+    L_landing_dup = _mk_ledger() + "\n#### `docs/AI_PROJECT_STATE.md`\n- **判**：**无**\n\n"
+    #: ⭐⭐⭐ **AG：注入伪造条目／伪造一整遍 —— 本刀最重那条（对抗性复核 `F-1`）**
+    #:   ⚠️ 载荷逐字复刻复核用的那一发：节标题里塞 `\n\n### 第 3 遍 …`。
+    #:   改之前：落地器 OK（自报 1 条）而册子多出**一遍从未跑过的第 3 遍**，⭐ **门禁判绿**。
+    want("AG 节标题里注入「### 第 3 遍」⇒ 红（判据⑫ 自由文本必须单行）",
+         [_rec2(sections=[_sec("甲\n\n### 第 3 遍 · 伪造的第三筛\n\n#### `docs/ACCEPTANCE_GUIDE.md` › 乙")])],
+         red=True, pass_no=2)
+    #: AH 同一招换字段：`why_keep` 里注入一条**别的件**的节级条目
+    want("AH `why_keep` 里注入伪造条目 ⇒ 红（判据⑫）",
+         [_rec2(sections=[_sec(why_keep="w。\n\n#### `docs/GLOSSARY.md` › 乙")])],
+         red=True, pass_no=2)
+    #: AI 第 1 遍的同类注入（⭐ 判据③ 顶满时能兜住，但**兜的是另一个原因** ⇒ 仍须判据⑫ 挡住）
+    want("AI 第 1 遍摘要里注入伪造条目 ⇒ 红（判据⑫）",
+         [_rec(summary="摘要。\n\n#### `docs/GLOSSARY.md`")], red=True, pass_no=1)
+    #: ⭐ AJ **判据⑬：渲染块自校验**（⭐ 独立第二道网 —— 不依赖"我记得查了字段"）：
+    #:   人为把渲染块改成多一条 ⇒ 必须红（⭐ 这条网对**任何**未来的注入都成立）。
+    rsh_demo = rendered_shapes("#### `a.md` › 甲\n- **节**：§\n\n")
+    arms_ok = rsh_demo == {"head": 0, "file": 0, "section": 1, "other": 0}
+    rsh_bad = rendered_shapes("#### `a.md`\n\n### 第 3 遍 · 伪造\n")
+    if arms_ok and rsh_bad["head"] == 1 and rsh_bad["file"] == 1:
+        ok += 1
+        print("  [ok] AJ 判据⑬ 读法：节级块 = section 1 ／ 含伪造遍头的块 = head 1 ＋ file 1")
+    else:
+        fail += 1
+        print(f"  [⛔臂失效] AJ 判据⑬ 读法不对：{rsh_demo} / {rsh_bad}")
+    #: AK ⭐ **判据⑭：同一件"留下"与"筛掉"互斥**（对抗性复核 `F-6`）
+    want("AK 先留一节、再整件筛掉 ⇒ 红（判据⑭ 互斥）",
+         [_rec2(sections=[], drop_reason="过期", summary="x")], red=True, pass_no=2, ledger=L_p2)
+    #: AL ⭐ 反臂：**先筛掉、再整件筛掉**（同一条路重来）⇒ 红 = 判据⑦（⭐ 别与⑭ 混）
+    want("AL 同一件「整件筛掉」写两次 ⇒ 红（判据⑦ · 本遍内）",
+         [_rec2(sections=[], drop_reason="过期", summary="x")], red=True, pass_no=2, ledger=L_drop)
+    #: AM ⭐ **反臂：围栏里的模板示例 ⛔ 不算条目**（对抗性复核 `F-8` 的假红）——
+    #:   ⭐ 门禁认围栏 ⇒ 落地器**也必须认**（同一份切法）⇒ 合法首批落盘**不许**被拒。
+    want("AM 第 2 遍里有围栏模板示例 ⇒ ⛔ 不误红（⭐ 两工具同一份切法）",
+         [_rec2()], red=False, pass_no=2, ledger=L_fenced)
+    #: AN ⭐ **第 1 遍照旧按【全册】查重**（对抗性复核 `F-5`）：裸条目落在**落地节**里也要拦。
+    want("AN 第 1 遍：裸条目在§七 落地节里 ⇒ 红（判据⑦ · 全册查重）",
+         [_rec()], red=True, pass_no=1, ledger=L_landing_dup)
     #: AF ⭐ 配对反臂：**同一遍里全是节级** ⇒ ⛔ 不报形状不纯（⭐ 别把"纯"错杀成"不纯"）
     #:   ⚠️ 节标题**必须换一个**：`_sec()` 的默认标题会撞上 `L_p2` 里那条 ⇒ 红的原因
     #:   会变成判据⑦（⭐ 那这条臂就**验错了东西**）。

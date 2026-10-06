@@ -51,8 +51,11 @@ PASS_RE = re.compile(r"^#{2,4}\s*第\s*(\d+)\s*遍")
 #:   起因（2026-10-05 落地当天当场抓到）：`^##\s.*落地` 把
 #:   `## 二 · 每条的形状（⭐ **落地时**照这个写）` **也算成了落地节** ⇒ ⭐ **假阳性**。
 LANDING_RE = re.compile(r"^##\s*(?:[〇一二三四五六七八九十百]+\s*·\s*)?落地")
-#: 条目的记号。
+#: 条目的记号（⭐ **严格**：`####` 后必须有空白 —— 它才是 markdown 的标题）。
 ITEM_RE = re.compile(r"^####\s")
+#: ⚠️⭐ **任何**以 `####` 开头的行（⭐ 含 `` ####`x` `` 这种**没空格**的）—— 用来抓
+#:   「看起来有内容、门禁数出来是 0」那种静默（2026-10-06 对抗性复核 `F-13`）。
+ITEM_ANY_RE = re.compile(r"^####(?!#)")
 #: ⭐⭐ **条目标题的形状**（⛔ **全仓唯一一份定义** —— 册子 `§六` 写得跟它一字不差，
 #:   落地器 `tools/ingest-extraction.py` **从本模块导入**，⛔ 不另抄一份正则）：
 #:   · **件级**（第 1 遍）：`` #### `<件路径>` `` ⇒ `section is None` ⇒ **单位 = 件**
@@ -76,34 +79,44 @@ PASS_FLOOR = 1
 LANDING_KEY = "landing"
 
 
-def parse(text: str) -> tuple[dict[str, int], list[str], dict[int, dict]]:
-    """→ (各遍／落地的 `####` 条数, 结构问题, 每一遍的形状信息)。⭐ ⛔ 不读任何**手写的数字** —— 一律**现数**。
+def _fence_offsets(text: str) -> tuple[list[str], list[int]]:
+    """→ (行, 每行在原文里的**字符偏移**) —— ⛔ **代码围栏内的行一律不在里面**。
 
-    ⚠️⭐ **代码围栏内的行一律跳过**（⭐ 见 `FENCE_RE` 的注释：`§二` 的模板示例曾被数成真条目）。
-
-    ⭐ **形状信息**（`info[遍号]`）= `{"unit": 件 | 节 | None, "mixed": bool, "paths": set[str]}`：
-      · `unit` 由**条目标题的形状**现算（`` `X` `` ⇒ 件；`` `X` › Y `` ⇒ 节）—— ⛔ 不写死、⛔ 不猜；
-      · `mixed` = 同一遍里**两种形状混着** ⇒ 判据② 判不动 ⇒ 红；
-      · `paths` = 该遍覆盖的**「件」集合** ⇒ 判据②a 用它（⭐ 跨单位也成立）。
+    ⚠️ 起因（2026-10-05 落地当天当场抓到）：`§二` 的**模板示例** `#### [主题]…`
+    被**数成了一条真条目** ⇒ ⭐ 本仓最贵那族错的近距离样本：**门禁数错了，而它读起来完全正常**。
+    ⭐ 带上偏移是为了 `pass_span()`（落地器要**插进**这一段，⛔ 不能自己再判一次边界）。
     """
-    problems: list[str] = []
-    raw = text.splitlines()
-
-    #: ⭐ 先按围栏切：围栏内的行**完全不出现在下面任何一步里**。
-    lines: list[str] = []
-    index: list[int] = []          # lines[i] 在原文里的行号
+    out: list[str] = []
+    offs: list[int] = []
     in_fence = False
-    for i, l in enumerate(raw):
-        if FENCE_RE.match(l):
+    pos = 0
+    for raw in text.splitlines(keepends=True):
+        line = raw.rstrip("\n").rstrip("\r")
+        if FENCE_RE.match(line):
             in_fence = not in_fence
+            pos += len(raw)
             continue
-        if in_fence:
-            continue
-        lines.append(l)
-        index.append(i)
+        if not in_fence:
+            out.append(line)
+            offs.append(pos)
+        pos += len(raw)
+    return out, offs
 
-    #: ⭐ 再找全部"边界行"（遍头 ＋ 落地头），按出现顺序切段。
-    bounds: list[tuple[int, str, int | None]] = []      # (lines 下标, 种类, 遍号)
+
+def _fence_lines(text: str) -> list[str]:
+    """→ 原文的行，但**代码围栏内的行一律不出现**（⭐ 只取 `_fence_offsets` 的行那一半）。"""
+    return _fence_offsets(text)[0]
+
+
+def _bounds(lines: list[str]) -> tuple[list[tuple[int, str, int | None]], list[int]]:
+    """→ (全部边界行 `(下标, 种类, 遍号)`, 落地节下标)。⭐ **段切法的唯一一份定义**。
+
+    ⚠️⭐ **为什么必须只有一份**（2026-10-06 · 对抗性复核打穿的 `★3`）：落地器原先**自己写**了
+    一套切片（`^#{1,3}\\s` 就停）⇒ 与门禁的切法**不一致** ⇒ 一条 `## 嵌套小标题` 就能让
+    **两个工具看见的第 N 遍不一样** ⇒ 一边说绿、一边说红，而且**都指错方向**。
+    ⇒ ⭐ 现在**落地器从本模块导入** `pass_lines()`／`pass_items()`／`pass_shapes()`，⛔ 不另抄。
+    """
+    bounds: list[tuple[int, str, int | None]] = []
     landings: list[int] = []
     for i, l in enumerate(lines):
         m = PASS_RE.match(l)
@@ -113,6 +126,110 @@ def parse(text: str) -> tuple[dict[str, int], list[str], dict[int, dict]]:
         if LANDING_RE.match(l):
             bounds.append((i, "landing", None))
             landings.append(i)
+    return bounds, landings
+
+
+def pass_lines(text: str, pass_no: int) -> list[str]:
+    """⭐ **第 N 遍节内的正文行** —— ⛔ 围栏内的行不算；⭐ 切到**下一个边界行**为止。
+
+    ⚠️ 遍号**重复**时取**第一个**（⭐ 重复本身由判据①抓，⛔ 本函数不替它判）。
+    """
+    lines = _fence_lines(text)
+    bounds, _ = _bounds(lines)
+    for k, (i, kind, num) in enumerate(bounds):
+        if kind == "pass" and num == pass_no:
+            end = bounds[k + 1][0] if k + 1 < len(bounds) else len(lines)
+            return lines[i + 1:end]
+    return []
+
+
+def pass_items(text: str, pass_no: int) -> list[tuple[str | None, str | None]]:
+    """→ 那一遍的 `(件路径, 节标题)` 列表；⚠️ **形状外的标题 ⇒ `(None, None)`**（⛔ 不丢、不猜）。
+
+    ⭐ 形状的正则 = `ITEM_TITLE_RE`（⭐ **全仓唯一一份**；落地器**从本模块导入**）。
+    """
+    out: list[tuple[str | None, str | None]] = []
+    for l in pass_lines(text, pass_no):
+        if not ITEM_ANY_RE.match(l):
+            continue
+        m = ITEM_TITLE_RE.match(l)
+        out.append((m.group(1), m.group(2)) if m else (None, None))
+    return out
+
+
+def pass_shapes(text: str, pass_no: int) -> dict[str, int]:
+    """→ 那一遍的**形状计数**：`{"file": 件级, "section": 节级, "other": 形状外}`。
+
+    ⚠️⭐ **为什么要有 `other` 这一项**（2026-10-06 · 对抗性复核打穿的 `★3`①）：原先只数
+    `ITEM_TITLE_RE` **命中**的那些 ⇒ 一遍里的 `#### 随便写` **两个工具都看不见**
+    ⇒ ⭐ 落地器报「已在册 0 条（单位 空）」**放行落盘**，门禁随后红「混了两种形状」
+    ⇒ ⛔ 那正是判据⑪ 想消灭的「**写进去再让门禁红**」。
+    """
+    shapes = {"file": 0, "section": 0, "other": 0}
+    for path, sec in pass_items(text, pass_no):
+        if path is None:
+            shapes["other"] += 1
+        elif sec:
+            shapes["section"] += 1
+        else:
+            shapes["file"] += 1
+    return shapes
+
+
+def pass_span(text: str, pass_no: int) -> tuple[int, int] | None:
+    """→ 第 N 遍**正文**的 `(起, 止)` **字符偏移**；遍标题不存在 ⇒ `None`。
+
+    ⭐ **切法与本模块的解析完全同一份**（⛔ 落地器不许自己再判一次边界 —— 那正是
+    2026-10-06 对抗性复核 `F-12` 打穿的：两个工具对"这是不是一遍"的**定义不同**）。
+    ⚠️ 遍号**重复**时取第一个；⭐ 「不猜哪一个」由 `pass_head_count()` ＋ 调用方判。
+    """
+    lines, offs = _fence_offsets(text)
+    bounds, _ = _bounds(lines)
+    for k, (i, kind, num) in enumerate(bounds):
+        if kind == "pass" and num == pass_no:
+            end_line = bounds[k + 1][0] if k + 1 < len(bounds) else len(lines)
+            start = offs[i + 1] if i + 1 < len(offs) else len(text)
+            end = offs[end_line] if end_line < len(offs) else len(text)
+            return start, end
+    return None
+
+
+def pass_head_count(text: str, pass_no: int) -> int:
+    """→ 册子里 `### 第 N 遍 …`（⭐ 通吃 `##`–`####`）**标题出现几次**。"""
+    lines, _ = _fence_offsets(text)
+    bounds, _ = _bounds(lines)
+    return sum(1 for _, kind, num in bounds if kind == "pass" and num == pass_no)
+
+
+def ledger_file_items(text: str) -> set[str]:
+    """→ **全册**的**件级**条目路径（⭐ ⛔ **不分节** —— 含落在别处、甚至落地节里的）。
+
+    ⚠️⭐ **它挡的是 `F-5`**（2026-10-06 对抗性复核）：判据⑦ 收窄到"本遍"之后，
+    某个件的**裸条目**若落在**别的节**里，`--pass 1` 就再也拦不住重复写 ⇒
+    ⭐ 第 1 遍**照旧按全册查重**（⛔ 只有第 2 遍及以后才是"本遍内查重"）。
+    """
+    out: set[str] = set()
+    for l in _fence_lines(text):
+        m = ITEM_TITLE_RE.match(l)
+        if m and not m.group(2):
+            out.add(m.group(1))
+    return out
+
+
+def parse(text: str) -> tuple[dict[str, int], list[str], dict[int, dict]]:
+    """→ (各遍／落地的 `####` 条数, 结构问题, 每一遍的形状信息)。⭐ ⛔ 不读任何**手写的数字** —— 一律**现数**。
+
+    ⚠️⭐ **代码围栏内的行一律跳过**（⭐ 见 `_fence_lines` 的注释）。
+
+    ⭐ **形状信息**（`info[遍号]`）= `{"unit": 件 | 节 | None, "mixed": bool, "paths": set[str],
+    "shapes": {…}}`：
+      · `unit` 由**条目标题的形状**现算（`` `X` `` ⇒ 件；`` `X` › Y `` ⇒ 节）—— ⛔ 不写死、⛔ 不猜；
+      · `mixed` = 同一遍里**形状不纯**（两种单位混着，**或**有条目落在形状外）⇒ 判据② 判不动 ⇒ 红；
+      · `paths` = 该遍覆盖的**「件」集合** ⇒ 判据②a 用它（⭐ 跨单位也成立）。
+    """
+    problems: list[str] = []
+    lines = _fence_lines(text)
+    bounds, landings = _bounds(lines)
 
     counts: dict[str, int] = {}
     passes: list[int] = []
@@ -125,21 +242,24 @@ def parse(text: str) -> tuple[dict[str, int], list[str], dict[int, dict]]:
     for k, (idx, kind, num) in enumerate(bounds):
         end = bounds[k + 1][0] if k + 1 < len(bounds) else len(lines)
         seg = lines[idx + 1:end]
-        n = sum(1 for l in seg if ITEM_RE.match(l))
+        n = sum(1 for l in seg if ITEM_ANY_RE.match(l))
         if kind == "pass":
             assert num is not None
             passes.append(num)
             counts[f"p{num}"] = counts.get(f"p{num}", 0) + n     # ⭐ 重号会在这里累加，由判据①抓
-            rec = info.setdefault(num, {"unit": None, "mixed": False, "paths": set()})
+            rec = info.setdefault(num, {"unit": None, "mixed": False, "paths": set(),
+                                        "shapes": {"file": 0, "section": 0, "other": 0}})
             for l in seg:
-                if not ITEM_RE.match(l):
+                if not ITEM_ANY_RE.match(l):
                     continue
                 m = ITEM_TITLE_RE.match(l)
                 if m is None:                    # ⭐ 形状外的标题（既不是件级也不是节级）
                     rec["mixed"] = True
+                    rec["shapes"]["other"] += 1
                     continue
                 rec["paths"].add(m.group(1))
                 unit = UNIT_SECTION if m.group(2) else UNIT_FILE
+                rec["shapes"]["section" if m.group(2) else "file"] += 1
                 if rec["unit"] is None:
                     rec["unit"] = unit
                 elif rec["unit"] != unit:
@@ -203,27 +323,44 @@ def check(text: str | None = None, baseline: dict[str, int] | None = None) -> li
 
     keys = _pass_keys(counts)
 
-    #: ⭐⭐ **判据②**：漏斗单调不增 —— 拆成两半，见文件头的长注释。
+    #: ⭐ 判据②（形状那一半）：一遍里形状不纯（混两种单位，**或**有条目落在形状外）
+    #:   ⇒ **判不动** ⇒ 红。⚠️⭐ **逐遍查，⛔ 不在"相邻两遍"的循环里** —— 2026-10-06 复核时
+    #:   发现原先那样写**单遍册子完全不查**（⭐ 又一条"看着在查、其实查的是空气"）。
+    for k in keys:
+        n = int(k[1:])
+        ii = info.get(n) or {}
+        if ii.get("mixed"):
+            shapes = ii.get("shapes") or {}
+            problems.append(f"⛔ **判据②**：第 {n} 遍里**形状不纯**"
+                            f"（件级 {shapes.get('file', 0)} ／ 节级 {shapes.get('section', 0)} ／ "
+                            f"**形状外 {shapes.get('other', 0)}**）"
+                            f"⇒ ⭐ **本判据判不动** ⇒ ⛔ 红（⛔ 不静默跳过）：一遍只许一种形状，"
+                            f"⭐ 且**每一条都必须是** `` #### `<件>` `` 或 `` #### `<件>` › <节标题> ``"
+                            f"（⭐ **没有空格的 `####` 也算一种** —— 见 `ITEM_ANY_RE`）")
+
+    #: ⭐⭐ **判据②**：漏斗单调不增 —— 拆成三半，见文件头的长注释。
+    #:   ⚠️⭐ **②a 比的是"此前所有遍的件集之并"**（⛔ **不是"上一遍"**）—— 2026-10-06 对抗性
+    #:   复核打穿的 `★2`：只比相邻两遍时，**中间插一个空遍**就把链断掉
+    #:   （读数实测：`4 件 → 0 条 → 3 个全新件` **全绿**）⇒ ⭐ 并集把这条堵死。
     for a, b in zip(keys, keys[1:]):
         na, nb = int(a[1:]), int(b[1:])
         ia, ib = info.get(na, {}), info.get(nb, {})
+        prior = set()
+        for k in keys:
+            n = int(k[1:])
+            if n >= nb:
+                break
+            prior |= (info.get(n, {}).get("paths") or set())
 
-        #: ⭐ 一遍里混了两种形状 ⇒ **判不动** ⇒ 红（⭐ 响亮失败，⛔ 不静默跳过）
-        for n, ii in ((na, ia), (nb, ib)):
-            if ii.get("mixed"):
-                problems.append(f"⛔ **判据②**：第 {n} 遍里**混了两种条目标题形状**"
-                                f"（件级 `` #### `<路径>` `` 与节级 `` #### `<路径>` › <节标题> ``）"
-                                f"⇒ ⭐ **本判据判不动** ⇒ ⛔ 红（⛔ 不静默跳过）：一遍只许一种形状")
-
-        #: ⭐ **②a 件集**：下一遍不许冒出上一遍没有的**件**（⭐ 跨单位也成立）
-        pa, pb = ia.get("paths") or set(), ib.get("paths") or set()
-        if pa and pb:
-            new = sorted(pb - pa)
+        #: ⭐ **②a 件集**：这一遍的件 ∪ ⊆ **此前所有遍的件集之并**（⭐ 跨单位也成立）
+        pb = ib.get("paths") or set()
+        if prior and pb:
+            new = sorted(pb - prior)
             if new:
                 show = "、".join(f"`{p}`" for p in new[:3])
                 more = f" 等 {len(new)} 件" if len(new) > 3 else ""
-                problems.append(f"⛔ **判据②a**：第 {nb} 遍冒出第 {na} 遍**没有的件**：{show}{more}"
-                                f" ⇒ ⭐ 漏斗的下一步**只许在上一遍的件里收窄**，⛔ 不许添新件"
+                problems.append(f"⛔ **判据②a**：第 {nb} 遍冒出**此前各遍都没有的件**：{show}{more}"
+                                f" ⇒ ⭐ 漏斗的每一步**只许在已有的件里收窄**，⛔ 不许添新件"
                                 f"（⭐ 靶子冻结，回执 `003` 生效规则 9「⛔ 不追加」）")
 
         #: ⭐ **②b 条数**：**仅当两遍单位相同**时才比 —— ⛔ 单位不同不比（不是同一个量）
@@ -233,10 +370,20 @@ def check(text: str | None = None, baseline: dict[str, int] | None = None) -> li
                             f"第 {na} 遍 **{counts[a]}** 条（两遍单位都是「{ua}」⇒ 可比）"
                             f" ⇒ ⭐ 每一遍**只许变少或不增**"
                             f"（⛔ 筛着筛着变多 ⇒ 那不是筛，是又攒了一堆）")
-        elif ua is not None and ub is not None and ua != ub:
-            #: ⚠️⭐ **不比 ⇒ 必须说出来** —— ⭐ 但**不是红**：那是**正当跳过**，不是缺陷。
-            #:   ⇒ 出口 = `_summary()` 的读数行（⭐ 每一跑都打印，⛔ 不静默）。
-            pass
+
+    #: ⭐ **判据②c**：⛔ **不许跳空遍**（一遍 0 条 ⇒ 它**后面各遍也必须是 0 条**）。
+    #:   ⚠️⭐ 起因（对抗性复核 `★2`）：一个**空遍夹在中间**就能让"链条"看不断，而它后面
+    #:   那遍其实**没有来源**（⭐ 这一步是从"空气"里筛出来的）。⚠️ 今天真册子的样子
+    #:   （第 1 遍 188 · 第 2 遍空）**合法** —— 它是**最后一遍**，后面没有非空遍。
+    for k in keys:
+        if int(k[1:]) >= len(keys):
+            continue
+        if not counts.get(k):
+            later = [x for x in keys if int(x[1:]) > int(k[1:]) and counts.get(x)]
+            if later:
+                problems.append(f"⛔ **判据②c**：第 {k[1:]} 遍是 **0 条**，而它后面还有非空的遍"
+                                f"（{'、'.join(f'第 {x[1:]} 遍' for x in later)}）⇒ ⭐ ⛔ **不许跳空遍**"
+                                f"（⭐ 空的那一遍没有产出 ⇒ 后面那些遍**没有来源**）")
 
     #: ⭐ **判据③**：靶子冻结 —— 第 1 遍 ⛔ 不许超 188
     if counts.get("p1", 0) > TARGET1:
@@ -304,7 +451,7 @@ def _doc(counts: list[int], landing: int = 0, *,
 
 
 def selftest() -> int:
-    """**十六臂**注入自证。⭐ 含**反臂**（合法形状必须安静）—— 那是本门禁能不能用的底线。"""
+    """**二十臂**注入自证。⭐ 含**反臂**（合法形状必须安静）—— 那是本门禁能不能用的底线。"""
     arms: list[tuple[str, bool]] = []
     base = {"p1": 0, LANDING_KEY: 0}
 
@@ -355,10 +502,29 @@ def selftest() -> int:
                      base))))
     #: 判据②：一遍里**混了两种形状** ⇒ **判不动** ⇒ 红（⭐ 响亮失败，⛔ 不静默跳过）
     arms.append(("O 第 2 遍里混了件级 ＋ 节级 ⇒ 红（判据②判不动）",
-                 any("混了两种条目标题形状" in p for p in check(_doc([10, 5], secs={2: 2}, mix=2), base))))
+                 any("形状不纯" in p for p in check(_doc([10, 5], secs={2: 2}, mix=2), base))))
     #: ⭐ 反臂：**只是单位不同 ⇒ ⛔ 不算红**（⭐ 与上面 O 配对 —— 别把"判不动"错杀成"跳过"）
     arms.append(("P 干净的一节一条（不混）⇒ ⛔ 不报「判不动」",
                  not any("判不动" in p for p in check(_doc([10, 5], secs={2: 2}), base))))
+    #: ⭐⭐ **②b 的「比」那半边**（2026-10-06 对抗性复核 `F-9` 打穿的**覆盖缺口**：
+    #:   原先只有 M 验"不比"，⛔ 没有任何臂验"**该比时要真的比得出来**" ⇒
+    #:   把 ②b 整条注死，16 臂**全绿**）。
+    #:   形状：两遍**都是节级**、件集相同（f0／f1）、条数 6 → 10 ⇒ ⭐ ②a 过、②b 必须红。
+    arms.append(("Q 两遍同为节级 · 6 条 → 10 条（件集相同）⇒ 红（判据②b 的「比」那半边）",
+                 any("判据②b" in p for p in check(_doc([2, 2], secs={1: 3, 2: 5}), base))))
+    #: ⭐ 配对反臂：同形状但条数**不增**（10 → 6）⇒ 安静（⭐ 别把"节级/节级"一律判红）
+    arms.append(("R 两遍同为节级 · 10 条 → 6 条 ⇒ 安静（②b 不该误红）",
+                 check(_doc([2, 2], secs={1: 5, 2: 3}), base) == []))
+    #: ⭐⭐ **形状外标题 ⇒ mixed ⇒ 红**（⭐ 同一条覆盖缺口：把这条通路注死原先**16 臂全绿**）。
+    #:   ⚠️ `#### 随便写` 既不是件级也不是节级 ⇒ 判据② 判不动 ⇒ 红（⛔ 不许静默放行）。
+    arms.append(("S 一遍里混了一条形状外标题（`#### 随便写`）⇒ 红（判据②判不动）",
+                 any("形状不纯" in p for p in check(
+                     _doc([2]).replace("#### `f0.md`", "#### `f0.md`\n#### 随便写"), base))))
+    #: ⭐ **`####` 后没空格的行也必须看得见**（对抗性复核 `F-13`：原先两工具都静默不计）
+    arms.append(("T ``####`f0.md` ``（#号后无空格）⇒ 红（⛔ 不许静默不计）",
+                 any("形状不纯" in p for p in check(
+                     _doc([0]).replace("### 第 1 遍 · 假的一遍", "### 第 1 遍 · 假的一遍\n\n####`f0.md`"),
+                     base))))
 
     bad = 0
     for name, ok in arms:
@@ -369,26 +535,42 @@ def selftest() -> int:
 
 
 def unit_note(counts: dict[str, int], info: dict[int, dict]) -> str:
-    """⭐ 逐遍**单位**（件／节）＋ 判据②b 的跳过说明。
+    """⭐ 逐遍**单位**（件／节）＋ **件集大小** ＋ 判据②a／②b 各自的**跳没跳**。
 
-    ⚠️⭐ **为什么必须打印**：②b 在单位不同时**正当跳过** —— 若一个字都不说，
-    读的人会以为「条数比过了、绿了」⇒ ⭐ 那就是**绿得没道理**（⛔ 本仓最贵那族错的形状）。
+    ⚠️⭐ **为什么必须打印**（2026-10-06 对抗性复核 `★2` 的第二半）：②b 在单位不同时**正当跳过**，
+    ②a 在**任一侧件集为空**时也**算不动** —— 若一个字都不说，读的人会以为
+    「两边都比过了、绿了」⇒ ⭐ 那就是**绿得没道理**（⛔ 本仓最贵那族错的形状）。
     """
     keys = _pass_keys(counts)
     bits = []
     for k in keys:
-        u = (info.get(int(k[1:])) or {}).get("unit")
-        bits.append(f"第 {k[1:]} 遍 = {u or '空'}")
+        ii = info.get(int(k[1:])) or {}
+        u = ii.get("unit")
+        bits.append(f"第 {k[1:]} 遍 = {u or '空'}({len(ii.get('paths') or [])} 件)")
     out = "单位 " + "／".join(bits) if bits else "单位（无）"
-    skipped = []
+    skipped_b, skipped_a = [], []
     for a, b in zip(keys, keys[1:]):
-        ua = (info.get(int(a[1:])) or {}).get("unit")
-        ub = (info.get(int(b[1:])) or {}).get("unit")
+        ia, ib = info.get(int(a[1:])) or {}, info.get(int(b[1:])) or {}
+        ua, ub = ia.get("unit"), ib.get("unit")
         if ua and ub and ua != ub:
-            skipped.append(f"{a[1:]}↔{b[1:]}")
-    if skipped:
-        out += (f" ⇒ ⭐ 判据②b（条数）对 {'、'.join(skipped)} **跳过**"
-                f"（单位不同 ⇒ ⛔ 不是同一个量）＋ 只比**件集**（②a）")
+            skipped_b.append(f"{a[1:]}↔{b[1:]}")
+        prior = set()
+        for k in keys:
+            if k == b:
+                break
+            prior |= (info.get(int(k[1:])) or {}).get("paths") or set()
+        if not prior or not (ib.get("paths") or set()):
+            skipped_a.append(f"{b[1:]}")
+    notes = []
+    if skipped_a:
+        notes.append(f"②a（件集）对 {'、'.join('第 ' + x + ' 遍' for x in skipped_a)} **算不动**"
+                     f"（件集有一侧是空的 ⇒ ⭐ 没有可比的东西）")
+    if skipped_b:
+        notes.append(f"②b（条数）对 {'、'.join(skipped_b)} **跳过**（单位不同 ⇒ ⛔ 不是同一个量）")
+    if notes:
+        out += " ⇒ ⭐ " + "；".join(notes)
+    else:
+        out += " ⇒ ⭐ ②a／②b 两边**都比过了**"
     return out
 
 

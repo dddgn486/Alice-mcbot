@@ -35,9 +35,9 @@ docs/DECISION_LAYER_FINAL_FORM.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未
 docs/DOC_REFACTOR_DRAFT.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档改革 · **草案**（依据；⭐ 目标文档体系 v2）	573	2026-10-06	
 docs/DOC_REFACTOR_PLAN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	文档整顿 · 施工计划书（**生成物，禁手改**）	417	2026-10-06	
 docs/EXPECTED_REDS.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	预期红清单（**`D-532` §三 横切闸门② 的载体**）	62	2026-09-29	
-docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	提取册（设计与经验）	1614	2026-10-06	
+docs/EXTRACTED_KNOWLEDGE.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	提取册（设计与经验）	1620	2026-10-06	
 docs/GLOSSARY.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	术语速查（**讨论用解码表**）	239	2026-10-05	
-docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10859	2026-10-06	
+docs/HANDOVER.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）	10914	2026-10-06	
 docs/INTERACTION_LAYERS_COMPARISON.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	方块交互三条路线对比：接口直写 vs 菜单协议 vs 视觉识别	82	2026-09-13	
 docs/JOB_LAYER_DESIGN.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	L3 目标级任务层（Job）设计 —— 伐木作为第一消费者	464	2026-10-01	
 docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md	④ 状态 ＋ 未裁提案	④ 状态 ＋ 未裁提案	参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（2026-09-12 讨论纪要）	112	2026-09-12	
@@ -279,8 +279,8 @@ tools/check-effective-trace.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin
 tools/check-effective-trace.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	14	2026-10-03	
 tools/check-exec-record.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	4	2026-09-16	
 tools/check-expected-reds.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	235	2026-09-29	
-tools/check-extraction-status.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	452	2026-10-05	
-tools/check-extraction-status.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	22	2026-10-05	
+tools/check-extraction-status.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	634	2026-10-06	
+tools/check-extraction-status.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	25	2026-10-05	
 tools/check-facts-tiers.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	204	2026-10-03	
 tools/check-facts-tiers.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	18	2026-10-03	
 tools/check-far-goal-usage.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	313	2026-09-30	
@@ -349,7 +349,7 @@ tools/gate-inventory.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env py
 tools/gen-xray-pack.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	185	2026-09-20	
 tools/goal-vocabulary.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	144	2026-09-29	
 tools/headless-battery.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	467	2026-10-02	
-tools/ingest-extraction.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	912	2026-10-06	
+tools/ingest-extraction.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	1134	2026-10-06	
 tools/jar-content-hash.py	⑥ 边界即机器	⑥ 边界即机器	工件**内容摘要**：给"Gradle 打出来的 jar 不可字节复现"这个事实用的。	78	2026-09-17	
 tools/jar-content-hash.sh	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env bash	5	2026-09-17	
 tools/job-kind-view.py	⑥ 边界即机器	⑥ 边界即机器	!/usr/bin/env python3	172	2026-09-30	

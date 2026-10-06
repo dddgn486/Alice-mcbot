@@ -219,7 +219,7 @@
 | # | 件 | 好家 | 自称 | 全仓提到它 | `src/` 里 | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | `consult/receipt/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 2 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 16 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 2 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 15 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 3 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 17 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 4 | `docs/SCHEDULE.md` | ④ 状态 ＋ 未裁提案 | **已落地** | 13 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 5 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑩ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
@@ -319,8 +319,8 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 未裁提案 | 30 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 未裁提案 | 15 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | 16 | 0 | 已落地 |
-| `docs/GLOSSARY.md` | ④ 状态 ＋ 未裁提案 | 21 | 0 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 未裁提案 | 15 | 0 | 已落地 |
+| `docs/GLOSSARY.md` | ④ 状态 ＋ 未裁提案 | 22 | 0 | — |
 | `docs/HANDOVER.md` | ④ 状态 ＋ 未裁提案 | 71 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 未裁提案 | 11 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 未裁提案 | 27 | 11 | — |
@@ -564,7 +564,7 @@
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-expected-reds.py` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-extraction-status.py` | ⑥ 边界即机器 | 9 | 0 | — |
-| `tools/check-extraction-status.sh` | ⑥ 边界即机器 | 5 | 0 | — |
+| `tools/check-extraction-status.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-far-goal-usage.py` | ⑥ 边界即机器 | 14 | 4 | — |
