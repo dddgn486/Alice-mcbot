@@ -334,13 +334,13 @@
 | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 9 | 1 | — |
 | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
 | `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 60 | 4 | 已落地 |
-| `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
-| `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 6 | 2 | — |
-| `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
-| `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 19 | 0 | — |
-| `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
-| `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 18 | 2 | — |
-| `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 13 | 1 | — |
+| `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
+| `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 7 | 2 | — |
+| `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
+| `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
+| `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
+| `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 19 | 2 | — |
+| `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | 12 | 0 | 已拍板 |
 | `docs/authz/PROPOSAL_B_survival_write_authorization.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `docs/plans/2026-09-21-水中逃生计划.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
@@ -389,12 +389,12 @@
 | `.alice-supervision/client-tests/stage3a-a4b-cookingtab-20260913/evidence/round3-pass.txt` | ⑤ 报告 ＋ 证据 | 2 | 0 | — |
 | `docs/BARITONE_ANCHORS.md` | ⑤ 报告 ＋ 证据 | 8 | 0 | — |
 | `docs/BARITONE_CONTRAST_TESTING.md` | ⑤ 报告 ＋ 证据 | 9 | 0 | — |
-| `docs/R4_BARITONE_ALIGNMENT_AUDIT.md` | ⑤ 报告 ＋ 证据 | 14 | 0 | — |
-| `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告 ＋ 证据 | 4 | 0 | — |
-| `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告 ＋ 证据 | 13 | 1 | — |
-| `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告 ＋ 证据 | 9 | 2 | — |
+| `docs/R4_BARITONE_ALIGNMENT_AUDIT.md` | ⑤ 报告 ＋ 证据 | 15 | 0 | — |
+| `docs/REVIEW_2026-09-13_FIX_AUDIT.md` | ⑤ 报告 ＋ 证据 | 5 | 0 | — |
+| `docs/RISK_SYSTEM_ISSUE_LIST.md` | ⑤ 报告 ＋ 证据 | 14 | 1 | — |
+| `docs/RISK_SYSTEM_REVIEW_20260910.md` | ⑤ 报告 ＋ 证据 | 10 | 2 | — |
 | `docs/STAGE2_MODS_READABILITY.md` | ⑤ 报告 ＋ 证据 | 10 | 0 | — |
-| `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告 ＋ 证据 | 8 | 2 | — |
+| `docs/TRANSFER_MODULE_AUDIT.md` | ⑤ 报告 ＋ 证据 | 9 | 2 | — |
 | `docs/reference/BARITONE_PORTING_CHECKLIST.md` | ⑤ 报告 ＋ 证据 | 7 | 0 | — |
 | `docs/reviews/2026-09-14-3B-S3-机器映射勘察.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `docs/reviews/2026-09-14-B4能力登记与起步位置确定性.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
@@ -671,8 +671,8 @@
 | `docs/TASK_DISPATCH_TABLE.csv` | ⑦ 事实/数据 | 9 | 1 | — |
 | `docs/TASK_RETIREMENT_MAP.csv` | ⑦ 事实/数据 | 11 | 1 | — |
 | `docs/TASK_TOP_LEVEL_FREEZE.txt` | ⑦ 事实/数据 | 10 | 1 | — |
-| `docs/THERMAL_FACTS.md` | ⑦ 事实/数据 | 8 | 0 | — |
-| `docs/THERMAL_S1_FACTS.md` | ⑦ 事实/数据 | 8 | 1 | — |
+| `docs/THERMAL_FACTS.md` | ⑦ 事实/数据 | 9 | 0 | — |
+| `docs/THERMAL_S1_FACTS.md` | ⑦ 事实/数据 | 9 | 1 | — |
 | `docs/authz/AUTHZ_REGISTRY.csv` | ⑦ 事实/数据 | 16 | 2 | — |
 | `docs/authz/CONTAINER_WRITE_SITES.csv` | ⑦ 事实/数据 | 10 | 1 | — |
 | `docs/authz/OVERVIEW.md` | ⑦ 事实/数据 | 14 | 2 | — |
