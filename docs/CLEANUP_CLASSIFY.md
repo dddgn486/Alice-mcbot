@@ -621,7 +621,7 @@
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
-| `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
+| `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/dsh-session-log.mjs` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/dsh-session-rollback.mjs` | ⑥ 边界即机器 | 6 | 0 | — |
@@ -632,10 +632,10 @@
 | `tools/gate-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/goal-vocabulary.py` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/headless-battery.sh` | ⑥ 边界即机器 | 43 | 4 | — |
+| `tools/headless-battery.sh` | ⑥ 边界即机器 | 44 | 4 | — |
 | `tools/ingest-extraction.py` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — |
-| `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
 | `tools/kernel-predicates.py` | ⑥ 边界即机器 | 48 | 9 | — |
 | `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — |
@@ -648,7 +648,7 @@
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
-| `tools/recipe-graph.py` | ⑥ 边界即机器 | 18 | 2 | — |
+| `tools/recipe-graph.py` | ⑥ 边界即机器 | 19 | 2 | — |
 | `tools/recipe-readability.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/ref-anchors.py` | ⑥ 边界即机器 | 7 | 0 | — |
