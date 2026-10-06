@@ -544,13 +544,13 @@
 | `tools/check-authz-code-refs.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-authz-code-refs.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-authz-registry.sh` | ⑥ 边界即机器 | 12 | 2 | — |
-| `tools/check-baritone-anchor.py` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/check-baritone-anchor.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/check-capability-list.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/check-cleanup-classify.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-collect-callsite-shape.py` | ⑥ 边界即机器 | 12 | 3 | — |
 | `tools/check-consult-pairs.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-consult-pairs.sh` | ⑥ 边界即机器 | 3 | 0 | — |
-| `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/check-design-index.sh` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 4 | 0 | — |
@@ -573,7 +573,7 @@
 | `tools/check-glossary.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-glossary.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-goal-vocabulary.sh` | ⑥ 边界即机器 | 7 | 0 | — |
-| `tools/check-item-models.sh` | ⑥ 边界即机器 | 11 | 0 | — |
+| `tools/check-item-models.sh` | ⑥ 边界即机器 | 12 | 0 | — |
 | `tools/check-job-kind-contracts.sh` | ⑥ 边界即机器 | 21 | 4 | — |
 | `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — |
@@ -614,9 +614,9 @@
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/cleanup-classify.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 8 | 0 | — |
+| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
@@ -642,7 +642,7 @@
 | `tools/machine-map.py` | ⑥ 边界即机器 | 31 | 2 | — |
 | `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
-| `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 16 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 17 | 0 | — |
@@ -661,7 +661,7 @@
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/step-names.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/survey-index.py` | ⑥ 边界即机器 | 15 | 0 | — |
-| `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 12 | 1 | — |
+| `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 13 | 1 | — |
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — |
