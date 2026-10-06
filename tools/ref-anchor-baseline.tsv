@@ -1,6 +1,6 @@
 # 文档「行号引用」存量基线 —— ⛔ 只许变短（新增 ⇒ 红；减少 ⇒ 必须同步本文件）。
 # 生成：python3 tools/ref-anchors.py --write　·　列：引用方文件 <TAB> 被引方文件 <TAB> 处数
-# 总计 324 处 / 140 对（47 个引用方文件）
+# 总计 324 处 / 142 对（48 个引用方文件）
 
 .alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md	docs/HANDOVER.md	2
 docs/AI_DECISIONS.md	AI_DECISIONS.md	6
@@ -41,17 +41,16 @@ docs/HANDOVER.md	docs/reviews/2026-09-28-断点十一-开工前复盘与计划.m
 docs/HANDOVER.md	minimal-implementation-planning.skill.md	1
 docs/JOB_LAYER_DESIGN.md	docs/MINE_MIGRATION_DESIGN.md	1
 docs/OPEN_ITEMS_LEDGER.md	AGENTS.md	5
-docs/OPEN_ITEMS_LEDGER.md	AI_DECISIONS.md	10
+docs/OPEN_ITEMS_LEDGER.md	AI_DECISIONS.md	8
 docs/OPEN_ITEMS_LEDGER.md	AI_PROJECT_STATE.md	1
 docs/OPEN_ITEMS_LEDGER.md	AI_TEST_MATRIX.md	1
 docs/OPEN_ITEMS_LEDGER.md	ALIGNMENT_OPEN_QUESTIONS.md	1
 docs/OPEN_ITEMS_LEDGER.md	CLIENT_AGENT_NEW_DEVICE_TEST.md	1
-docs/OPEN_ITEMS_LEDGER.md	HANDOVER.md	9
+docs/OPEN_ITEMS_LEDGER.md	HANDOVER.md	4
 docs/OPEN_ITEMS_LEDGER.md	JOB_LAYER_DESIGN.md	4
 docs/OPEN_ITEMS_LEDGER.md	MOD_ADAPTER_PROTOCOL.md	1
 docs/OPEN_ITEMS_LEDGER.md	MULTI_BOT_INTERFACE_RESERVATION.md	1
 docs/OPEN_ITEMS_LEDGER.md	R4_BARITONE_ALIGNMENT_AUDIT.md	1
-docs/OPEN_ITEMS_LEDGER.md	README.md	1
 docs/OPEN_ITEMS_LEDGER.md	WORLD_WRITE_AUTHORIZATION.md	3
 docs/OPEN_ITEMS_LEDGER.md	docs/AI_TEST_MATRIX.md	2
 docs/OPEN_ITEMS_LEDGER.md	docs/reference/BARITONE_PORTING_CHECKLIST.md	1
@@ -61,6 +60,9 @@ docs/OPEN_ITEMS_LEDGER.md	reference/BARITONE_PORTING_CHECKLIST.md	1
 docs/QUESTIONS_LEDGER.md	AGENTS.md	1
 docs/R4_BARITONE_ALIGNMENT_AUDIT.md	docs/AI_DECISIONS.md	1
 docs/REVIEW_2026-09-13_FIX_AUDIT.md	AI_DECISIONS.md	1
+docs/SCHEDULE.md	AI_DECISIONS.md	2
+docs/SCHEDULE.md	HANDOVER.md	5
+docs/SCHEDULE.md	README.md	1
 docs/TESTING_GUIDE.md	TESTING_GUIDE.md	1
 docs/TESTING_GUIDE.md	docs/reviews/2026-09-14-3B-S3-机器映射勘察.md	1
 docs/plans/2026-09-25-通道施工器草案.md	docs/ALIGNMENT_OPEN_QUESTIONS.md	1

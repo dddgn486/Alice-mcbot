@@ -24,14 +24,14 @@
 | ①-code 设计说明（`package-info.java`） | 9 | **0** | **绝不合法** —— 常驻件零引用 = 没有任何 agent 会读到它 |
 | ② 入口 ＋ 地图 | 2 | **0** | **待用户判**（本表只报数） |
 | ③ 决策/裁定 | 2 | **0** | **待用户判**（本表只报数） |
-| ④ 状态 ＋ 构想 | 56 | **13** | **待用户判**（本表只报数） |
+| ④ 状态 ＋ 构想 | 57 | **13** | **待用户判**（本表只报数） |
 | ⑤ 报告 ＋ 证据 | 171 | **129** | **待用户判**（本表只报数） |
 | ⑥ 边界即机器 | 134 | **0** | **待用户判**（本表只报数） |
 | ⑦ 事实/数据 | 17 | **0** | **待用户判**（本表只报数） |
 | ⑪ 咨询通道 | 12 | **11** | **待用户判**（本表只报数） |
 | ⑨ 待删（一次性脚本） | 2 | **0** | **待用户判**（本表只报数） |
 | ⑧ 域外（⛔ 不进体系） | 225 | **1** | **合法** —— 域外件不进体系，本来就没人引 |
-| **合计** | **632** | **154** | 这个合计**没有行动含义**（见上） |
+| **合计** | **633** | **154** | 这个合计**没有行动含义**（见上） |
 
 ## 二 · 行动面：**零引用且不在 ⑧ 域外**
 
@@ -214,34 +214,35 @@
 ⚠️ 判据两条**都是机械的**：① 头部 40 行里出现「已生效／生效中／已落地／已接线／已实现／已拍板」
 （**文件自己的自称**，⛔ 不是我的判断）② 全仓 `src/` 下**零命中它的文件名**。
 
-**24 件** —— 打勾栏同 `§D′-9` 9.5。
+**25 件** —— 打勾栏同 `§D′-9` 9.5。
 
 | # | 件 | 好家 | 自称 | 全仓提到它 | `src/` 里 | 保留 | 丢 | 合并到 | 已过期 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | **已落地** | 15 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 1 | `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | **已落地** | 16 | **0** | ☐ | ☐ | ☐ | ☐ |
 | 2 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | **已落地** | 17 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 3 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 4 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 5 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 8 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 6 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 11 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 7 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | **已拍板** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 8 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 9 | `docs/reviews/2026-09-14-survey07-可行动条目核实.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 10 | `docs/reviews/2026-09-14-无头回归通道T2-首轮实测.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 11 | `docs/reviews/2026-09-17-勘测分诊与任务队列.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 12 | `docs/reviews/2026-09-24-survey32-核对.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 13 | `docs/reviews/2026-09-27-step5b拆法待拍.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 14 | `docs/reviews/2026-09-28-断点十一-开工前复盘与计划.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 15 | `survey/05-任务发布与交互勘测.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 16 | `survey/08-挖矿范例与风险系统形态-20260915.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 17 | `survey/12-系统全貌图与图的维护-20260916.md` | ⑤ 报告 ＋ 证据 | **已实现** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 18 | `survey/14-产品定位重构-AE外挂-20260916.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 19 | `survey/19-勘测侧复核回写-第二次-20260917.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 20 | `survey/21-勘测侧更正回写-第三次-20260918.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 21 | `survey/27-当前核心问题与依赖关系图-20260921.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 22 | `survey/43-框架面清单与巩固顺序-20260927.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 23 | `survey/47-马上能做的三件与形状验收-2026-09-28.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
-| 24 | `survey/53-批1剩余22件-逐件打勾表-2026-10-04.md` | ⑤ 报告 ＋ 证据 | **已生效** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 3 | `docs/SCHEDULE.md` | ④ 状态 ＋ 构想 | **已落地** | 13 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 4 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 5 | `docs/archive/legacy-2026-08/MINING_SAFETY_AND_PLANNING.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 3 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 6 | `docs/archive/legacy-2026-08/PATHING_REFACTOR.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 8 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 7 | `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | **已实现** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 8 | `docs/authz/POLICY_MATRIX_PROPOSAL.md` | ④ 状态 ＋ 构想 | **已拍板** | 12 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 9 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 10 | `docs/reviews/2026-09-14-survey07-可行动条目核实.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 11 | `docs/reviews/2026-09-14-无头回归通道T2-首轮实测.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 12 | `docs/reviews/2026-09-17-勘测分诊与任务队列.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 13 | `docs/reviews/2026-09-24-survey32-核对.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 14 | `docs/reviews/2026-09-27-step5b拆法待拍.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 15 | `docs/reviews/2026-09-28-断点十一-开工前复盘与计划.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 16 | `survey/05-任务发布与交互勘测.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 17 | `survey/08-挖矿范例与风险系统形态-20260915.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 18 | `survey/12-系统全貌图与图的维护-20260916.md` | ⑤ 报告 ＋ 证据 | **已实现** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 19 | `survey/14-产品定位重构-AE外挂-20260916.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 20 | `survey/19-勘测侧复核回写-第二次-20260917.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 21 | `survey/21-勘测侧更正回写-第三次-20260918.md` | ⑤ 报告 ＋ 证据 | **已拍板** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 22 | `survey/27-当前核心问题与依赖关系图-20260921.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 23 | `survey/43-框架面清单与巩固顺序-20260927.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 24 | `survey/47-马上能做的三件与形状验收-2026-09-28.md` | ⑤ 报告 ＋ 证据 | **已落地** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
+| 25 | `survey/53-批1剩余22件-逐件打勾表-2026-10-04.md` | ⑤ 报告 ＋ 证据 | **已生效** | 0 | **0** | ☐ | ☐ | ☐ | ☐ |
 
 ⚠️ ⛔ **`src/` 里零命中不等于它错了** —— 文档本来就不必被代码引用。
 它只说明：**这份自称生效的东西，在代码里没有落点**。⇒ 该由你来判「这句话对不对／过期没有」。
@@ -293,24 +294,24 @@
 
 | 件 | 好家 | 提到它的文件数 | `src/` 里 | 自称生效 |
 |---|---|---|---|---|
-| `AGENTS.md` | ① 常驻规范 | 97 | 5 | — |
+| `AGENTS.md` | ① 常驻规范 | 98 | 5 | — |
 | `docs/AI_DEVELOPMENT_PLAYBOOK.md` | ① 常驻规范 | 30 | 0 | — |
-| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/compat/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/debug/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/region/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/staging/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `src/main/java/com/dddgn/alice/step/package-info.java` | ①-code 设计说明（`package-info.java`） | 48 | 10 | — |
-| `README.md` | ② 入口 ＋ 地图 | 62 | 0 | — |
-| `docs/README.md` | ② 入口 ＋ 地图 | 63 | 0 | — |
-| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 124 | 7 | — |
-| `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 33 | 0 | — |
+| `src/main/java/com/dddgn/alice/action/craft/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/action/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/compat/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/debug/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/fixture/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/authz/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/region/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/staging/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `src/main/java/com/dddgn/alice/step/package-info.java` | ①-code 设计说明（`package-info.java`） | 49 | 10 | — |
+| `README.md` | ② 入口 ＋ 地图 | 63 | 0 | — |
+| `docs/README.md` | ② 入口 ＋ 地图 | 64 | 0 | — |
+| `docs/AI_DECISIONS.md` | ③ 决策/裁定 | 125 | 7 | — |
+| `docs/DECISIONS_INDEX.md` | ③ 决策/裁定 | 34 | 0 | — |
 | `.alice-supervision/improvements/follow-task-vertical-tolerance.md` | ④ 状态 ＋ 构想 | 2 | 0 | — |
 | `docs/ACCEPTANCE_GUIDE.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
-| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 45 | 0 | — |
+| `docs/AI_PROJECT_STATE.md` | ④ 状态 ＋ 构想 | 46 | 0 | — |
 | `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` | ④ 状态 ＋ 构想 | 15 | 0 | — |
 | `docs/ALICE_PATHING_CORE_R1_CONTRACT.md` | ④ 状态 ＋ 构想 | 13 | 0 | — |
 | `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md` | ④ 状态 ＋ 构想 | 10 | 0 | — |
@@ -326,9 +327,9 @@
 | `docs/DOC_REFACTOR_DRAFT.md` | ④ 状态 ＋ 构想 | 16 | 0 | — |
 | `docs/DOC_REFACTOR_PLAN.md` | ④ 状态 ＋ 构想 | 30 | 0 | — |
 | `docs/EXPECTED_REDS.md` | ④ 状态 ＋ 构想 | 15 | 1 | — |
-| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 15 | 0 | 已落地 |
-| `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
-| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 70 | 1 | — |
+| `docs/EXTRACTED_KNOWLEDGE.md` | ④ 状态 ＋ 构想 | 16 | 0 | 已落地 |
+| `docs/GLOSSARY.md` | ④ 状态 ＋ 构想 | 21 | 0 | — |
+| `docs/HANDOVER.md` | ④ 状态 ＋ 构想 | 71 | 1 | — |
 | `docs/INTERACTION_LAYERS_COMPARISON.md` | ④ 状态 ＋ 构想 | 11 | 2 | — |
 | `docs/JOB_LAYER_DESIGN.md` | ④ 状态 ＋ 构想 | 27 | 11 | — |
 | `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
@@ -336,14 +337,15 @@
 | `docs/MINE_SURVEY_PROTOCOL.md` | ④ 状态 ＋ 构想 | 7 | 0 | — |
 | `docs/MINE_TASK_DESIGN.md` | ④ 状态 ＋ 构想 | 17 | 0 | 已落地 |
 | `docs/MINING_STAND_SELECTION_DESIGN.md` | ④ 状态 ＋ 构想 | 14 | 3 | — |
-| `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 17 | 1 | — |
+| `docs/MOD_ADAPTER_PROTOCOL.md` | ④ 状态 ＋ 构想 | 18 | 1 | — |
 | `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` | ④ 状态 ＋ 构想 | 9 | 1 | — |
 | `docs/MULTI_BOT_INTERFACE_RESERVATION.md` | ④ 状态 ＋ 构想 | 12 | 0 | — |
-| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 65 | 4 | 已落地 |
+| `docs/OPEN_ITEMS_LEDGER.md` | ④ 状态 ＋ 构想 | 66 | 4 | 已落地 |
 | `docs/QUESTIONS_LEDGER.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/REGION_REPLANT_ASYNC_DESIGN.md` | ④ 状态 ＋ 构想 | 7 | 2 | — |
 | `docs/RISK_MODES_DISCUSSION.md` | ④ 状态 ＋ 构想 | 11 | 0 | — |
 | `docs/RISK_SYSTEM_DESIGN_DRAFT.md` | ④ 状态 ＋ 构想 | 20 | 0 | — |
+| `docs/SCHEDULE.md` | ④ 状态 ＋ 构想 | 13 | 0 | 已落地 |
 | `docs/STAGE3A_CRAFT_PLAN.md` | ④ 状态 ＋ 构想 | 8 | 0 | — |
 | `docs/TESTING_GUIDE.md` | ④ 状态 ＋ 构想 | 19 | 2 | — |
 | `docs/WORLD_WRITE_AUTHORIZATION.md` | ④ 状态 ＋ 构想 | 14 | 1 | — |
@@ -362,7 +364,7 @@
 | `docs/plans/2026-09-29-第一刀-施工设计.md` | ④ 状态 ＋ 构想 | 0 | 0 | 已落地 |
 | `docs/plans/2026-09-29-维生三词展开与回收条件②③.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
 | `docs/plans/2026-09-29-维生系统-设计单.md` | ④ 状态 ＋ 构想 | 0 | 0 | — |
-| `docs/plans/README.md` | ④ 状态 ＋ 构想 | 63 | 0 | — |
+| `docs/plans/README.md` | ④ 状态 ＋ 构想 | 64 | 0 | — |
 | `docs/reference/ROAD_MATHEMATICAL_MODEL.md` | ④ 状态 ＋ 构想 | 5 | 0 | — |
 | `.alice-supervision/client-tests/d220-t3-20260915/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 76 | 0 | — |
 | `.alice-supervision/client-tests/legacy-ascend-20260908/evidence/evidence-report.md` | ⑤ 报告 ＋ 证据 | 76 | 0 | — |
@@ -476,7 +478,7 @@
 | `docs/reviews/2026-10-02-D裁定分堆-对抗性复核.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `docs/reviews/2026-10-02-D裁定存量分堆勘测.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `docs/reviews/2026-10-02-新设备无头测试落地.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
-| `docs/reviews/README.md` | ⑤ 报告 ＋ 证据 | 63 | 0 | — |
+| `docs/reviews/README.md` | ⑤ 报告 ＋ 证据 | 64 | 0 | — |
 | `docs/reviews/archive/2026-09-26-真机第五轮-自检报告-空气与通道成品规格.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `survey/01-蓝图勘测报告.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `survey/02-职责归属勘测.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
@@ -534,7 +536,7 @@
 | `survey/55-批2开工前勘测-第一档靶子与判据体检-2026-10-04.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `survey/56-草案对位-设计文档与两类维护形态-2026-10-04.md` | ⑤ 报告 ＋ 证据 | 0 | 0 | — |
 | `survey/INTENT.md` | ⑤ 报告 ＋ 证据 | 10 | 0 | — |
-| `survey/README.md` | ⑤ 报告 ＋ 证据 | 62 | 0 | — |
+| `survey/README.md` | ⑤ 报告 ＋ 证据 | 63 | 0 | — |
 | `tools/alice-cloud-remote.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/alice-cloudctl.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 8 | 1 | — |
@@ -545,7 +547,7 @@
 | `tools/build-new-system-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 19 | 0 | — |
 | `tools/capture-scene.py` | ⑥ 边界即机器 | 6 | 1 | — |
-| `tools/check-all.sh` | ⑥ 边界即机器 | 94 | 2 | — |
+| `tools/check-all.sh` | ⑥ 边界即机器 | 95 | 2 | — |
 | `tools/check-archive-index.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-authz-code-refs.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-authz-code-refs.sh` | ⑥ 边界即机器 | 2 | 0 | — |
@@ -553,7 +555,7 @@
 | `tools/check-baritone-anchor.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-capability-list.sh` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/check-cleanup-classify.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/check-collect-callsite-shape.py` | ⑥ 边界即机器 | 11 | 3 | — |
+| `tools/check-collect-callsite-shape.py` | ⑥ 边界即机器 | 12 | 3 | — |
 | `tools/check-consult-pairs.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-consult-pairs.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-decisions-index.sh` | ⑥ 边界即机器 | 7 | 0 | — |
@@ -562,42 +564,42 @@
 | `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 13 | 3 | — |
+| `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 14 | 3 | — |
 | `tools/check-e4-offrepo.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-e4-offrepo.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-effective-trace.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-effective-trace.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-exec-record.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/check-expected-reds.py` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/check-expected-reds.py` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-extraction-status.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/check-extraction-status.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-facts-tiers.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-far-goal-usage.py` | ⑥ 边界即机器 | 14 | 4 | — |
 | `tools/check-fixture-hygiene.sh` | ⑥ 边界即机器 | 11 | 2 | — |
-| `tools/check-frozen-code.py` | ⑥ 边界即机器 | 20 | 3 | — |
+| `tools/check-frozen-code.py` | ⑥ 边界即机器 | 21 | 3 | — |
 | `tools/check-glossary.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/check-glossary.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-goal-vocabulary.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-item-models.sh` | ⑥ 边界即机器 | 11 | 0 | — |
-| `tools/check-job-kind-contracts.sh` | ⑥ 边界即机器 | 20 | 4 | — |
-| `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 10 | 1 | — |
+| `tools/check-job-kind-contracts.sh` | ⑥ 边界即机器 | 21 | 4 | — |
+| `tools/check-job-menu-listable.sh` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/check-kernel-predicates.sh` | ⑥ 边界即机器 | 9 | 0 | — |
-| `tools/check-layer-direction.py` | ⑥ 边界即机器 | 24 | 7 | — |
-| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 18 | 2 | — |
+| `tools/check-layer-direction.py` | ⑥ 边界即机器 | 25 | 7 | — |
+| `tools/check-machine-map.sh` | ⑥ 边界即机器 | 19 | 2 | — |
 | `tools/check-new-home.sh` | ⑥ 边界即机器 | 13 | 0 | — |
-| `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/check-phase-transition-outlet.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/check-plan-doc-refactor.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/check-policy-matrix.sh` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-precharge-containment.sh` | ⑥ 边界即机器 | 9 | 3 | — |
-| `tools/check-primitive-budget-injection.py` | ⑥ 边界即机器 | 11 | 0 | — |
-| `tools/check-primitive-readings.py` | ⑥ 边界即机器 | 10 | 0 | — |
+| `tools/check-primitive-budget-injection.py` | ⑥ 边界即机器 | 12 | 0 | — |
+| `tools/check-primitive-readings.py` | ⑥ 边界即机器 | 11 | 0 | — |
 | `tools/check-project-state-freshness.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-project-state-freshness.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-proposal-status.py` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-proposal-status.sh` | ⑥ 边界即机器 | 3 | 0 | — |
-| `tools/check-protection-install-point.py` | ⑥ 边界即机器 | 8 | 2 | — |
-| `tools/check-provision-containment.sh` | ⑥ 边界即机器 | 17 | 3 | — |
+| `tools/check-protection-install-point.py` | ⑥ 边界即机器 | 9 | 2 | — |
+| `tools/check-provision-containment.sh` | ⑥ 边界即机器 | 18 | 3 | — |
 | `tools/check-quote-lint.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-quote-lint.sh` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/check-redline-gates.sh` | ⑥ 边界即机器 | 8 | 0 | — |
@@ -611,18 +613,18 @@
 | `tools/check-station-mapping.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/check-step-names.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/check-survey-index.sh` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/check-task-orchestration-split.py` | ⑥ 边界即机器 | 15 | 4 | — |
+| `tools/check-task-orchestration-split.py` | ⑥ 边界即机器 | 16 | 4 | — |
 | `tools/check-task-top-freeze.py` | ⑥ 边界即机器 | 8 | 1 | — |
 | `tools/check-transfer-clock.sh` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/check-underfoot-safety.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/check-win-script-encoding.py` | ⑥ 边界即机器 | 2 | 0 | — |
 | `tools/cleanup-classify.py` | ⑥ 边界即机器 | 14 | 0 | — |
 | `tools/cloud-restore-env.sh` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/cloud-rollback.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/codespace-start-dsh.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/codespace-zero.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
-| `tools/decisions-index.py` | ⑥ 边界即机器 | 16 | 0 | — |
+| `tools/decisions-index.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 8 | 0 | — |
@@ -632,18 +634,18 @@
 | `tools/exec-record.py` | ⑥ 边界即机器 | 7 | 1 | — |
 | `tools/extraction-targets-188.txt` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/failure-ratio.py` | ⑥ 边界即机器 | 3 | 0 | — |
-| `tools/fixture-hygiene.py` | ⑥ 边界即机器 | 13 | 1 | — |
+| `tools/fixture-hygiene.py` | ⑥ 边界即机器 | 14 | 1 | — |
 | `tools/gate-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/gen-xray-pack.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/goal-vocabulary.py` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/headless-battery.sh` | ⑥ 边界即机器 | 42 | 4 | — |
+| `tools/headless-battery.sh` | ⑥ 边界即机器 | 43 | 4 | — |
 | `tools/ingest-extraction.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
-| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 47 | 9 | — |
+| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 48 | 9 | — |
 | `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — |
-| `tools/machine-map.py` | ⑥ 边界即机器 | 30 | 2 | — |
+| `tools/machine-map.py` | ⑥ 边界即机器 | 31 | 2 | — |
 | `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/make-cloud-tunnel-bundle.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/mirror-windows-workspace.sh` | ⑥ 边界即机器 | 10 | 0 | — |
@@ -670,7 +672,7 @@
 | `tools/task-retirement-map.py` | ⑥ 边界即机器 | 11 | 1 | — |
 | `tools/transfer-clock.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `docs/AI_CHANGELOG.md` | ⑦ 事实/数据 | 11 | 0 | — |
-| `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 30 | 1 | — |
+| `docs/AI_TEST_MATRIX.md` | ⑦ 事实/数据 | 31 | 1 | — |
 | `docs/ALICE_CAPABILITIES.md` | ⑦ 事实/数据 | 10 | 0 | — |
 | `docs/DESIGN_INDEX.md` | ⑦ 事实/数据 | 24 | 0 | — |
 | `docs/JOB_KIND_VIEW.csv` | ⑦ 事实/数据 | 10 | 1 | — |
@@ -687,7 +689,7 @@
 | `docs/data/MACHINE_MAP.csv` | ⑦ 事实/数据 | 21 | 0 | — |
 | `docs/reference/MEK_GUI_SEMANTICS.md` | ⑦ 事实/数据 | 8 | 1 | — |
 | `.alice-supervision/archive/2024-08-2024-09/DSH实例管理备忘.txt` | ⑧ 域外（⛔ 不进体系） | 0 | 0 | — |
-| `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `.alice-supervision/archive/2024-08-2024-09/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-20260825-f1f6.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan-draft-physics-fix-c-20260825.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/2024-08-2024-09/active-plan.md` | ⑧ 域外（⛔ 不进体系） | 14 | 0 | — |
@@ -818,7 +820,7 @@
 | `.alice-supervision/archive/legacy-2026-08/PROJECT-CLEANUP-2025.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/PROJECT-STATUS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/QUICKSTART.md` | ⑧ 域外（⛔ 不进体系） | 5 | 0 | — |
-| `.alice-supervision/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `.alice-supervision/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/TASK-BACKLOG.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/debugging-methodology-reflection.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/inventory-helper-design.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
@@ -843,8 +845,8 @@
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-interface-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2a-summary.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `.alice-supervision/archive/legacy-2026-08/refactoring/phase2b-complete.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `.alice-supervision/skills-manifest.yml` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — |
-| `.alice-supervision/skills/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `.alice-supervision/skills-manifest.yml` | ⑧ 域外（⛔ 不进体系） | 14 | 0 | — |
+| `.alice-supervision/skills/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `.alice-supervision/skills/alice-baritone-kernel-alignment.skill.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `.alice-supervision/skills/alice-client-artifact-acceptance.skill.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/skills/alice-discussion-before-repair.skill.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
@@ -883,20 +885,20 @@
 | `docs/archive/legacy-2026-08/PRODUCT_ARCHITECTURE_ROADMAP.md` | ⑧ 域外（⛔ 不进体系） | 13 | 0 | — |
 | `docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-2026-08/R2C_IMPLEMENTATION_REPORT.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `docs/archive/legacy-2026-08/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `docs/archive/legacy-2026-08/TASK_OUTCOME_CONTRACT.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-design/AI_PLAYER_NOTES.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-design/BOT_PHYSICS_DIAGNOSTICS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-design/IS_EFFECTIVE_AI_ANALYSIS.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-design/MINECRAFT_PLAYER_PHYSICS_EXPLAINED.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-design/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `docs/archive/legacy-design/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `docs/archive/legacy-testing/BOT_CONTROL_DESIGN.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `docs/archive/legacy-testing/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `docs/archive/legacy-testing/WINDOWS_SYNC_CHECKLIST.md` | ⑧ 域外（⛔ 不进体系） | 1 | 0 | — |
-| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 70 | 1 | — |
-| `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 63 | 0 | — |
+| `docs/archive/legacy-workflow/HANDOVER.md` | ⑧ 域外（⛔ 不进体系） | 71 | 1 | — |
+| `docs/archive/legacy-workflow/README.md` | ⑧ 域外（⛔ 不进体系） | 64 | 0 | — |
 | `docs/archive/legacy-workflow/SUPERVISION_PROTOCOL.md` | ⑧ 域外（⛔ 不进体系） | 8 | 0 | — |
-| `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 11 | 0 | 已实现 |
+| `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md` | ⑧ 域外（⛔ 不进体系） | 12 | 0 | 已实现 |
 | `docs/archive/legacy-workflow/supervision/ACTIVE_PLAN_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `docs/archive/legacy-workflow/supervision/CLIENT_TEST_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `docs/archive/legacy-workflow/supervision/RESEARCH_REPORT_TEMPLATE.md` | ⑧ 域外（⛔ 不进体系） | 2 | 0 | — |
@@ -913,7 +915,7 @@
 | `tools/cloud-tunnel-README.txt` | ⑧ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `.tmp-fix2.py` | ⑨ 待删（一次性脚本） | 5 | 0 | — |
 | `.tmp-fix9.py` | ⑨ 待删（一次性脚本） | 6 | 0 | — |
-| `consult/README.md` | ⑪ 咨询通道 | 62 | 0 | — |
+| `consult/README.md` | ⑪ 咨询通道 | 63 | 0 | — |
 | `consult/receipt/001-七类表缺维护栏.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/receipt/002-批2开工前的硬阻塞与本轮结构性摩擦.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/receipt/003-提取在这套流程里没有落脚点.md` | ⑪ 咨询通道 | 0 | 0 | — |
@@ -926,5 +928,5 @@
 | `consult/request/004-主线目标模糊与后续筛没有判据.md` | ⑪ 咨询通道 | 0 | 0 | — |
 | `consult/request/005-设计文档在这套体系里住哪.md` | ⑪ 咨询通道 | 0 | 0 | — |
 
-<!-- CLEANUP_ROWS 632 -->
+<!-- CLEANUP_ROWS 633 -->
 

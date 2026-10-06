@@ -71,6 +71,11 @@ DEST: list[tuple[str, str, tuple[str, ...]]] = [
      # ⭐ **「提案未裁」这一半的两个具体位置**（2026-10-04 从 ③ 与 ⑧ 搬来 —— 撞上的是
      #    草案 `§D′-1` ④ 的**身份栏**，按「门禁没有权利否决草案」跟着草案走）。
      ("docs/HANDOVER.md", "docs/OPEN_ITEMS_LEDGER.md", "docs/AI_PROJECT_STATE.md",
+      # ⭐ `docs/SCHEDULE.md`（2026-10-06 新增）—— 它是**从台账 `### J.` 拆出的排期表**
+      #    （回执 `004.1` 的待办 `A`；判据 = 咨询回执 `005` 的 §七）。⭐ 它**不是**
+      #    「现在在哪」那一半，而是 ④ 的**施工域 / 工序**那一半（与 `docs/plans/` 同侧）。
+      #    ⚠️ 加这一行的**唯一**理由 = 它是**新造件** ⇒ 不加 `check-new-home` 报「无家可归 1 件」。
+      "docs/SCHEDULE.md",
       "docs/QUESTIONS_LEDGER.md", "docs/plans/*.md",
       ".alice-supervision/improvements/*",
       "docs/authz/PROPOSAL_*.md", "docs/authz/POLICY_MATRIX_PROPOSAL.md",

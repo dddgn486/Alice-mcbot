@@ -93,6 +93,7 @@ NON_DESIGN_PATTERNS: list[tuple[str, str]] = [
     ("EXTRACTED_KNOWLEDGE.md", "提取册（容器 · 装从旧件提取的设计/经验/判据；由 `W7′-8` 工序产出）"),
     ("AI_*.md", "常驻件 ／ 旧态文档（`AI_DECISIONS` `AI_PROJECT_STATE` `AI_DEVELOPMENT_PLAYBOOK` `AI_CHANGELOG` `AI_TEST_MATRIX`）"),
     ("OPEN_ITEMS_LEDGER.md", "⑥ 类（进行中状态 · 待办总账）"),
+    ("SCHEDULE.md", "④ 类（工作排期表 —— 2026-10-06 从台账 `### J.` 拆出；它记**工序与执行顺序**，⛔ 不描述 mod 设计）"),
     ("QUESTIONS_LEDGER.md", "⑥ 类（进行中状态 · 问题账）"),
     ("HANDOVER.md", "⑥ 类（进行中状态 · 断点历史）"),
     ("README.md", "文档地图（⛔ 不自称入口）"),
