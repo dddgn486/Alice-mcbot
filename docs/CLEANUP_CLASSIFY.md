@@ -620,7 +620,7 @@
 | `tools/death-persistence-e2e.sh` | ⑥ 边界即机器 | 7 | 2 | — |
 | `tools/decisions-index.py` | ⑥ 边界即机器 | 17 | 0 | — |
 | `tools/design-index.py` | ⑥ 边界即机器 | 13 | 0 | — |
-| `tools/doc-registry.py` | ⑥ 边界即机器 | 9 | 0 | — |
+| `tools/doc-registry.py` | ⑥ 边界即机器 | 10 | 0 | — |
 | `tools/dsh-context-usage.sh` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/dsh-phone-qr.sh` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/dsh-session-log.mjs` | ⑥ 边界即机器 | 17 | 0 | — |
@@ -871,7 +871,7 @@
 | `.alice-supervision/skills/large-refactor-survey-and-verify.skill.md` | ⑩ 域外（⛔ 不进体系） | 6 | 0 | — |
 | `.alice-supervision/skills/minecraft-client-server-sync.skill.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `.alice-supervision/skills/minimal-implementation-planning.skill.md` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
-| `docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md` | ⑩ 域外（⛔ 不进体系） | 5 | 0 | — |
+| `docs/archive/legacy-2026-08/AI_PLAYER_DESIGN.md` | ⑩ 域外（⛔ 不进体系） | 6 | 0 | — |
 | `docs/archive/legacy-2026-08/BOT_CONTROLLER_QUICK_TEST.md` | ⑩ 域外（⛔ 不进体系） | 1 | 0 | — |
 | `docs/archive/legacy-2026-08/EXECUTION_FRAMEWORK.md` | ⑩ 域外（⛔ 不进体系） | 5 | 1 | — |
 | `docs/archive/legacy-2026-08/HANDOVER_20260907.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | 已实现 |
@@ -908,7 +908,7 @@
 | `docs/archive/legacy-workflow/supervision/RESEARCH_TASK_TEMPLATE.txt` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `docs/archive/legacy-workflow/supervision/REVIEW_TEMPLATE.md` | ⑩ 域外（⛔ 不进体系） | 2 | 0 | — |
 | `src/main/resources/assets/alice/textures/CREDITS.md` | ⑩ 域外（⛔ 不进体系） | 9 | 0 | — |
-| `steward-entry/entry.txt` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
+| `steward-entry/entry.txt` | ⑩ 域外（⛔ 不进体系） | 4 | 0 | — |
 | `tools/agent-presets/alice-forge-assistant/agent.cordis.yml` | ⑩ 域外（⛔ 不进体系） | 8 | 0 | — |
 | `tools/agent-presets/alice-forge-assistant/persona.md` | ⑩ 域外（⛔ 不进体系） | 3 | 0 | — |
 | `tools/agent-presets/alice-forge-assistant/preset.yml` | ⑩ 域外（⛔ 不进体系） | 7 | 0 | — |
