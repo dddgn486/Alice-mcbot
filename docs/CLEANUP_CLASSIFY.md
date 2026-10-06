@@ -554,7 +554,7 @@
 | `tools/check-design-index.sh` | ⑥ 边界即机器 | 13 | 0 | — |
 | `tools/check-doc-class-mark.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-doc-class-mark.sh` | ⑥ 边界即机器 | 4 | 0 | — |
-| `tools/check-doc-links.py` | ⑥ 边界即机器 | 6 | 0 | — |
+| `tools/check-doc-links.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/check-doc-registry.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/check-duplicate-class-names.py` | ⑥ 边界即机器 | 14 | 3 | — |
 | `tools/check-e4-offrepo.py` | ⑥ 边界即机器 | 4 | 0 | — |
@@ -659,7 +659,7 @@
 | `tools/simulate-scene-plan.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/skills-index.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/station-mapping.py` | ⑥ 边界即机器 | 6 | 0 | — |
-| `tools/step-names.py` | ⑥ 边界即机器 | 7 | 0 | — |
+| `tools/step-names.py` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/survey-index.py` | ⑥ 边界即机器 | 15 | 0 | — |
 | `tools/sync-windows-artifact.sh` | ⑥ 边界即机器 | 13 | 1 | — |
 | `tools/task-dispatch-table.py` | ⑥ 边界即机器 | 9 | 0 | — |
