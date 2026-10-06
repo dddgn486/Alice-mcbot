@@ -637,7 +637,7 @@
 | `tools/jar-content-hash.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/jar-content-hash.sh` | ⑥ 边界即机器 | 8 | 0 | — |
 | `tools/job-kind-view.py` | ⑥ 边界即机器 | 10 | 1 | — |
-| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 48 | 9 | — |
+| `tools/kernel-predicates.py` | ⑥ 边界即机器 | 49 | 9 | — |
 | `tools/llm-relay.py` | ⑥ 边界即机器 | 5 | 1 | — |
 | `tools/machine-map.py` | ⑥ 边界即机器 | 32 | 2 | — |
 | `tools/make-agent-preset.py` | ⑥ 边界即机器 | 3 | 0 | — |
@@ -653,7 +653,7 @@
 | `tools/redline-gates.py` | ⑥ 边界即机器 | 9 | 0 | — |
 | `tools/ref-anchors.py` | ⑥ 边界即机器 | 7 | 0 | — |
 | `tools/ref-integrity.py` | ⑥ 边界即机器 | 13 | 0 | — |
-| `tools/region-ore-scan.py` | ⑥ 边界即机器 | 5 | 0 | — |
+| `tools/region-ore-scan.py` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/render-scene-preview.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/risk-surface.py` | ⑥ 边界即机器 | 13 | 1 | — |
 | `tools/simulate-scene-plan.py` | ⑥ 边界即机器 | 4 | 0 | — |
