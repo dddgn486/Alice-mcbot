@@ -534,7 +534,7 @@
 | `tools/analyze-lumber-scene.py` | ⑥ 边界即机器 | 8 | 1 | — |
 | `tools/analyze-trace.py` | ⑥ 边界即机器 | 3 | 0 | — |
 | `tools/archive-index.py` | ⑥ 边界即机器 | 12 | 0 | — |
-| `tools/authz-map.py` | ⑥ 边界即机器 | 14 | 0 | — |
+| `tools/authz-map.py` | ⑥ 边界即机器 | 15 | 0 | — |
 | `tools/authz-map.sh` | ⑥ 边界即机器 | 6 | 0 | — |
 | `tools/build-new-system-inventory.py` | ⑥ 边界即机器 | 4 | 0 | — |
 | `tools/capability-list.py` | ⑥ 边界即机器 | 19 | 0 | — |
@@ -646,7 +646,7 @@
 | `tools/module-selftest.sh` | ⑥ 边界即机器 | 10 | 2 | — |
 | `tools/new-home-audit.py` | ⑥ 边界即机器 | 16 | 0 | — |
 | `tools/plan-doc-refactor.py` | ⑥ 边界即机器 | 17 | 0 | — |
-| `tools/policy-map.py` | ⑥ 边界即机器 | 28 | 4 | — |
+| `tools/policy-map.py` | ⑥ 边界即机器 | 29 | 4 | — |
 | `tools/policy-map.sh` | ⑥ 边界即机器 | 5 | 0 | — |
 | `tools/recipe-graph.py` | ⑥ 边界即机器 | 19 | 2 | — |
 | `tools/recipe-readability.py` | ⑥ 边界即机器 | 10 | 0 | — |
