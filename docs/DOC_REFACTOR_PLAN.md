@@ -106,7 +106,7 @@
 | `docs/` 根设计件份数 | **14** | 14 ✅ | `docs/DESIGN_INDEX.md` |
 | `docs/` 根 `.md` 份数 | **58** | 58 ✅ | `git ls-files -z 'docs/*.md' | tr '\0' '\n' | grep -cE '^docs/[^/]+\.md$' | tr -d ' '` |
 | `survey/` 报告份数 | **55** | 55 ✅ | `survey/README.md` |
-| 常驻件当前总行数 | **1318** | 1318 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
+| 常驻件当前总行数 | **1086** | 1086 ✅ | `cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l | tr -d ' '` |
 | 门禁项数（`check-all` 计数行） | **62** | 62 ✅ | `echo $(( $(grep -c -e '^run_gate ' -e '^run_expected_reds' tools/check-all.sh) - 1 ))` |
 
 ### 冻结值（只有用户裁定能改）
@@ -372,7 +372,7 @@
 
 ### 规模（⭐ **生成本文件时现算**）
 
-⭐ 本次现算：`tools/` 下被跟踪文件 **292** · 反向可达 **96** · ⭐ **不可达 38**（本线的靶子）。
+⭐ 本次现算：`tools/` 下被跟踪文件 **294** · 反向可达 **96** · ⭐ **不可达 38**（本线的靶子）。
 
 ⚠️ ⭐ **耦合说清楚（⛔ 不藏）**：这一节的数字既然是**现算**的 ⇒ **另一条线往 `tools/` 里加一个不可达的工具，本节就会变 ⇒ `check-plan-doc-refactor` 报「陈旧」**。
 ⭐ 那**不是文档整顿出错** —— 是**提醒过期了**，重跑 `python3 tools/plan-doc-refactor.py --write` 即可。⭐ 顺带把本线的底线变成了**会响的**：「**不可达数不许再涨**」。

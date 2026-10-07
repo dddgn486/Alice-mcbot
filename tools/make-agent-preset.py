@@ -51,6 +51,26 @@ def fetch_skeleton() -> str:
             return t.extractfile(SKELETON).read().decode("utf-8")
 
 
+def apply_overrides(yml: str) -> str:
+    """把**本项目有意的、偏离上游骨架的**设置写回（⛔ 手改产物会在下次重生成时静默丢掉）。
+
+    目前只有一条（2026-10-07 用户裁定「另一个保留」）：
+
+      `compaction-basic.maxTokens: 32768`
+        上游骨架**不给**这项 ⇒ 生效值是插件默认 **8192**，语义 = **摘要请求的输出上限**
+        （`dsh-compaction-basic` README：`maxTokens` = Output cap for the summarization request）。
+        本项目的会话很大（长假期间单会话 25 MB）⇒ 8192 容易**把摘要截断**，而摘要一截断，
+        压缩后的历史就永久缺东西。⇒ 提到 32768（= 默认的 4 倍）。
+        ⚠️ 它**不是**压缩触发阈值（那由窗口算：`0.8×W`），别混。
+
+    ⛔ `tool-web.fetch` **不在这里覆盖** —— 用户 2026-10-07 裁定换回上游默认 `true`。
+    """
+    anchor = "    - id: compaction-basic\n"
+    i = yml.index(anchor)
+    j = yml.index("\n", yml.index("      name:", i))      # name: 那一行的行尾
+    return yml[: j + 1] + "      config:\n        maxTokens: 32768\n" + yml[j + 1 :]
+
+
 def build() -> str:
     persona = SRC.read_text(encoding="utf-8").rstrip("\n")
     if "{{" in persona:
@@ -62,7 +82,7 @@ def build() -> str:
 
     # 正文统一缩进 6 空格；空行留空（YAML 块标量里保持空行，避免并入上一行）
     body = "\n".join(("      " + l).rstrip() if l.strip() else "" for l in persona.split("\n"))
-    return yml[:i] + HEADER + body + "\n" + yml[j:]
+    return apply_overrides(yml[:i] + HEADER + body + "\n" + yml[j:])
 
 
 def install(dest: pathlib.Path) -> int:

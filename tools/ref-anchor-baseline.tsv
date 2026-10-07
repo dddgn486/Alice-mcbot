@@ -1,6 +1,6 @@
 # 文档「行号引用」存量基线 —— ⛔ 只许变短（新增 ⇒ 红；减少 ⇒ 必须同步本文件）。
 # 生成：python3 tools/ref-anchors.py --write　·　列：引用方文件 <TAB> 被引方文件 <TAB> 处数
-# 总计 324 处 / 142 对（48 个引用方文件）
+# 总计 317 处 / 135 对（47 个引用方文件）
 
 .alice-supervision/archive/2024-08-2024-09/reviews/20260821-8bb2d7b.md	docs/HANDOVER.md	2
 docs/AI_DECISIONS.md	AI_DECISIONS.md	6
@@ -22,17 +22,10 @@ docs/AI_TEST_MATRIX.md	AI_DECISIONS.md	12
 docs/AI_TEST_MATRIX.md	OPEN_ITEMS_LEDGER.md	1
 docs/AI_TEST_MATRIX.md	R4_BARITONE_ALIGNMENT_AUDIT.md	2
 docs/AI_TEST_MATRIX.md	docs/BATTERY_CURATION.md	1
-docs/DOC_REFACTOR_DRAFT.md	AGENTS.md	1
-docs/DOC_REFACTOR_DRAFT.md	README.md	1
-docs/DOC_REFACTOR_DRAFT.md	RISK_SYSTEM_DESIGN_DRAFT.md	1
-docs/DOC_REFACTOR_DRAFT.md	RISK_SYSTEM_ISSUE_LIST.md	1
-docs/DOC_REFACTOR_DRAFT.md	docs/README.md	1
-docs/DOC_REFACTOR_DRAFT.md	minimal-implementation-planning.skill.md	1
 docs/HANDOVER.md	AGENTS.md	16
 docs/HANDOVER.md	AI_TEST_MATRIX.md	3
 docs/HANDOVER.md	HANDOVER.md	2
 docs/HANDOVER.md	OPEN_ITEMS_LEDGER.md	1
-docs/HANDOVER.md	docs/AI_PROJECT_STATE.md	1
 docs/HANDOVER.md	docs/AI_TEST_MATRIX.md	2
 docs/HANDOVER.md	docs/README.md	1
 docs/HANDOVER.md	docs/TESTING_GUIDE.md	1
