@@ -29866,35 +29866,35 @@
 #### `docs/OPEN_ITEMS_LEDGER.md` › 38个从入口反向不可达的工具
 - **节**：附表K-O164
 - **类型**：判据
-- **摘要**：逐条登记存在理由与失效条件，判据为从tools/check-all.sh反向可达性，37条⏳待登记，2条已登记(ingest-extraction.py为W7′-8提取漏斗落地器，build-new-system-inventory.py为回执004产物)　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：判据：从tools/check-all.sh反向可达性。37条⏳待登记，2条已登记(ingest-extraction.py为W7′-8落地器，build-new-system-inventory.py为回执004产物)
 - **为什么留**：工具可达性审计，不可达≠该删，需逐条登记为什么存在，权威来源=tools/cleanup-classify.py的tool_reach()，本表是快照非第二份真相
 - **疑似裁定**：（无）
 
 #### `docs/OPEN_ITEMS_LEDGER.md` › 云端和开发环境工具
 - **节**：K-工具1-12
 - **类型**：判据
-- **摘要**：alice-cloud-remote.sh、alice-cloudctl.sh、cloud-restore-env.sh、cloud-rollback.sh、codespace-start-dsh.sh、codespace-zero.sh等12个云端相关工具，全部⏳待登记　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：alice-cloud-remote.sh、alice-cloudctl.sh、cloud-restore-env.sh等12个云端工具，全部⏳待登记
 - **为什么留**：云端部署和开发环境工具，存在理由待补充
 - **疑似裁定**：（无）
 
 #### `docs/OPEN_ITEMS_LEDGER.md` › 分析和检查工具
 - **节**：K-工具13-24
 - **类型**：判据
-- **摘要**：death-persistence-e2e.sh、dsh-context-usage.sh、analyze-lumber-scene.py、analyze-trace.py、authz-map、capture-scene.py、check-machine-map.sh等12个分析检查工具，全部⏳待登记　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：death-persistence-e2e.sh、analyze-lumber-scene.py、analyze-trace.py、authz-map等12个分析检查工具，全部⏳待登记
 - **为什么留**：分析工具和检查脚本，存在理由待补充
 - **疑似裁定**：（无）
 
 #### `docs/OPEN_ITEMS_LEDGER.md` › 构建和辅助工具
 - **节**：K-工具25-36
 - **类型**：判据
-- **摘要**：make-agent-preset.py、make-cloud-tunnel-bundle.sh、mirror-windows-workspace.sh、module-selftest.sh、jar-content-hash等12个构建辅助工具，全部⏳待登记　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：make-agent-preset.py、make-cloud-tunnel-bundle.sh、mirror-windows-workspace.sh等12个构建辅助工具，全部⏳待登记
 - **为什么留**：构建流程和辅助工具，存在理由待补充
 - **疑似裁定**：（无）
 
 #### `docs/OPEN_ITEMS_LEDGER.md` › 已登记的两个工具
 - **节**：K-工具37-38
 - **类型**：判据
-- **摘要**：ingest-extraction.py为W7′-8提取漏斗落地器(先量后写24臂自证，手动跑每批一次，提取漏斗跑完零残留后与提取册一同退役)；build-new-system-inventory.py为回执004后续工作#5产物(给第3遍和新文档体系重复冲突当比对基线，第3/4遍跑完或挂进check-all后可删)　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：ingest-extraction.py为W7′-8落地器(提取漏斗跑完零残留后与提取册一同退役)；build-new-system-inventory.py为回执004产物(第3/4遍跑完或挂进check-all后可删)
 - **为什么留**：仅有的2个已登记存在理由和失效条件的工具，作为其余36个的模板
 - **疑似裁定**：（无）
 
@@ -29922,7 +29922,7 @@
 #### `docs/OPEN_ITEMS_LEDGER.md` › ⑩域外不算靶子口径
 - **节**：L-口径裁定
 - **类型**：经验教训
-- **摘要**：用户2026-10-04裁定B1-01/07/08/09四件销案，⑩域外(archive/legacy不进体系)不算批1靶子，解掉W7′-3靶子表含⑧而§D′-9 9.3判据②排除⑧的不一致，以9.3为准⑧不进行动面　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：2026-10-04裁定：B1-01/07/08/09销案，⑩域外(archive/legacy)不算批1靶子，解掉W7′-3与§D′-9 9.3不一致，以9.3为准⑧不进行动面
 - **为什么留**：重要口径裁定，域外文档处置规则
 - **疑似裁定**：（无）
 
@@ -29936,7 +29936,7 @@
 #### `docs/OPEN_ITEMS_LEDGER.md` › 批1收口两笔待办
 - **节**：L-收口留下待办
 - **类型**：判据
-- **摘要**：B1-03与B1-04各需就地标记一行不改正文，B1-03已落地标记刀②未开工过期指针D-493/e8cfd797，B1-04已标记指出LLM决策框架现行载体DECISION_LAYER_DESIGN.md　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：B1-03/04各需就地标记一行。B1-03已标记刀②未开工指针D-493/e8cfd797，B1-04已标记LLM决策框架现行载体DECISION_LAYER_DESIGN.md
 - **为什么留**：收口遗留待办，2件文档需就地标记过期状态
 - **疑似裁定**：（无）
 
@@ -29957,7 +29957,7 @@
 #### `docs/OPEN_ITEMS_LEDGER.md` › 批1审批结果22件
 - **节**：L-批1结果
 - **类型**：判据
-- **摘要**：保留14件(B1-02/05/06/10/11/12/13/14/15/16/17/18/19/20)，销案6件(域外4件B1-01/07/08/09+假阳性2件B1-21/22)，已过期2件(B1-03/04已就地标记)　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：保留14件(B1-02/05/06/10~20)，销案6件(域外4件B1-01/07/08/09+假阳性B1-21/22)，过期2件(B1-03/04已标记)
 - **为什么留**：批1完整审批结果，14件保留文档清单
 - **疑似裁定**：（无）
 
@@ -29985,14 +29985,14 @@
 #### `docs/OPEN_ITEMS_LEDGER.md` › 审批台与内容提取分离
 - **节**：M-咨询003回执
 - **类型**：设计
-- **摘要**：2026-10-05咨询003回执已落地，审批台只管件往哪去，内容提没提取另立工序W7′-8，两个口径各走各的，提取落点EXTRACTED_KNOWLEDGE.md+AI_DECISIONS.md，靶子188件(docs/根56+reviews/75+survey/57全部)　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：咨询003回执：审批台管去向，内容提取另立工序W7′-8。提取落点EXTRACTED_KNOWLEDGE.md+AI_DECISIONS.md，靶子188件(docs/根56+reviews/75+survey/57)
 - **为什么留**：工序分离决策，审批与提取解耦
 - **疑似裁定**：（无）
 
 #### `docs/OPEN_ITEMS_LEDGER.md` › 批2靶子名单来源
 - **节**：M-靶子来源
 - **类型**：判据
-- **摘要**：docs/根.md实算56件(LIVE门禁会漂)，是W7′-4批2..N的第一段，分批口径用户2026-10-02选先按目录大小分批(理由审批完的会保留随时可换顺序)，类列由CLEANUP_CLASSIFY.md的home_of()现算单一信源　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：docs/根.md实算56件(LIVE门禁会漂)，是W7′-4批2..N首段。2026-10-02选按目录大小分批，类列由CLEANUP_CLASSIFY.md的home_of()现算
 - **为什么留**：靶子名单生成规则，实算不写死
 - **疑似裁定**：（无）
 
