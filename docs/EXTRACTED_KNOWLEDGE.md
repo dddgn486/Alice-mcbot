@@ -1614,28 +1614,28 @@
 #### `docs/ACCEPTANCE_GUIDE.md` › 文档改革 · 验收指引（开篇引言：这不是规则、不是裁定）
 - **节**：文档改革 · 验收指引（节标题）＋ 引言「⛔ 这不是规则、不是裁定。」
 - **类型**：设计
-- **摘要**：开篇声明本文不是规则也不是裁定，而是一页给执行者自查的纸：每条都配一条能自己跑的命令，报数对不上就是作者错。并给出「失效条件」：本文随「文档改革」而生，改革收口（草案 §P-8 三档走完、看数不再是验收手段）之后本文即失效，届时删或转历史由批 2 审批台决定。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：开篇声明非规则非裁定·是执行者自查纸：每条配可跑命令·报数对不上=作者错·失效条件：本文随文档改革而生·改革收口(草案§P-8三档走完·看数不再是验收手段)后失效·届时删或转历史由批2审批台决定
 - **为什么留**：它明确了这份文档的效力等级与退出机制（何时作废、谁来处置），是判断全篇是否还适用的总开关，以后谁想拿它当规范引用都必须先过这一条。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
 #### `docs/ACCEPTANCE_GUIDE.md` › 〇、先说最要紧的三句话
 - **节**：〇、先说最要紧的三句话（节标题）
 - **类型**：判据
-- **摘要**：三条元原则：不必读文档来判断作者做得对不对，每条验收都有命令可跑；删掉的东西都在 git 历史里（git log --diff-filter=D --name-only 可查），没有真删；准入判据只有一条「删掉它，agent 会不会做错？」，答不出就不该留。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：三元原则：不必读文档判断对错·每条验收有命令可跑·删掉的都在git历史(git log --diff-filter=D --name-only可查)·没真删·准入判据一条「删掉它agent会做错吗」·答不出不该留
 - **为什么留**：「删掉它 agent 会不会做错」是一条可复用的文档准入判据，配合「没有真删、可查历史」的安全网，以后任何增删文档的争议都能拿它来裁定。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
 #### `docs/ACCEPTANCE_GUIDE.md` › 一、验收的 8 个「看数」（⭐ 只花两分钟，先做这个）
 - **节**：一、验收的 8 个「看数」（节标题）
 - **类型**：判据
-- **摘要**：给出 8 组可直接粘贴运行的验收命令：门禁总体、常驻规范行数、入口声索、设计覆盖率、裁定状态词表、施工计划书门禁，以及 2026-10-02 新增的两批门禁（quote-lint／facts-tiers／glossary／skills-index／proposal-status／archive-index／new-home）。每条都注明它对着哪一个真实失败而建，并提醒 check-all 耗时长只能跑一次、输出存起来共用。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：8组可粘贴验收命令：门禁总体·常驻规范行数·入口声索·设计覆盖率·裁定状态词表·施工计划书门禁·2026-10-02新增两批(quote-lint/facts-tiers/glossary/skills-index/proposal-status/archive-index/new-home)·每条注明对应真实失败·check-all耗时长跑一次存输出共用
 - **为什么留**：这是全篇的执行主体：把每个门禁与它对应的真实事故一一挂钩，以后新增门禁或复现验收时可直接照抄这套「一条门禁对一个真实失败」的建法。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
 #### `docs/ACCEPTANCE_GUIDE.md` › 基准（施工前），供你对比
 - **节**：基准（施工前），供你对比（表格前的引言句）
 - **类型**：判据
-- **摘要**：以表格列出施工前与现在的对照读数：check-all 从 pass=39 warning=2 failed=1 到 pass=57 warning=2 failed=0；常驻规范行数 1476→1501；第一入口声索 3→1；状态取值种类 37→47；编译 BUILD SUCCESSFUL；AI_DECISIONS 真条目 565（并纠正 670 是把 #### 子标题也数了进去）。表格下方强调 warning 不等于通过，它意味着该条断言本轮没有执行。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：施工前后对照：check-all从pass39/warn2/fail1→pass57/warn2/fail0·常驻规范1476→1501行·入口声索3→1·状态种类37→47·编译BUILD SUCCESSFUL·AI_DECISIONS真条目565(纠正670含####子标题)·warning≠通过=该断言本轮未执行
 - **为什么留**：保留了施工前后的可对比基线数字与「warning≠通过」的口径，是以后判断门禁是变好还是变坏、以及复算旧读数时唯一的对照臂。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
@@ -1649,21 +1649,21 @@
 #### `docs/ACCEPTANCE_GUIDE.md` › 类 A｜环境件 —— 基线变绿
 - **节**：类 A｜环境件 —— 基线变绿（节标题）
 - **类型**：判据
-- **摘要**：四条环境件验收：参照树在持久位置且内容对（MovementHelper.java 行数 863）、AGENTS.md 不再钉旧机绝对路径（grep 'fb486' 命中 0）、红线门禁 problems=0。每条都给出命令与期望值。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：四条环境件验收：参照树在持久位置且内容对(MovementHelper.java行数863)·AGENTS.md不再钉旧机绝对路径(grep'fb486'命中0)·红线门禁problems=0·每条给命令与期望值
 - **为什么留**：把「环境是否可信」变成可当场复算的四个数字，以后换机器或参照树被移动时，这四条就是最小自检集。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
 #### `docs/ACCEPTANCE_GUIDE.md` › 类 B｜入口 —— 只剩一处
 - **节**：类 B｜入口 —— 只剩一处（节标题）
 - **类型**：判据
-- **摘要**：五条入口验收：接手口令进了常驻规范并带用户确认标记、旧入口 docs/START_HERE.md 已删、无断链（check-doc-links PASS）、START_HERE 引用只剩记录性提及、docs/README.md 不再自称第一入口。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：五条入口验收：接手口令进常驻规范带用户确认标记·旧入口docs/START_HERE.md已删·无断链(check-doc-links PASS)·START_HERE引用只剩记录性提及·docs/README.md不再自称第一入口
 - **为什么留**：「入口唯一」是这套文档体系的核心不变量，这五条把它拆成了可执行的检查，以后任何一次入口搬迁都能直接复用。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
 #### `docs/ACCEPTANCE_GUIDE.md` › 类 C｜裁定
 - **节**：类 C｜裁定（节标题）
 - **类型**：判据
-- **摘要**：四条裁定验收：空简述条目数为 0、编号无跳号（decisions-index --check PASS）、状态词表收敛到 4 种或更少、AI 结论没冒充裁定（「状态：生效」计数 ≤ 「用户确认」计数）。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：四条裁定验收：空简述条目数0·编号无跳号(decisions-index --check PASS)·状态词表收敛≤4种·AI结论未冒充裁定(「状态：生效」计数≤「用户确认」计数)
 - **为什么留**：C4 那条「生效数必须 ≤ 用户确认数」把「AI 不得自封裁定」变成了可量化的门禁式判据，是本项目作者≠审阅者纪律的硬表达。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
@@ -1684,7 +1684,7 @@
 #### `docs/ACCEPTANCE_GUIDE.md` › 三、⭐ 做完之后，这些文档上哪儿找（你要记住的只有 5 个位置）
 - **节**：三、⭐ 做完之后，这些文档上哪儿找（你要记住的只有 5 个位置）（节标题）
 - **类型**：设计
-- **摘要**：给出「想知道什么→去哪儿看→一句话」的定位表：规范只看 AGENTS.md、裁定走 DECISIONS_INDEX 按关键词与状态找 D-###、模块现状看该包 package-info、设计全貌看 DESIGN_INDEX、进度看 HANDOVER 与 OPEN_ITEMS_LEDGER（带保鲜期）、报告看 survey/README.md。并给出三类常见问题的查找路径。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：5个位置定位表：规范→AGENTS.md·裁定→DECISIONS_INDEX按关键词/状态找D-###·模块现状→包package-info·设计全貌→DESIGN_INDEX·进度→HANDOVER/OPEN_ITEMS_LEDGER(带保鲜期)·报告→survey/README.md·附三类常见问题查找路径
 - **为什么留**：这是整套文档体系的路由表：任何新会话上手时先看它就够，避免在近 2.8 万行的 AI_DECISIONS.md 里 grep 找答案。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
@@ -1698,7 +1698,7 @@
 #### `docs/ACCEPTANCE_GUIDE.md` › 四、⛔ 本次没做的（你不该期待它变了）
 - **节**：四、⛔ 本次没做的（你不该期待它变了）（节标题）
 - **类型**：设计
-- **摘要**：列出本次改革明确不做六件事：不改写 AI_DECISIONS 的 670 条全量、不重编已有编号（新规矩只对新条目生效）、不合并那 10 份设计件（实测互不重复）、不动排期表（归 OPEN_ITEMS_LEDGER 的 J. 工作排期表）、不做术语全仓普查、不删任何报告正文。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：本次明确不做六件：不改写AI_DECISIONS 670条全量·不重编已有编号(新规矩仅对新条目生效)·不合并10份设计件(实测互不重复)·不动排期表(归OPEN_ITEMS_LEDGER J.工作排期表)·不做术语全仓普查·不删任何报告正文
 - **为什么留**：把范围边界写死成「不该期待它变了」，以后有人拿这些未做项当缺陷来验收时，可直接引用这一节驳回，避免范围悄悄扩张。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
@@ -1712,14 +1712,14 @@
 #### `docs/ACCEPTANCE_GUIDE.md` › 六、⚠️ 两条"验收时你必须再问我一次"的项
 - **节**：六、⚠️ 两条"验收时你必须再问我一次"的项（节标题）
 - **类型**：经验教训
-- **摘要**：两条必须在验收时回头追问的项：一是存量分堆精确率——机械分堆给出 R 292／C 234／D 22／? 16，第二会话重建得 290/235/21/18，Δ=5 说明它是描述性规则而非可复现规则，精确率有 11/20=55% 与结构上界 82/290=71.7% 两个数，用它改历史文本前必须先由第二会话复核；二是 D-166 已结案没坏，原先「后面 17,437 行=全文 62% 全挂在它名下」的读数已撤销，因为 awk 只认 ## 而 D-167..D-498 用的是 ###，命令静默跳过 332 条，真值为 124 行正常闭合，替换为真的待验收项 D-203 在索引里不可见。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：验收必问两项：①存量分堆精确率——机械292/234/22/16vs重建290/235/21/18·Δ=5⇒描述性规则非可复现·精确率55%/上界71.7%·改历史前必须复核②D-166已结案·原读数17437行/62%已撤(awk只认##·D-167..D-498用###静默跳过332条)·真值124行正常闭合·真待验收项D-203在索引不可见
 - **为什么留**：这是全篇最有价值的一段踩坑记录：一个正则口径差异导致 332 条被静默跳过并产出错误读数，附带了撤销过程与替换后的真实待办，是「先怀疑测量工具再下结论」的活教材。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
 #### `docs/ACCEPTANCE_GUIDE.md` › 七、⭐ 一句话验收法（如果你只想花 30 秒）
 - **节**：七、⭐ 一句话验收法（如果你只想花 30 秒）（节标题）
 - **类型**：判据
-- **摘要**：给出一条 30 秒极简验收：跑 check-all 看 CHECK_ALL_RESULT、数入口声索人（目标 1）、比对 package-info 份数与顶层包数。结论是三个数 failed=0、1、份数接近 30 对上，其余可慢慢看。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：30秒极简验收：跑check-all看CHECK_ALL_RESULT·数入口声索人(目标1)·比对package-info份数与顶层包数·三数对上即可：failed=0/1/份数≈30·余可慢看
 - **为什么留**：提供了一个最小充分验收集，适合快速回归或每日巡检，避免每次都要跑完整套 8 个看数。
 - **疑似裁定**：⚠️ 尤其请盯这一条：**「凡是能靠'上调预算/放宽阈值'过关的验收，都是假验收」**。
 
@@ -3623,7 +3623,7 @@
 #### `docs/BARITONE_CONTRAST_TESTING.md` › ⚠️ Alice 侧在 FALL 场景有两条额外守卫（Baritone 没有，V-4 要求必须标注）
 - **节**：Alice 侧在 FALL 场景有两条额外守卫
 - **类型**：设计
-- **摘要**：no_deep_fall 与 fall_recover_guard 是 Alice 特有 ⇒ Baritone 直跳而 Alice 判定/绕行不算更慢而是策略不同，只有同走一条落线那段 tick 才可比。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：Alice特有两守卫no_deep_fall/fall_recover_guard·Baritone直跳vs Alice判定/绕行=策略不同非更慢·仅同走一落线段tick可比
 - **为什么留**：防把策略差异误读成性能差距的可比性红线。
 - **疑似裁定**：**定位**：对照测试是**观测手段**，不是验收门槛；Alice 自身的验收仍用 `alice_test:*` 一键场景。
 
@@ -11267,7 +11267,7 @@
 #### `docs/THERMAL_S1_FACTS.md` › 10. 第十五轮新发现：Thermal 机器配方的「读法」（已取证，未修）
 - **节**：10. 第十五轮新发现
 - **类型**：经验教训
-- **摘要**：Thermal 两条通道全空。根因：配方类都 extends ThermalRecipe，访问器是 getInputItems/getOutputItems/getOutputItemChances，Alice 只问 Mekanism 名。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：Thermal两通道全空·根因：配方类extends ThermalRecipe·访问器getInputItems/getOutputItems/getOutputItemChances·Alice只问Mekanism名
 - **为什么留**：实测现象 + javap 取证根因，推翻「读不出」的假设。
 - **疑似裁定**：口径："有设备" = 有方块 id（blockstates ∩ loot_tables/blocks 两处都在）且有 Menu 类，不看"类型名像不像机器"。
 
@@ -11288,7 +11288,7 @@
 #### `docs/THERMAL_S1_FACTS.md` › 10.1 修法（第十六轮，只读 + 如实标注，判据未动）
 - **节**：10.1 修法
 - **类型**：设计
-- **摘要**：MachineRecipeFacts 成唯一读取器，名族加 getInputItems/getOutputItems/getOutputItemChances 等；纯流体输入算配料，chance 只报不解释。　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：MachineRecipeFacts成唯一读取器·名族加getInputItems/getOutputItems/getOutputItemChances等·纯流体输入算配料·chance只报不解释
 - **为什么留**：唯一读取器 + 不猜语义 + 不动判据的修法契约。
 - **疑似裁定**：口径："有设备" = 有方块 id（blockstates ∩ loot_tables/blocks 两处都在）且有 Menu 类，不看"类型名像不像机器"。
 
@@ -28158,7 +28158,7 @@
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › write/是什么
 - **节**：§2
 - **类型**：设计
-- **摘要**：权限内核（6类2158行）：WriteGrant授权凭证·WriteReason理由词表·WritePolicyMatrix策略表·WriteBudget硬闸门·WriteAudit审计·TaskTargetProtection自伤保护　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：权限内核6类2158行：WriteGrant授权凭证·WriteReason理由词表·WritePolicyMatrix策略表·WriteBudget硬闸门·WriteAudit审计·TaskTargetProtection自伤保护
 - **为什么留**：把D-076「寻路默认纯通行，破坏/放置只能显式授权+受预算约束」做成代码的地方
 - **疑似裁定**：（无）
 
@@ -28186,7 +28186,7 @@
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › Baritone自己的分法
 - **节**：§6
 - **类型**：设计
-- **摘要**：pathing/calc/搜索8·pathing/movement/Movement基类+MovementHelper+8个具体15·pathing/path/PathExecutor等3⇒Baritone早就把零权限的搜索和要授权的Movement分开　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：Baritone自己三分：calc/搜索8·movement/Movement基类+MovementHelper+8具体15·path/PathExecutor等3⇒早就把零权限搜索和要授权Movement分开
 - **为什么留**：①的修法是回到Baritone的分法，不是另创一套·这也让D-036的锚点更好对
 - **疑似裁定**：（无）
 
@@ -28200,7 +28200,7 @@
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 顶层那6种面（view为什么不叫client）
 - **节**：§8
 - **类型**：设计
-- **摘要**：command/产品面唯一·gui/服务端权威容器·client/真客户端·network/协议·item/开发期入口80类·debug/产品调试面⇒只有client/是真客户端·item/按D-554是开发期入口⇒不该同层　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：顶层6面：command/产品面唯一·gui/服务端权威容器·client/真客户端·network/协议·item/开发期入口80类·debug/产品调试面⇒仅client/真客户端·item/按D-554开发期入口⇒不该同层
 - **为什么留**：我上一轮笼统叫view/错了：6种面里只有client/是真客户端·而item/80类按D-554是开发期入口
 - **疑似裁定**：（无）
 
@@ -28214,49 +28214,49 @@
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 用户2026-09-30意见（逐字要点+状态）
 - **节**：§10
 - **类型**：设计
-- **摘要**：17条意见：①新增名字通过审核解决风险②core不该含数据表/配置管理③ledger/compat归位待裁④transfer名字怪⑤move/不能进core（要动手）⑥step/没问题⑦unit/是什么⑧decide/是决策相关逻辑和数据读取调用口⑨runtime/名字没相干性⑩dev/没问题⑪view为啥不叫client⑫botdata偏窄　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：17条意见：①新增名字审核解决风险②core不该含数据表/配置管理③ledger/compat归位待裁④transfer名怪⑤move/不能进core(要动手)⑥step/✅⑦unit/是什么⑧decide/=决策逻辑和数据读取调用口⑨runtime/名字没相干性⑩dev/✅⑪view为啥不叫client⑫botdata偏窄
 - **为什么留**：用户=最终裁决·这些意见记录+我的回读+状态是后续裁定的输入
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 模拟：结构改动之后还剩多少层方向违规
 - **节**：§12
 - **类型**：判据
-- **摘要**：现状12环⇒无总序·改动后69处（其中48处=BotManager→开发期面new了40个fixture/+6个debug/）·扣掉它剩21处·分类：decide→runtime短接快照4·core→move对账件4·authz→view/act边界重画4·act→move/read→move唯一必须做设计决定2·另3+2+1　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：现状12环无总序·改动后69处(其中48处BotManager→开发期new 40fixture/+6debug/)·扣48剩21·分类：decide→runtime短接快照4·core→move对账4·authz→view/act边界重画4·act→move/read→move唯一必须设计决定2·另3+2+1
 - **为什么留**：勘误我自己的数（一度说残留15处）·实测69处·扣掉那48处为21处
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › presentation/定案+那个独立槽位的实测
 - **节**：§13-§15
 - **类型**：经验教训
-- **摘要**：用户裁presentation/采纳✅·ToolSupply/ManualTestLock都不是测试类但性质不同·三病灶归因：①②step缺陷（选用工具没实现）③架构缺口（缺一个step+缺一个job kind）·那个独立槽位：类型=Task·填入方式两种57个具名assignXxx+1个参数化assignJob·槽位定义不清晰的可测量证据=下游只有3处instanceof Job·槽位赋值时顺手重置5件全局状态·三个抑制器（suspend/Driver/ManualTestLock）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：presentation/采纳✅·ToolSupply/ManualTestLock非测试类性质不同·三病灶：①②step缺陷(工具没实现)③架构缺口(缺step+job kind)·独立槽位：类型Task·填入57具名assignXxx+1参数化assignJob·定义不清证据=下游仅3处instanceof Job·赋值顺手重置5全局状态·三抑制器suspend/Driver/ManualTestLock
 - **为什么留**：ToolSupply长在生产路径上但不是工具管理的设计是三个未实现step的补丁·ManualTestLock=为手动测试而建的闸门装在生产入口上且已被生产job反向调用·槽位不只是装一个东西是世界写入授权作用域的开关·LLM被通知今天不是没有答案而是答案有3～4份
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 序1（fixtureProvision挪出生产签名）撞到既有裁定+一道门禁
 - **节**：§16
 - **类型**：经验教训
-- **摘要**：撞到D-512「入口不分类fixtureProvision由调用方传」+门禁check-provision-containment.sh断言③反向断言⇒删掉那个布尔=同时推翻D-512的载体+让断言③红　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：撞D-512「入口不分类fixtureProvision由调用方传」+门禁check-provision-containment.sh断言③反向断言⇒删布尔=同时推翻D-512载体+让断言③红
 - **为什么留**：实测范围：fixtureProvision全部调用点=5处·生产侧只有一个调用者GoalDirector(2处)·分叉的其余3处全在开发期/手动测试面
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › D-512自己登记的同刀义务：四项全部仍开着
 - **节**：§17
 - **类型**：经验教训
-- **摘要**：ⓐ inline new Job收回JobLauncher.create（否则D-349对它们永远不生效）⇒仍开4处new·ⓑ assignRestore要单独处置⇒仍开·ⓒ ManualTestLock javadoc里{@link}是全仓0命中的不存在符号⇒仍开·④ JobLauncher.provision的@param口径同步⇒仍开　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：D-512同刀义务四项全仍开：ⓐ inline new Job收回JobLauncher.create(否则D-349永不生效)⇒仍开4处new·ⓑ assignRestore单独处置⇒仍开·ⓒ ManualTestLock javadoc {@link}全仓0命中不存在符号⇒仍开·④JobLauncher.provision @param口径同步⇒仍开
 - **为什么留**：这是一处活的门禁不生效·D-512 ⓐ只点2处而实有4处真构造点+门禁补抓1处
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 测试夹具的三种跑法
 - **节**：§21-§27
 - **类型**：经验教训
-- **摘要**：①单物品右键②整批电池（游戏内）③无头电池（无人）·编排器CheckHarness不在会话里由服务器tick驱动·一步=CheckStep九个字段·三相位时序：等空闲→前提自证→等终态·判决三态+SUMMARY+账活着的结构判据·22个模块·发料在夹具里其实有四个出口（CheckStep.provision·beginSelfCheckTask*·JobLauncher.provision·item/80个物品类）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：三种跑法：①单物品右键②整批电池(游戏内)③无头电池(无人)·CheckHarness由服务器tick驱动·CheckStep九字段·三相位：等空闲→前提自证→等终态·判决三态+SUMMARY+结构判据·22模块·发料四出口(CheckStep.provision/beginSelfCheckTask*/JobLauncher.provision/item/80物品类)
 - **为什么留**：两条顺序教训：先开作用域→再发料→再场景·ToolProvision不是新概念只是给允不允许凭空造物这一个问题一个名字而今天这个问题被回答了四次四次用不同机制
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 勘误：§27表格第②行是假的+行号是旧数+出口①不是主流
 - **节**：§28
 - **类型**：经验教训
-- **摘要**：①beginSelfCheckTask*一行发料都没有真出口=BotManager的7个legacy方法体内12处直接FixtureToolKit调用②原文行号是D-559落刀前数出来的树③CheckStep.provision的本质是前提自证不是发料口（22模块里只有3个在provision里发料）④bot/对fixture/的耦合远不止那12处（import 40行·new 38处·符号总命中100）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：勘误：①beginSelfCheckTask*无真出口=BotManager 7个legacy方法12处直接调FixtureToolKit②原文行号D-559落刀前旧数③CheckStep.provision本质前提自证非发料口(22模块仅3个在provision发料)④bot/对fixture/耦合远超12处(import40/new38/总命中100)
 - **为什么留**：check-provision-containment.sh的BOT_EXEMPT只看得见FixtureToolKit那40个import与38处构造在门禁视野之外·D-490逐字写的删掉12处创造⇒bot/零夹具引用在字面上就是错的
 - **疑似裁定**：（无）
 
@@ -28270,84 +28270,84 @@
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › item/的对外接口面+ScaffoldLifecycleTask是挂着生产外壳的夹具
 - **节**：§29.2-§29.3
 - **类型**：经验教训
-- **摘要**：item/=80类6885行·消费者：AliceMod注册位置·client/ClientInputHandler真产品（客户端判主手物品）·task/ScaffoldLifecycleTask（4处inline FQN无import）·开发期面42夹具+3模块⇒其余76个类没有任何跨包代码引用·ScaffoldLifecycleTask=自足夹具（重放场景+复位+发料+自断言+打SUMMARY）却①住task/②由生产派发面构造③被台账判生产④还反向把FixtureClaim拖进生产　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：item/=80类6885行·消费者：AliceMod注册·ClientInputHandler真产品(客户端判主手)·ScaffoldLifecycleTask(4处inline FQN)·开发期42夹具+3模块⇒余76类无跨包引用·ScaffoldLifecycleTask=自足夹具(重放+复位+发料+断言+SUMMARY)却①住task/②生产构造③台账判生产④反拖FixtureClaim进生产
 - **为什么留**：撞到一个活的反例·上一轮说item/只有2个消费者是按import数的而它用inline FQN无import⇒同一个FQN盲区（D-551五-②已栽过一次）在本轮又栽一次·门禁视野：task/不在内⇒ScaffoldLifecycleTask那4处FixtureToolKit调用零门禁
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 取回：层表本体
 - **节**：§30.1
 - **类型**：设计
-- **摘要**：12层：L0 core/零权限·L1 player/AI玩家实体句柄·L2 read/只读世界·L3 authz/许可不动手·L4 act/动手必须持许可·L5 move/Movement执行器·L6 step/原语·L7 unit/顶层单元·L8 job/作业·L9 decide/决策层契约·L10 runtime/调度枢纽·L11 view/表现·L12 dev/开发期面　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：12层：L0 core/零权限·L1 player/AI玩家实体句柄·L2 read/只读世界·L3 authz/许可不动手·L4 act/动手持许可·L5 move/Movement执行器·L6 step/原语·L7 unit/顶层单元·L8 job/作业·L9 decide/决策层契约·L10 runtime/调度枢纽·L11 view/表现·L12 dev/开发期面
 - **为什么留**：来源=会话日志--seq 16173压缩把它遮蔽了·⛔原文未改只落盘·含用户已裁的改动标记
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 用户本轮裁定+我据此测出的四条代价/更正
 - **节**：§30.2-§30.3
 - **类型**：设计
-- **摘要**：裁定：①item/改名搬迁presentation/需要item/②botdata/两包（只读数据+存储／本体另立）③pathing/movement/采纳④unit/先不动⑤act/=元操作·代价：(a)item/BotRemoteControl是玩家功能(b)注册表必须分家(c)pathing/movement/不会自动消掉action⇄pathing（MineBlockRunner按口径属step/）(d)层号规则要动一格　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：裁定：①item/→presentation/需要item/②botdata/两包(只读数据+存储/本体另立)③pathing/movement/采纳④unit/先不动⑤act/=元操作·四代价：(a)BotRemoteControl是玩家功能(b)注册表必须分家(c)movement/不消action⇄pathing(MineBlockRunner属step/)(d)层号规则动一格
 - **为什么留**：用户=最终裁决·presentation/采纳D-558✅·连带必须同刀的件：AliceItems里76个register引用了整包80个类那77件一搬走presentation/item/AliceItems就会反向依赖开发期面⇒注册表必须分家
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › act↔Movement的矛盾重开+写侧调用点报数
 - **节**：§31
 - **类型**：经验教训
-- **摘要**：我第一版读数是假数（把只读查询算进去差2.4倍）·真·写侧调用点：item 40·pathing 18·action 14·bot 13·生产面合计105·三个O106同族发现：pathing/FootCellRuleCheck唯一消费者=夹具·gui/BotInventoryFixture夹具住gui/·item/是最大的生产写侧户40/105·矛盾的本质：Movement既是路径的一步又是动作的执行者·机理：Movement的粒度是空间（跨格）act/的粒度是次数（一次操作）⇒两者不同维不可比⇒按粒度分包必然爆炸·矛盾的规模只有5处（BlockInteraction真·变更调用）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：第一版读数算只读查询差2.4倍·真写侧调用点：item40/pathing18/action14/bot13=生产105·item/最大写侧户40/105·矛盾本质：Movement粒度=空间(跨格)·act/粒度=次数(一次)⇒不同维不可比按粒度分包必爆炸·实际规模仅5处(BlockInteraction真变更调用)
 - **为什么留**：用户指出Movement本身有操作调用点是意料之外也就是路径搜索act要调用Movement而Movement又要调用act/确实有矛盾·正确的切分轴应当是它要过哪几道闸（授权/预算/账/失败语义/触发源）·BlockInteraction自己就该按查询/变更切成两半（749行里两族混装）
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 那5处调用点不是一次性调用是跨tick状态机的内联
 - **节**：§32.2-§32.4
 - **类型**：经验教训
-- **摘要**：实测形状：字段private BlockBreakSession session→beginBreak→每tick session.tick()→读Status→失败取failureCode()→abort()⇒甲的真实代价不是5处调用改成回调而是要把5个执行器里的破坏阶段状态机外提·能平摊的前提=逻辑的每次决策都能表达为数据而跨tick状态机做不到·关键：乙也满足core不加调用点（免费）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：5处非一次性调用是跨tick状态机内联：字段BlockBreakSession→beginBreak→每tick session.tick()→读Status→失败取failureCode()→abort()·甲真实代价=5执行器破坏阶段状态机外提非5处改回调·能平摊前提=逻辑决策可表达为数据·跨tick状态机做不到·乙也满足core不加调用点(免费)
 - **为什么留**：甲的短期代价被低估了它触到的是跨tick状态机而那是项目的红线区（物理/tick顺序/步数）·乙看着搬一大堆但只搬包不改tick·动作调用点要不要集中分两半答：触发点天然分散也不该集中·执行点必须集中（授权/预算/账需要唯一出入口）·今天的实测：105处生产写侧散在9个包⇒唯一出入口今天没有结构保证
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 乙落地侦察+模拟
 - **节**：§33
 - **类型**：判据
-- **摘要**：pathing/全体三分：A纯内核50·B带写侧调用点6·C依赖上层但无调用点15·Baritone逐名对照：calc/✅同构·movement/⚠️Alice多一族*ExecutionFactory（Baritone没有）·执行侧21件的外部消费者：PathRetryRunner 14个生产文件·SurfaceMovementProvider 1个·其余0⇒21件搬走生产侧只有2个符号要改import·模拟：乙落地后238处/182条边·其中64处⑨新暴露（最大一条=perception/ScopeBuffer⇒decision/DropPolicy 12处且是行内FQN无import）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：pathing/三分：A纯内核50·B带写侧调用6·C依赖上层无调用15·Baritone对照：calc/同构✅·movement/Alice多*ExecutionFactory族·执行侧21件外部消费者：PathRetryRunner14/SurfaceMovementProvider1/余0⇒搬走只改2处import·乙落地后238处/182边·新暴露64处⑨(最大ScopeBuffer⇒DropPolicy12处行内FQN)
 - **为什么留**：本轮我自己抓到的两个假数：969/255是假数（把只读查询算进调用点）⇒真数601/105差2.4倍·乙落地后0处违规是假绿：第一版模拟只扫import行⇒得0补行内FQN后翻成238处·更糟的是中途有一版解析器自己坏了却仍打印0处全零/全同的数就是静默失效的信号
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 乙落地：pathing/core/按Baritone三分
 - **节**：§34
 - **类型**：经验教训
-- **摘要**：落地结果COMPILES✅：pathing/calc/ 36·pathing/movement/ 27·pathing/path/ 4·搬迁前后对照验算：搬前239处/183边→预测220/168→实测225/173·用户那条判据已变成可执行门禁：pathing/calc/零写侧调用点·红臂26→29·本刀踩到的5个自纪（全是静默失效家族如实记）·本刀顺手关掉的一个真缺口：PathRetryRunner搬进扫描面后check-authz-registry当场抓到2个从未登记的拒绝码　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：乙落地COMPILES✅：calc/36·movement/27·path/4·搬前239处/183边→预测220/168→实测225/173·判据成门禁：calc/零写侧调用·红臂26→29·踩5自纪(静默失效家族如实记)·顺手关缺口：PathRetryRunner搬进扫描面后check-authz-registry抓2未登记拒绝码
 - **为什么留**：用户2026-09-30逐字core不加调用点是肯定的⇒拆包后它的可执行形式=pathing/calc/零写侧调用点·真树注入验证：往calc/CostModel.java塞一行BlockInteraction.placeAt()⇒当场FAIL并点名:16还原后逐字节干净·D-561那次只报24步与基线一致没量过噪声地板⇒读者无法判断差异算不算异常·本刀补上同代码对照组：A vs B=同代码两次运行318行←噪声地板·B vs C=基线vs本刀314行⇒本刀的差异≤同代码自身的run-to-run噪声
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › act/搬迁方案v1+一条已声明的层链被今天的代码违反
 - **节**：§35
 - **类型**：设计
-- **摘要**：目标形状：action/只装执行件与其调用器原语住根域执行件住子包·逐件迁移表：MineBlockRunner/GainStepRunner→action/mining/·ChainMining→action/mod/·FtbCommandRunner消费者只有compat自己应留compat/·MiningPlanner等零调用点只有查询规划侧·Ftb*三桥→capability/·step/package-info.java逐字声明的层链：pathing/reach/<write/<action/<step/<task/<job/·按这条链MineBlockRunner→PathRetryRunner是向下✅合法·但pathing/movement/*Execution→action/BlockInteraction(15处)是向上⇒违反这条链　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：act/形状=根装原语+域执行件进子包·迁移表：MineBlockRunner/GainStepRunner→act/mining/·ChainMining→act/mod/·Ftb*桥→capability/·层链pathing/reach/<write/<action/<step/<task/<job/·MineBlockRunner→PathRetryRunner合法✅·但movement/*Execution→BlockInteraction(15处)向上⇒违反层链
 - **为什么留**：两条出路：甲承认pathing/跨两层（calc低movement高）层链改为按子包声明⇒推荐（D-561§三已经这么做了）·乙把破坏/放置原语下移到pathing/movement之下⇒⛔内核就能改世界违背内核零权限·三条门禁（今天全绿但必须有）：①action/根零出边到域包②action/内部单向③低层包不得依赖action/{mining,mod}
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 裁定点复测更正+②③④建议
 - **节**：§36
 - **类型**：经验教训
-- **摘要**：口径更正一：BlockInteraction调用面变更侧生产19（action/外部15+内部4）·查询侧生产58·查询半的主消费者是pathing/movement/的*ExecutionFactory全是这个移动能不能做的可行性判定·口径更正二：task/mining/那三个类不是零调用点（MiningBudget 10·MiningProfile 11·BlockerClearPlanner 1·MiningPlanner 0）⇒不进act/是因为不是执行件⛔判据不是有没有人调它·口径更正三：compat/消费面剥注释后ChainMining生产11·FtbChunksBridge生产3·FtbTeamsBridge/FtbPartyBinder生产只在command/·FtbCommandRunner生产0·同一节再中一次DSH行内FQN盲区　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：口径更正：①BlockInteraction变更19/查询58·*ExecutionFactory是可行性判定②task/mining/三类非零调用(MiningBudget10/Profile11/BlockerClearPlanner1)⇒判据是执行件非调用数③compat/ChainMining11/FtbChunksBridge3/FtbCommandRunner0·再中DSH行内FQN盲区
 - **为什么留**：裁定点②BlockInteraction查询半落点建议不拆·理由：①按你的定义②其实不必裁（BlockInteraction就是执行件它的判定半是执行件自己的前置条件）②五分案与已有门禁直接冲突（check-layer-direction.py断言3逐字write/**✗→action/）③五分案减不了边（那38条边不减换5个家只是换个名字）·代价（若坚持五分）：58处调用点改写+5个新家+write/门禁必须先改+一次几乎必然的同包简单名跨包编译错波·替代（我推荐=丙案）：不搬判定半·只做一件今天就该做的事4个生产0调用的成员按D-425单独一刀处理·把②整条推后到act/的层链正式落进check-layer-direction.py之后再作为独立一刀评估
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 刀1落地：action/mining/
 - **节**：§37
 - **类型**：经验教训
-- **摘要**：action/从6个平铺的类变成根5个跨域共享原语+mining/2个域执行件并把原语住根域执行件住子包写成三条可执行断言（红臂29→34）·落地清单：git mv×2·引用面改写18个.java/25处·生成物同步·新增package-info.java×2·工具面6个文件的硬编码旧路径·三条新断言：①根✗→域子包②低层✗→action/<域>/③人口下限/反空转·真树注入实测2次还原后逐字节干净·行为零改动的证明补上D-561缺的同代码对照组：A vs B=同代码两次运行318行←噪声地板·B vs C=基线vs本刀314行　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：action/从6平铺→根5原语+mining/2执行件·三断言可执行(红臂29→34)·落地：git mv×2·18文件/25处改写·生成物同步·新package-info×2·工具6文件旧路径·三断言：①根✗→域子包②低层✗→act/<域>/③人口下限/反空转·真树2次注入逐字节干净·行为零改证明：A vs B同代码318行(噪声地板)·B vs C基线本刀314行
 - **为什么留**：判据实现：action_layer_edges()走strip_to_code()剥块注释/行注释/字符串字面量+去掉import行后再扫FQN外加扫import列表⇒两种写法都抓·剥字符串字面量是必须的：write/WritePolicyMatrix.java里那串是路径指针⛔不是依赖·顺带修的工具面6个文件全是硬编码旧路径·我上一轮方案里的一处错：GainStepRunner不随本刀搬·它拖着MiningProfile后者住task/mining/⇒搬它会让action/mining/→task/mining/当场违反check-layer-direction断言2·⚠️这个耦合只靠import扫描看不见（同包简单名⇒没有import行）又是O108⑤那一族·一处显式放宽：check-frozen-code.py的chain_executor项consumer_needle是裸子串扫描按Path.name记⇒javadoc里的提及也算命中⇒两份新package-info.java一写它就报新消费者
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 只读侦察：O94 A串+波4的已裁/仍开总表
 - **节**：§38
 - **类型**：设计
-- **摘要**：为什么有这一节：用户2026-10-01裁回主线后主线自查发现波4=36个生产类目的地未设计（台账O92逐字待用户裁定）⇒主线①今天动不了·O94 A串六项今天的真实状态：①view/✅已裁=presentation/②假人叶子⚠️半裁（两包botdata/+本体另立⛔本体包名与5件任务事实归属仍开）③move/✅已裁=pathing/movement/④unit/⏸已裁=先不动⑤spec/⚠️方向已明确未定案⑥ledger/compat/transfer/⚠️大半已裁·波4卡的不是36个类而是8格还没定的名字：spec/立不立·unit/包名·本体包名·开发期物品包名·compat/元操作的新名·action/vs act/·层号规则那一格·5件任务事实的归属　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：O94 A串状态：①view/→presentation/✅②假人半裁(botdata/两包+本体仍开)③move/→pathing/movement/✅④unit/先不动⑤spec/方向明确未定案⑥ledger/compat/transfer/大半已裁·波4卡8个未定名：spec/立否·unit/包名·本体/开发期物品包名·compat/元操作名·action/ vs act/·层号规则·5件任务归属
 - **为什么留**：⛔本节不提案不设计不改口只把已经散在十二轮里的结论收成一张表（每条带出处）好让剩下的几格一次裁完·⚠️⚠️勘误（2026-10-02主工作流补）：下面这8格当天（2026-10-01）就已全部裁定落章=D-568⇒本表的状态列已全部过期·⛔别再用本表当波4卡点依据·卡点现状=台账O139（已裁未落地清单）·同族已裁未落地还有两条：层表L3的两处过期（authz位置·write/+protection/）已被D-568§〇就地加指针处置但层表本身从未进AI_DECISIONS
 - **疑似裁定**：（无）
 
 #### `docs/reviews/2026-09-30-包结构与层序实测.md` › 顺手抓到的一处：两条结构线互相矛盾
 - **节**：§38.4
 - **类型**：经验教训
-- **摘要**：层表§30.1 L3逐字authz/=许可不动手（write/+protection/）⇒authz是顶层层·D-566(2026-10-01已落地)逐字region/+region/authz/两包采纳⇒authz是region的子包·两份都是已落盘的结论给出的是同一个名字的两种位置·层表L3那一行至少有两处过期（write/已被D-563判为旧设计·protection/也已拆散到region/）　⚠️ **摘要超 100 字**（`over_100: true` · ⛔ **未截断**，待开发者处理）
+- **摘要**：两线矛盾：层表§30.1 L3 authz/=许可不动手(write/+protection/)⇒顶层·D-566逐字region/+region/authz/采纳⇒authz是region子包·同名两种位置·层表L3至少两处过期(write/被D-563判旧设计·protection/已拆散到region/)
 - **为什么留**：⛔本节不裁它属于层表要不要成为决策这个更大的问题：§29.1已登记层表只在对话里不在盘上·§30.1只是把它取回到本报告⛔从未进AI_DECISIONS
 - **疑似裁定**：（无）
 
